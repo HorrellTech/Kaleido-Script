@@ -1,0 +1,256 @@
+/**
+ * Neon City Beats
+ * A cyberpunk cityscape that pulses and reacts to the music with neon lights,
+ * rain effects, and dynamic architectural elements.
+ */
+
+// Global variables for animation
+let buildings = [];
+let raindrops = [];
+let neonSigns = [];
+let bassHistory = [];
+
+function setup() {
+  // Load and play music
+  loadAudio("Music/Reaching the Subconscious.wav");
+  playAudio();
+  
+  // Generate city buildings
+  const buildingCount = 15;
+  for (let i = 0; i < buildingCount; i++) {
+    buildings.push({
+      x: (width / buildingCount) * i,
+      width: width / buildingCount,
+      height: 100 + Math.random() * 300,
+      windows: Math.floor(3 + Math.random() * 8),
+      neonColor: `hsl(${Math.random() * 60 + 180}, 100%, 50%)`,
+      windowsOn: []
+    });
+  }
+  
+  // Create rain
+  for (let i = 0; i < 200; i++) {
+    raindrops.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      length: 10 + Math.random() * 20,
+      speed: 5 + Math.random() * 10
+    });
+  }
+  
+  // Initialize bass history for smooth transitions
+  for (let i = 0; i < 10; i++) {
+    bassHistory.push(0);
+  }
+  
+  // Create neon signs
+  for (let i = 0; i < 5; i++) {
+    neonSigns.push({
+      x: 50 + Math.random() * (width - 100),
+      y: 50 + Math.random() * (height / 2),
+      size: 30 + Math.random() * 20,
+      color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+      frequency: 400 + Math.random() * 1000
+    });
+  }
+}
+
+function draw(time) {
+  // Set dark background
+  background(5, 10, 15);
+  
+  // Get audio frequency data
+  const bass = audiohz(60);
+  const mids = audiohz(500);
+  const highs = audiohz(3000);
+  
+  // Update bass history for smooth animation
+  bassHistory.shift();
+  bassHistory.push(bass);
+  const avgBass = bassHistory.reduce((sum, b) => sum + b, 0) / bassHistory.length;
+  
+  // Add circular audio reactive element in the "moon"
+  const moonSize = 80 + avgBass * 20;
+  const moonX = width * 0.8;
+  const moonY = height * 0.2;
+  
+  // Draw moon glow
+  fill(100, 150, 255, 0.2);
+  glowStart('rgba(100, 150, 255, 0.5)', 30);
+  circle(moonX, moonY, moonSize * 2);
+  glowEnd();
+  
+  // Draw moon
+  fill(180, 200, 255, 0.8);
+  glowStart('rgba(100, 150, 255, 0.8)', 15);
+  circle(moonX, moonY, moonSize);
+  glowEnd();
+  
+  // Add audio visualization inside moon
+  stroke(255, 255, 255, 0.6);
+  lineWidth(2);
+  glowStart('#ffffff', 10);
+  visualCircular(moonX, moonY, 20, moonSize * 0.7, 32, 1000, 5000, time * 0.0003, true);
+  glowEnd();
+  
+  // Add atmospheric fog
+  visualFog(0, 0, width, height, 5, 200, 400, 0.2, 50, 200, 0.4, 
+            `rgba(0, ${20 + mids * 50}, ${40 + mids * 80}, 0.3)`, false);
+  
+  // Draw city skyline
+  drawBuildings(time, avgBass, mids, highs);
+  
+  // Add rain effect using matrix
+  stroke(150, 220, 255, 0.5);
+  visualMatrix(0, 0, width, height, 60, 500, 2000, false);
+  
+  // Add neon signs
+  //drawNeonSigns(time, bass, mids);
+  
+  // Add street-level visualization
+  drawStreetLevel(time, bass, mids, highs);
+  
+  // Add puddle reflections with ripples
+  if (bass > 0.6) {
+    stroke(150, 200, 255, 0.4);
+    lineWidth(1 + bass);
+    glowStart('rgba(150, 200, 255, 0.3)', 5);
+    visualRipple(width * 0.3, height * 0.85, 100, 50, 3, 50, 300, true);
+    visualRipple(width * 0.7, height * 0.9, 150, 60, 2, 40, 200, true);
+    glowEnd();
+  }
+}
+
+// Helper function to draw buildings
+function drawBuildings(time, bass, mids, highs) {
+  buildings.forEach((building, index) => {
+    // Building height reacts to low-mid frequencies
+    const reactiveHeight = building.height * (1 + audiohz(100 + index * 20) * 0.3);
+    
+    // Building body
+    fill(20, 20, 30);
+    rect(building.x, height - reactiveHeight, building.width, reactiveHeight);
+    
+    // Building outline with neon effect when bass hits
+    if (bass > 0.5) {
+      stroke(building.neonColor);
+      lineWidth(2);
+      glowStart(building.neonColor, 10);
+      rect(building.x, height - reactiveHeight, building.width, reactiveHeight, true);
+      glowEnd();
+    }
+    
+    // Windows
+    const windowWidth = building.width / building.windows * 0.7;
+    for (let w = 0; w < building.windows; w++) {
+      for (let f = 0; f < Math.floor(reactiveHeight / 15); f++) {
+        // Determine if window should be lit
+        let windowOn = false;
+        
+        // Random static windows
+        if (Math.random() < 0.7) {
+          windowOn = true;
+        }
+        
+        // Music reactive windows - light up on beats
+        if (mids > 0.5 && Math.random() < mids * 0.5) {
+          windowOn = true;
+        }
+        
+        if (windowOn) {
+          const wx = building.x + (w + 0.5) * (building.width / building.windows) - windowWidth/2;
+          const wy = height - reactiveHeight + f * 15 + 5;
+          
+          // Window color varies slightly
+          const brightness = 180 + Math.sin(time * 0.001 + index + f + w) * 50;
+          fill(brightness, brightness, 100 + brightness * 0.5);
+          
+          if (Math.random() < 0.05 + highs * 0.1) {
+            glowStart('rgba(255, 255, 200, 0.5)', 10);
+          }
+          
+          rect(wx, wy, windowWidth, 8);
+          
+          if (Math.random() < 0.05 + highs * 0.1) {
+            glowEnd();
+          }
+        }
+      }
+    }
+  });
+}
+
+// Helper function to draw neon signs
+function drawNeonSigns(time, bass, mids) {
+  neonSigns.forEach(sign => {
+    const energy = audiohz(sign.frequency);
+    const signSize = sign.size * (1 + energy * 0.5);
+    
+    // Only show signs during mid-high energy
+    if (mids > 0.3) {
+      glowStart(sign.color, 15 + energy * 20);
+      stroke(sign.color);
+      lineWidth(3);
+      
+      // Draw random neon shapes
+      const shapeType = Math.floor(sign.x * sign.y) % 3;
+      
+      if (shapeType === 0) {
+        // Circle sign
+        circle(sign.x, sign.y, signSize, true);
+      } else if (shapeType === 1) {
+        // Triangle sign
+        context.beginPath();
+        context.moveTo(sign.x, sign.y - signSize);
+        context.lineTo(sign.x + signSize, sign.y + signSize);
+        context.lineTo(sign.x - signSize, sign.y + signSize);
+        context.closePath();
+        context.stroke();
+      } else {
+        // Rectangle sign
+        rect(sign.x - signSize/2, sign.y - signSize/2, signSize, signSize, true);
+      }
+      
+      glowEnd();
+    }
+  });
+}
+
+// Helper function to draw street-level visualization
+function drawStreetLevel(time, bass, mids, highs) {
+  // Street line
+  stroke(255, 255, 200, 0.4);
+  lineWidth(3);
+  line(0, height * 0.94, width, height * 0.94);
+  
+  // Street visualization using audio bars
+  fill(255, 240, 200, 0.8);
+  glowStart('rgba(255, 240, 200, 0.6)', 10);
+  visualBar(0, height * 0.94, width, 20, 40, 2, 1, 0, false, true);
+  glowEnd();
+  
+  // Add cars/light streaks when bass hits
+  if (bass > 0.4) {
+    const carCount = Math.floor(1 + bass * 5);
+    for (let i = 0; i < carCount; i++) {
+      const xPos = (time * (0.1 + i * 0.05)) % (width + 200) - 100;
+      const yPos = height * 0.92 - i * 2;
+      const carSize = 30 + bass * 20;
+      const direction = i % 2 === 0 ? 1 : -1;
+      
+      const carColor = i % 2 === 0 ? 
+        `rgba(255, 50, 50, ${0.7 + bass * 0.3})` : 
+        `rgba(255, 255, 200, ${0.7 + bass * 0.3})`;
+      
+      // Draw light streaks
+      glowStart(carColor, 10);
+      context.beginPath();
+      context.moveTo(xPos, yPos);
+      context.lineTo(xPos - carSize * direction, yPos);
+      context.strokeStyle = carColor;
+      context.lineWidth = 5;
+      context.stroke();
+      glowEnd();
+    }
+  }
+}

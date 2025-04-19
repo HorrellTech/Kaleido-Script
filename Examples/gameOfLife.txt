@@ -1,0 +1,218 @@
+const settings = {
+    cellSize: 32,              // Cell size
+    bassFreq: 60,              // Bass frequency for births
+    midFreq: 800,              // Mid frequency for rule changes
+    highFreq: 4000,            // High frequency for colors
+    maxCellAge: 60,            // Cells die after this many frames if static
+    birthThreshold: 0.4,       // Audio threshold for random births
+    glowStrength: 20            // Base glow amount
+}
+
+// Game arrays and dimensions
+let grid = [];                 // Current generation states
+let nextGrid = [];             // Next generation buffer
+let ages = [];                 // How long each cell has been alive
+let cols, rows;                // Grid dimensions
+
+function setup() {
+    loadAudio("Music/Be My Moon.wav");
+    playAudio();
+    
+    // Calculate grid dimensions
+    cols = Math.ceil(width / settings.cellSize);
+    rows = Math.ceil(height / settings.cellSize);
+    
+    // Initialize grids
+    for (let i = 0; i < rows; i++) {
+        grid[i] = [];
+        nextGrid[i] = [];
+        ages[i] = [];
+        for (let j = 0; j < cols; j++) {
+            grid[i][j] = 0;
+            nextGrid[i][j] = 0;
+            ages[i][j] = 0;
+        }
+    }
+    
+    // Initialize with random cells (15% filled)
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            grid[i][j] = Math.random() < 0.15 ? 1 : 0;
+            nextGrid[i][j] = grid[i][j];
+        }
+    }
+}
+
+function draw(time) {
+    //clear();
+    
+    // Get audio data
+    const bass = audiohz(settings.bassFreq) * 1.5; 
+    const mid = audiohz(settings.midFreq);
+    const high = audiohz(settings.highFreq);
+    
+    // Dark background
+    fill(5, 5, 10);
+    rect(0, 0, width, height);
+    
+    // Update and render cells
+    updateCells(bass, mid);
+    renderCells(time, bass, mid, high);
+    
+    // Add random births on strong bass
+    if (bass > settings.birthThreshold) {
+        const birthCount = Math.floor(cols * rows * 0.01 * bass);
+        for (let i = 0; i < birthCount; i++) {
+            const row = Math.floor(Math.random() * rows);
+            const col = Math.floor(Math.random() * cols);
+            grid[row][col] = 1;
+            ages[row][col] = 0; // Reset age for newly born cells
+        }
+    }
+    
+    // Swap grid states
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            grid[i][j] = nextGrid[i][j];
+        }
+    }
+  
+  brush(200, 220, 200);
+  visualCircular(width/2, height/2, 100, 200, 64, 20, 2000, time*0.001, true);
+  
+  visualBar(0, height, width, 40, 256, 2, 5, 0, true, true);
+}
+
+function updateCells(bass, mid) {
+    // Choose rules based on mid frequencies
+    const useAltRules = mid > 0.4;
+    const maxAge = settings.maxCellAge - Math.floor(bass * 10);
+    
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            // Count live neighbors
+            const neighbors = countNeighbors(i, j);
+            
+            // Check if cell's state will change
+            let willChange = false;
+            
+            if (useAltRules) {
+                // Alternative rules (more chaotic)
+                if (grid[i][j] === 1) {
+                    willChange = (neighbors < 1 || neighbors > 4);
+                    nextGrid[i][j] = willChange ? 0 : 1;
+                } else {
+                    willChange = (neighbors === 3 || neighbors === 2);
+                    nextGrid[i][j] = willChange ? 1 : 0;
+                }
+            } else {
+                // Standard Conway rules
+                if (grid[i][j] === 1) {
+                    willChange = (neighbors < 2 || neighbors > 3);
+                    nextGrid[i][j] = willChange ? 0 : 1;
+                } else {
+                    willChange = (neighbors === 3);
+                    nextGrid[i][j] = willChange ? 1 : 0;
+                }
+            }
+            
+            // Update cell age
+            if (grid[i][j] === 1) {
+                if (willChange) {
+                    ages[i][j] = 0; // Reset age if changing
+                } else {
+                    ages[i][j]++;   // Increment age for static cells
+                    
+                    // Kill cells that have been static too long
+                    if (ages[i][j] > maxAge) {
+                        nextGrid[i][j] = 0;
+                    }
+                }
+            } else {
+                ages[i][j] = 0;  // Reset age for dead cells
+            }
+        }
+    }
+}
+
+function renderCells(time, bass, mid, high) {
+    // Color based on time and high frequencies
+    const hue = (time * 30 + high * 120) % 360;
+    
+    // Simplified HSV to RGB conversion
+    let r, g, b;
+    const h = hue / 60;
+    const s = 0.8;
+    const v = 0.7 + high * 0.3;
+    
+    const c = v * s;
+    const x = c * (1 - Math.abs((h % 2) - 1));
+    const m = v - c;
+    
+    if (h < 1) { r = c; g = x; b = 0; }
+    else if (h < 2) { r = x; g = c; b = 0; }
+    else if (h < 3) { r = 0; g = c; b = x; }
+    else if (h < 4) { r = 0; g = x; b = c; }
+    else if (h < 5) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    
+    r = Math.floor((r + m) * 255);
+    g = Math.floor((g + m) * 255);
+    b = Math.floor((b + m) * 255);
+    
+    // Start glow effect
+    glowStart(`rgb(${r}, ${g}, ${b})`, settings.glowStrength * (0.5 + bass));
+    
+    // Draw all living cells
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            if (grid[i][j] === 1) {
+                // Cell position
+                const x = j * settings.cellSize;
+                const y = i * settings.cellSize;
+                
+                // Cell age affects opacity and size
+                const ageRatio = Math.min(1, ages[i][j] / settings.maxCellAge);
+                const cellOpacity = 0.9 - ageRatio * 0.6;  // Fade out with age
+                const cellSize = settings.cellSize - ageRatio * 3; // Shrink with age
+                
+                // Color with age and audio adjustments
+                fill(r, g, b, cellOpacity);
+                
+                // Draw cell with slight padding for grid effect
+                rect(x + (settings.cellSize - cellSize) / 2, 
+                     y + (settings.cellSize - cellSize) / 2, 
+                     cellSize, cellSize);
+                
+                // Add center pulse on bass hits
+                if (bass > 0.6 && ages[i][j] < 5) {
+                    const pulseSize = settings.cellSize * 0.4 * bass;
+                    fill(255, 255, 255, bass * 0.5);
+                    circle(x + settings.cellSize / 2, y + settings.cellSize / 2, pulseSize);
+                }
+            }
+        }
+    }
+    
+    glowEnd();
+}
+
+function countNeighbors(row, col) {
+    let count = 0;
+    
+    // Check all 8 surrounding cells
+    for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+            if (i === 0 && j === 0) continue; // Skip the cell itself
+            
+            // Handle edge wrapping
+            const r = (row + i + rows) % rows;
+            const c = (col + j + cols) % cols;
+            
+            // Count living neighbors
+            count += grid[r][c];
+        }
+    }
+    
+    return count;
+}

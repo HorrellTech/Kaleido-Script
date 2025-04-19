@@ -1,0 +1,238 @@
+const settings = {
+    particleSize: 4,
+    maxParticles: 10000,
+    spawnRate: 5,
+    clearHeight: 0.5,
+    collisionRadius: 5,
+    materials: {
+        sand: {
+            color: [194, 178, 128],
+            gravity: 0.5,
+            spread: 0.1,
+            bounce: 0.3,
+            friction: 0.8
+        },
+        water: {
+            color: [0, 119, 190],
+            gravity: 0.3,
+            spread: 0.4,
+            bounce: 0.6,
+            friction: 0.95
+        },
+        gravel: {
+            color: [120, 120, 120],
+            gravity: 0.7,
+            spread: 0.05,
+            bounce: 0.2,
+            friction: 0.6
+        },
+        oil: {
+            color: [53, 53, 53],
+            gravity: 0.2,
+            spread: 0.2,
+            bounce: 0.4,
+            friction: 0.98
+        }
+    }
+}
+
+// Particle class handles individual particle behavior
+class Particle {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.vx = 0;
+        this.vy = 0;
+        this.lastX = x;
+        this.lastY = y;
+    }
+
+    update() {
+        const material = settings.materials[this.type.type];
+        
+        this.lastX = this.x;
+        this.lastY = this.y;
+
+        this.vy += material.gravity;
+        this.vx += (Math.random() - 0.5) * material.spread;
+        
+        this.vx *= material.friction;
+        this.vy *= material.friction;
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < 0) {
+            this.x = 0;
+            this.vx *= -material.bounce;
+        }
+        if (this.x > width) {
+            this.x = width;
+            this.vx *= -material.bounce;
+        }
+        if (this.y > height) {
+            this.y = height;
+            this.vy *= -material.bounce;
+        }
+    }
+
+    resolveCollision(other) {
+        const dx = other.x - this.x;
+        const dy = other.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < settings.collisionRadius) {
+            const angle = Math.atan2(dy, dx);
+            const targetX = this.x + Math.cos(angle) * settings.collisionRadius;
+            const targetY = this.y + Math.sin(angle) * settings.collisionRadius;
+
+            const moveX = (targetX - other.x) * 0.5;
+            const moveY = (targetY - other.y) * 0.5;
+
+            this.x -= moveX;
+            this.y -= moveY;
+            other.x += moveX;
+            other.y += moveY;
+
+            const thisMatProp = settings.materials[this.type.type];
+            const otherMatProp = settings.materials[other.type.type];
+            const avgBounce = (thisMatProp.bounce + otherMatProp.bounce) * 0.5;
+
+            const tmpVX = this.vx;
+            const tmpVY = this.vy;
+            this.vx = other.vx * avgBounce;
+            this.vy = other.vy * avgBounce;
+            other.vx = tmpVX * avgBounce;
+            other.vy = tmpVY * avgBounce;
+        }
+    }
+}
+
+// Grid class for spatial partitioning
+class Grid {
+    constructor(cellSize) {
+        this.cellSize = cellSize;
+        this.cells = new Map();
+    }
+
+    clear() {
+        this.cells.clear();
+    }
+
+    getCellKey(x, y) {
+        const cellX = Math.floor(x / this.cellSize);
+        const cellY = Math.floor(y / this.cellSize);
+        return `${cellX},${cellY}`;
+    }
+
+    insert(particle) {
+        const key = this.getCellKey(particle.x, particle.y);
+        if (!this.cells.has(key)) {
+            this.cells.set(key, []);
+        }
+        this.cells.get(key).push(particle);
+    }
+
+    getNearbyParticles(particle) {
+        const nearby = [];
+        const offsets = [-1, 0, 1];
+
+        for (let i of offsets) {
+            for (let j of offsets) {
+                const cellX = Math.floor(particle.x / this.cellSize) + i;
+                const cellY = Math.floor(particle.y / this.cellSize) + j;
+                const key = `${cellX},${cellY}`;
+                if (this.cells.has(key)) {
+                    nearby.push(...this.cells.get(key));
+                }
+            }
+        }
+        return nearby;
+    }
+}
+
+// Initialize global variables
+let particles = [];
+const grid = new Grid(settings.collisionRadius * 2);
+
+// Helper functions
+function getParticleType(bass, lowMid, highMid, high) {
+    const thresholds = [
+        { amp: bass, type: 'sand', color: settings.materials.sand.color },
+        { amp: lowMid, type: 'water', color: settings.materials.water.color },
+        { amp: highMid, type: 'gravel', color: settings.materials.gravel.color },
+        { amp: high, type: 'oil', color: settings.materials.oil.color }
+    ].sort((a, b) => b.amp - a.amp);
+    
+    return thresholds[0].amp > 0.1 ? thresholds[0] : null;
+}
+
+function spawnParticles(bass, lowMid, highMid, high) {
+    for (let i = 0; i < settings.spawnRate; i++) {
+        let type = getParticleType(bass, lowMid, highMid, high);
+        if (type) {
+            particles.push(new Particle(
+                Math.random() * width,
+                0,
+                type
+            ));
+        }
+    }
+}
+
+function updateParticles() {
+    grid.clear();
+
+    // Update positions
+    for (let particle of particles) {
+        particle.update();
+        grid.insert(particle);
+    }
+
+    // Check collisions
+    for (let particle of particles) {
+        const nearby = grid.getNearbyParticles(particle);
+        for (let other of nearby) {
+            if (particle !== other) {
+                particle.resolveCollision(other);
+            }
+        }
+    }
+
+    // Draw particles
+    for (let particle of particles) {
+        fill(...particle.type.color, 0.8);
+        circle(particle.x, particle.y, settings.particleSize);
+    }
+}
+
+function getParticleHeight() {
+    if (particles.length === 0) return 0;
+    return Math.min(...particles.map(p => p.y));
+}
+
+// Main functions
+function setup() {
+    loadAudio("Music/Code That Flows Like Music_.mp3");
+    playAudio();
+}
+
+function draw(time) {
+    clear();
+    
+    const bassAmp = audiohz(60);     // Sand
+    const lowMidAmp = audiohz(250);  // Water
+    const highMidAmp = audiohz(1000); // Gravel
+    const highAmp = audiohz(2000);   // Oil
+    
+    if (particles.length < settings.maxParticles) {
+        spawnParticles(bassAmp, lowMidAmp, highMidAmp, highAmp);
+    }
+    
+    updateParticles();
+    
+    if (getParticleHeight() > height * settings.clearHeight) {
+        particles = particles.filter(p => p.y < height * 0.8);
+    }
+}

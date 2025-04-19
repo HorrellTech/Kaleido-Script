@@ -1,0 +1,161 @@
+// Lightning Skull Audio Visualizer
+let bassValue = 0;
+let midValue = 0;
+let trebleValue = 0;
+let lastLightning = 0;
+let lightningFlash = 0;
+let lightningPath = [];
+let jawOffset = 0;
+
+// Setup function
+function setup() {
+  background(10, 10, 20);
+  loadAudio("audio.mp3"); // Replace with your audio file
+  playAudio();
+}
+
+// Main draw function
+function draw(time) {
+  // Update audio values with smooth transition
+  bassValue = bassValue * 0.7 + audiohz(100) * 0.3;
+  midValue = midValue * 0.7 + audiohz(1000) * 0.3;
+  trebleValue = trebleValue * 0.7 + audiohz(5000) * 0.3;
+  
+  // Background with slight fade
+  background(10, 10, 20);
+  
+  // Update lightning flash
+  if (lightningFlash > 0) {
+    lightningFlash -= 0.1;
+    fill(50, 100, 255, lightningFlash * 0.3);
+    rect(0, 0, width, height);
+  }
+  
+  // Check for new lightning
+  if ((bassValue > 0.7 || (bassValue + midValue + trebleValue)/3 > 0.6) && 
+      time > lastLightning + 0.8) {
+    lastLightning = time;
+    lightningFlash = 1.0;
+    createLightning();
+  }
+  
+  // Draw lightning if active
+  if (lightningFlash > 0 && lightningPath.length > 0) {
+    drawLightning();
+  }
+  
+  // Draw skull
+  drawSkull();
+  
+  // Draw audio visualizer behind skull
+  stroke(120, 190, 255, 0.3);
+  fill(120, 190, 255, 0.1);
+  visualCircular(width/2, height/2, height*0.25, height*0.4, 64, 20, 2000, time * 5);
+}
+
+// Create a lightning bolt
+function createLightning() {
+  lightningPath = [];
+  const startX = Math.random() * width * 0.8 + width * 0.1;
+  const startY = 0;
+  const endY = height / 2 - height * 0.15;
+  
+  // Add main bolt points
+  let points = 10 + Math.floor(bassValue * 10);
+  let lastX = startX;
+  let lastY = startY;
+  
+  lightningPath.push({x: lastX, y: lastY});
+  
+  for (let i = 1; i < points; i++) {
+    const progress = i / points;
+    const xOffset = (Math.random() - 0.5) * 100 * (1 - progress);
+    const newX = lastX + xOffset;
+    const newY = startY + (endY - startY) * progress;
+    
+    lightningPath.push({x: newX, y: newY});
+    lastX = newX;
+    lastY = newY;
+    
+    // Add branches
+    if (Math.random() < 0.3 && i > 2) {
+      const branchX = newX;
+      const branchY = newY;
+      const angle = Math.random() * Math.PI - Math.PI/2;
+      const length = Math.random() * 60 + 20;
+      const branchEndX = branchX + Math.cos(angle) * length;
+      const branchEndY = branchY + Math.sin(angle) * length;
+      
+      lightningPath.push({x: branchX, y: branchY});
+      lightningPath.push({x: branchEndX, y: branchEndY});
+      lightningPath.push({x: branchX, y: branchY});
+    }
+  }
+}
+
+// Draw the lightning bolt
+function drawLightning() {
+  glowStart("rgba(120, 190, 255, " + lightningFlash + ")", 10);
+  stroke(120, 190, 255, lightningFlash);
+  lineWidth(3 * lightningFlash);
+  
+  for (let i = 0; i < lightningPath.length - 1; i++) {
+    const p1 = lightningPath[i];
+    const p2 = lightningPath[i + 1];
+    line(p1.x, p1.y, p2.x, p2.y);
+  }
+  
+  glowEnd();
+}
+
+// Draw the skull
+function drawSkull() {
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const skullSize = height * 0.35;
+  
+  // Calculate jaw movement based on bass
+  jawOffset = jawOffset * 0.7 + (bassValue * 0.25) * 0.3;
+  
+  // Add glow effect
+  glowStart("rgba(50, 100, 255, " + (0.5 + bassValue * 0.5) + ")", 10);
+  
+  // Draw skull (cranium)
+  fill(255, 255, 255, 0.7 + bassValue * 0.3);
+  circle(centerX, centerY - skullSize * 0.2, skullSize);
+  
+  // Draw jaw
+  fill(255, 255, 255, 0.7);
+  const jawY = centerY + skullSize * 0.3 + jawOffset * skullSize;
+  
+  // Jaw shape
+  circle(centerX - skullSize * 0.4, jawY, skullSize * 0.2);
+  circle(centerX + skullSize * 0.4, jawY, skullSize * 0.2);
+  rect(centerX - skullSize * 0.4, jawY - skullSize * 0.1, skullSize * 0.8, skullSize * 0.2);
+  
+  // Eye sockets
+  fill(0, 0, 0, 0.8);
+  const eyeSize = skullSize * 0.15;
+  circle(centerX - skullSize * 0.3, centerY - skullSize * 0.1, eyeSize * (1 + midValue * 0.5));
+  circle(centerX + skullSize * 0.3, centerY - skullSize * 0.1, eyeSize * (1 + midValue * 0.5));
+  
+  // Nose
+  fill(0, 0, 0, 0.7);
+  circle(centerX, centerY + skullSize * 0.1, eyeSize * 0.6);
+  
+  // Teeth
+  fill(255, 255, 255, 0.9);
+  const teethCount = 8;
+  const teethWidth = (skullSize * 0.6) / teethCount;
+  
+  for (let i = 0; i < teethCount; i++) {
+    rect(
+      centerX - skullSize * 0.3 + i * teethWidth, 
+      jawY - skullSize * 0.15 + Math.sin(i * 0.8) * 3 * bassValue, 
+      teethWidth * 0.8, 
+      skullSize * 0.2
+    );
+  }
+  
+  glowEnd();
+}

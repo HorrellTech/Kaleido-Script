@@ -1,0 +1,399 @@
+// 3D Maze Runner Visualizer
+// A first-person experience through a randomly generated maze
+
+// Maze settings
+const mazeSize = 15;        // Size of the maze (NxN)
+const wallHeight = 150;     // Height of maze walls
+const wallWidth = 200;      // Width of corridors
+const moveSpeed = 5;        // Movement speed
+const turnSpeed = 2;        // Turning speed in degrees
+const minFreqForPulse = 60; // Bass frequency that makes walls pulse
+const audioReactiveWalls = true;
+
+let time = 0;
+
+// Player state
+let playerX = wallWidth * 1.5;
+let playerY = wallWidth * 1.5;
+let playerAngle = 0;
+let autoMove = true;
+
+// Maze generation
+let maze = [];
+let visited = [];
+
+function setup() {
+    // Initialize audio
+    loadAudio("sounds/maze-ambient.mp3");
+    playAudio();
+    
+    // Initialize maze
+    generateMaze();
+    
+    // Set initial camera position
+    updateCamera();
+    
+    // Add keyboard controls
+    document.addEventListener('keydown', handleKeyDown);
+}
+
+function draw(t) {
+  	time = t;
+  
+    // Clear the scene
+    background(20, 20, 30);
+    clear3D();
+    
+    // Update player position if auto-moving
+    if (autoMove) {
+        updatePlayerPosition(t);
+    }
+    
+    // Update camera based on player position
+    updateCamera();
+    
+    // Draw the maze
+    drawMaze();
+    
+    // Draw the 3D environment elements
+    draw3D();
+    
+    // Draw HUD elements
+    drawHUD();
+}
+
+function generateMaze() {
+    // Initialize the maze with walls
+    maze = new Array(mazeSize);
+    visited = new Array(mazeSize);
+    
+    for (let i = 0; i < mazeSize; i++) {
+        maze[i] = new Array(mazeSize).fill(1); // 1 = wall
+        visited[i] = new Array(mazeSize).fill(false);
+    }
+    
+    // Generate maze using DFS algorithm
+    function carvePassages(x, y) {
+        visited[x][y] = true;
+        maze[x][y] = 0; // 0 = path
+        
+        // Define possible directions (N, E, S, W)
+        const directions = [
+            {dx: 0, dy: -2}, // North
+            {dx: 2, dy: 0},  // East
+            {dx: 0, dy: 2},  // South
+            {dx: -2, dy: 0}  // West
+        ];
+        
+        // Randomize directions
+        directions.sort(() => Math.random() - 0.5);
+        
+        // Explore each direction
+        for (const dir of directions) {
+            const nx = x + dir.dx;
+            const ny = y + dir.dy;
+            
+            // Check if the new position is inside the maze
+            if (nx >= 0 && nx < mazeSize && ny >= 0 && ny < mazeSize && !visited[nx][ny]) {
+                // Carve a passage by making the wall in-between a path
+                maze[x + dir.dx/2][y + dir.dy/2] = 0;
+                carvePassages(nx, ny);
+            }
+        }
+    }
+    
+    // Start carving from the center
+    const startX = 1;
+    const startY = 1;
+    carvePassages(startX, startY);
+    
+    // Add some random openings to make it more interesting
+    for (let i = 0; i < mazeSize/3; i++) {
+        const x = Math.floor(Math.random() * (mazeSize-2)) + 1;
+        const y = Math.floor(Math.random() * (mazeSize-2)) + 1;
+        maze[x][y] = 0;
+    }
+    
+    // Ensure start position is a path
+    maze[1][1] = 0;
+}
+
+function updatePlayerPosition(time) {
+    // Check nearby walls to avoid collisions
+    const ahead = getPointAhead(playerX, playerY, playerAngle, moveSpeed * 2);
+    const right = getPointAhead(playerX, playerY, playerAngle + 90, moveSpeed * 0.8);
+    const left = getPointAhead(playerX, playerY, playerAngle - 90, moveSpeed * 0.8);
+    
+    // Get maze coordinates
+    const mazeX = Math.floor(ahead.x / wallWidth);
+    const mazeY = Math.floor(ahead.y / wallWidth);
+    const rightX = Math.floor(right.x / wallWidth);
+    const rightY = Math.floor(right.y / wallWidth);
+    const leftX = Math.floor(left.x / wallWidth);
+    const leftY = Math.floor(left.y / wallWidth);
+    
+    // Wall avoidance logic
+    if (isWall(mazeX, mazeY)) {
+        // If wall ahead, turn
+        playerAngle += turnSpeed * 2;
+    } else if (isWall(rightX, rightY) && isWall(leftX, leftY)) {
+        // Corridor - move forward
+        moveForward();
+    } else if (isWall(rightX, rightY)) {
+        // Wall on right, turn slightly left
+        playerAngle -= turnSpeed * 0.5;
+        moveForward();
+    } else if (isWall(leftX, leftY)) {
+        // Wall on left, turn slightly right
+        playerAngle += turnSpeed * 0.5;
+        moveForward();
+    } else {
+        // Random wandering
+        if (Math.random() > 0.95) {
+            playerAngle += (Math.random() - 0.5) * turnSpeed * 10;
+        }
+        moveForward();
+    }
+    
+    // Add some reactive movement based on audio
+    const bassLevel = audiohz(minFreqForPulse);
+    if (bassLevel > 0.5) {
+        // Turn more dramatically on bass hits
+        playerAngle += (Math.random() - 0.5) * bassLevel * 20;
+    }
+}
+
+function moveForward() {
+    const moveX = Math.sin(playerAngle * Math.PI / 180) * moveSpeed;
+    const moveY = Math.cos(playerAngle * Math.PI / 180) * moveSpeed;
+    playerX += moveX;
+    playerY += moveY;
+}
+
+function getPointAhead(x, y, angle, distance) {
+    const radians = angle * Math.PI / 180;
+    return {
+        x: x + Math.sin(radians) * distance,
+        y: y + Math.cos(radians) * distance
+    };
+}
+
+function isWall(x, y) {
+    // Check if the coordinates are outside the maze
+    if (x < 0 || x >= mazeSize || y < 0 || y >= mazeSize) {
+        return true;
+    }
+    
+    // Check if the cell is a wall
+    return maze[x][y] === 1;
+}
+
+function updateCamera() {
+    // Calculate look-at point (always ahead of the player)
+    const lookAngle = playerAngle * Math.PI / 180;
+    const lookAtDistance = 50;
+    const lookAtX = playerX + Math.sin(lookAngle) * lookAtDistance;
+    const lookAtY = playerY + Math.cos(lookAngle) * lookAtDistance;
+    
+    // Set camera position and target
+    // Z is up in our coordinate system
+    const eyeHeight = 50;
+    cameraPosition(playerX, playerY, eyeHeight);
+    cameraLookAt(lookAtX, lookAtY, eyeHeight);
+}
+
+function drawMaze() {
+    // Draw floor
+    drawFloor();
+    
+    // Draw ceiling
+    drawCeiling();
+    
+    // Draw maze walls
+    for (let x = 0; x < mazeSize; x++) {
+        for (let y = 0; y < mazeSize; y++) {
+            if (maze[x][y] === 1) {
+                drawWall(x, y);
+            }
+        }
+    }
+    
+    // Draw distance markers to help with orientation
+    drawDistanceMarkers();
+}
+
+function drawFloor() {
+    // Create a grid on the ground
+    const gridSize = mazeSize * wallWidth * 1.5;
+    grid3D(gridSize, mazeSize * 2, '#444444', '#222222');
+}
+
+function drawCeiling() {
+    // Draw a ceiling grid at the top of the walls
+    const gridSize = mazeSize * wallWidth * 1.5;
+    
+    // Push transformed grid lines for ceiling
+    for (let i = -gridSize/2; i <= gridSize/2; i += wallWidth/2) {
+        // X-lines
+        line3D(
+            {x: -gridSize/2, y: i, z: wallHeight}, 
+            {x: gridSize/2, y: i, z: wallHeight}, 
+            '#151525', 0.5
+        );
+        
+        // Y-lines
+        line3D(
+            {x: i, y: -gridSize/2, z: wallHeight}, 
+            {x: i, y: gridSize/2, z: wallHeight}, 
+            '#151525', 0.5
+        );
+    }
+}
+
+function drawWall(x, y) {
+    // Calculate wall position
+    const wx = x * wallWidth;
+    const wy = y * wallWidth;
+    
+    // Get audio reactive height
+    let height = wallHeight;
+    if (audioReactiveWalls) {
+        // Make some walls pulse with the music
+        const freq = 60 + (x + y) % 400;
+        const pulseFactor = 1 + audiohz(freq) * 0.5;
+        height *= pulseFactor;
+    }
+    
+    // Calculate color based on distance from player
+    const distance = Math.sqrt(
+        Math.pow(wx - playerX, 2) + 
+        Math.pow(wy - playerY, 2)
+    );
+    
+    // Fade walls with distance for fog effect
+    const maxDist = wallWidth * mazeSize * 0.8;
+    const brightness = Math.max(0.2, 1 - (distance / maxDist));
+    
+    // Create different colored walls based on position
+    const hue = (x * 5 + y * 7) % 360;
+    const colorValue = Math.floor(brightness * 150);
+    let wallColor;
+    
+    // Different colored walls in different regions
+    if ((x + y) % 4 === 0) {
+        wallColor = `rgb(${colorValue}, 20, ${colorValue/2})`;  // Purple
+    } else if ((x + y) % 4 === 1) {
+        wallColor = `rgb(20, ${colorValue/2}, ${colorValue})`;  // Blue
+    } else if ((x + y) % 4 === 2) {
+        wallColor = `rgb(${colorValue/2}, ${colorValue}, 20)`;  // Green
+    } else {
+        wallColor = `rgb(${colorValue}, ${colorValue/2}, 20)`;  // Orange
+    }
+    
+    // Only draw walls that are potentially visible
+    // This improves performance by not rendering distant walls
+    if (distance < maxDist) {
+        // Draw a cube for each wall
+        cube3D(wx, wy, height/2, wallWidth, wallColor, true);
+    }
+}
+
+function drawDistanceMarkers() {
+    // Draw some colored markers at fixed positions to help with orientation
+    const positions = [
+        {x: wallWidth * 2, y: wallWidth * 2, color: '#FF5500'},
+        {x: wallWidth * (mazeSize-2), y: wallWidth * 2, color: '#00FF55'},
+        {x: wallWidth * 2, y: wallWidth * (mazeSize-2), color: '#5500FF'},
+        {x: wallWidth * (mazeSize-2), y: wallWidth * (mazeSize-2), color: '#FFFF00'}
+    ];
+    
+    for (const pos of positions) {
+        if (maze[Math.floor(pos.x/wallWidth)][Math.floor(pos.y/wallWidth)] === 0) {
+            // Only place markers in open spaces
+            sphere3D(pos.x, pos.y, 40, 20, 8, pos.color);
+            
+            // Add a pulsing light effect
+            const pulseSize = 20 + 15 * Math.sin(time/500);
+            glowStart(pos.color, 10);
+            point3D(pos.x, pos.y, 40, pulseSize, pos.color);
+            glowEnd();
+        }
+    }
+}
+
+function drawHUD() {
+    // Draw a simple compass to show direction
+    const centerX = width - 100;
+    const centerY = height - 100;
+    const radius = 40;
+    
+    // Background
+    context.globalAlpha = 0.5;
+    fill(30, 30, 40);
+    circle(centerX, centerY, radius+5);
+    context.globalAlpha = 1;
+    
+    // Direction markers
+    const directions = [
+        { label: 'N', angle: 0 },
+        { label: 'E', angle: 90 },
+        { label: 'S', angle: 180 },
+        { label: 'W', angle: 270 }
+    ];
+    
+    for (const dir of directions) {
+        const markerAngle = (dir.angle - playerAngle) * Math.PI / 180;
+        const markerX = centerX + Math.sin(markerAngle) * radius * 0.8;
+        const markerY = centerY - Math.cos(markerAngle) * radius * 0.8;
+        
+        fill(200, 200, 220);
+        text(dir.label, markerX, markerY, 12, "Arial", "center");
+    }
+    
+    // Player indicator
+    fill(255, 100, 100);
+    circle(centerX, centerY, 5);
+    
+    // Draw position info
+    const info = `Position: ${Math.floor(playerX/wallWidth)},${Math.floor(playerY/wallWidth)}`;
+    text(info, 20, height - 20, 16);
+    
+    // Controls help
+    text("WASD: Manual Movement | Space: Toggle Auto-move", width/2, height - 20, 14, "Arial", "center");
+    
+    // FPS counter
+    fill(255, 255, 255);
+    text(`FPS: ${getFps()}`, width - 80, 30);
+}
+
+function handleKeyDown(e) {
+    const key = e.key.toLowerCase();
+    
+    // Toggle auto movement with spacebar
+    if (key === ' ') {
+        autoMove = !autoMove;
+        return;
+    }
+    
+    // Manual controls (only when auto-move is disabled)
+    if (!autoMove) {
+        if (key === 'w') {
+            moveForward();
+        } else if (key === 's') {
+            // Move backward
+            const moveX = -Math.sin(playerAngle * Math.PI / 180) * moveSpeed;
+            const moveY = -Math.cos(playerAngle * Math.PI / 180) * moveSpeed;
+            playerX += moveX;
+            playerY += moveY;
+        } else if (key === 'a') {
+            // Turn left
+            playerAngle -= turnSpeed * 3;
+        } else if (key === 'd') {
+            // Turn right
+            playerAngle += turnSpeed * 3;
+        }
+        
+        // Update camera position
+        updateCamera();
+    }
+}

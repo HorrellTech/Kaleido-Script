@@ -1,0 +1,808 @@
+// Blood Nightmare Visualizer
+// A disturbing horror-themed audio visualization with blood splatters and visceral elements
+
+// FIND OUT WHY IT STARTS SLOWING DOWN AND LAGGING
+
+// Settings - adjust these to customize the horror
+var settings = {
+  bloodAmount: 0.7,           // Amount of blood (0-1)
+  pulseIntensity: 0.8,        // Intensity of heartbeat pulse (0-1)
+  splatterCount: 10,          // Maximum number of blood splatters
+  drippingSpeed: 0.4,         // Speed of blood drips (0-1)
+  colorMode: "fresh",         // "fresh" (bright red) or "dried" (darker crimson)
+  heartbeatEnabled: true,     // Enable heartbeat visual effect
+  heartbeatRate: 0.8,         // Rate of heartbeat (0-1)
+  fearLevel: 1.0,             // Intensity of distortion effects (0-1)
+  veinEffect: true,           // Show creeping vein effect
+  jitterAmount: 0.4           // Amount of nervous jitter (0-1)
+};
+
+// State variables
+var splatters = [];
+var drips = [];
+var veins = [];
+var heartbeatTime = 0;
+var lastHeartbeat = 0;
+var fearFlashOpacity = 0;
+var handprints = [];
+var screenShakeAmount = 0;
+var drippedColor = [200, 0, 0];
+
+function setup() {
+  log("Blood Nightmare initialized");
+  
+  // Create initial blood splatters
+  createInitialSplatters();
+  
+  // Create vein network
+  if (settings.veinEffect) {
+    createVeins();
+  }
+  
+  // Load audio if available
+  loadAudio("Music/Reaching the Subconscious.wav");
+  playAudio();
+}
+
+function draw(time) {
+  // Get audio data
+  const bass = window.audiohz ? audiohz(80) : 0.5;
+  const mid = window.audiohz ? audiohz(1000) : 0.3;
+  const high = window.audiohz ? audiohz(8000) : 0.2;
+  
+  // Update heartbeat timing
+  updateHeartbeat(time, bass);
+  
+  // Calculate combined audio reaction for effects
+  const audioIntensity = bass * 0.6 + mid * 0.3 + high * 0.1;
+  
+  // Apply partial background fade
+  applyBackgroundFade(audioIntensity);
+  
+  // Screen shake effect based on heartbeat and bass
+  updateScreenShake(audioIntensity);
+  
+  // Apply screen shake
+  context.save();
+  if (screenShakeAmount > 0) {
+    context.translate(
+      (Math.random() - 0.5) * screenShakeAmount * 10, 
+      (Math.random() - 0.5) * screenShakeAmount * 10
+    );
+  }
+  
+  // Draw veins if enabled
+  if (settings.veinEffect) {
+    //drawAndUpdateVeins(time, bass);
+  }
+  
+  // Draw blood splatters and drips
+  drawBloodEffects(time, audioIntensity);
+  
+  // Apply heartbeat effect
+  if (settings.heartbeatEnabled) {
+    drawHeartbeatEffect(time);
+  }
+  
+  // Draw random handprints
+  drawHandprints(audioIntensity);
+  
+  // Apply fear flash
+  applyFearFlash(audioIntensity);
+  
+  // Restore context after screen shake
+  context.restore();
+  
+  // Occasionally create new blood splatter on strong bass
+  if (bass > 0.8 && Math.random() < 0.2) {
+    //createRandomSplatter(bass);
+  }
+}
+
+function createInitialSplatters() {
+  // Create initial set of blood splatters
+  const count = Math.floor(settings.splatterCount * settings.bloodAmount);
+  for (let i = 0; i < count; i++) {
+    createRandomSplatter(0.5 + Math.random() * 0.5);
+  }
+}
+
+function createRandomSplatter(intensity) {
+  // Don't exceed maximum splatter count
+  if (splatters.length >= settings.splatterCount) return;
+  
+  // Create a new blood splatter
+  const x = Math.random() * width;
+  const y = Math.random() * height;
+  const size = 30 + Math.random() * 100 * intensity;
+  
+  // Create splatter
+  const splatter = {
+    x: x,
+    y: y,
+    size: size,
+    shape: Math.floor(Math.random() * 3),  // Different splatter shapes
+    rotation: Math.random() * Math.PI * 2,
+    opacity: 0.7 + Math.random() * 0.3,
+    drips: []
+  };
+  
+  // Add some drips coming from this splatter
+  const dripCount = Math.floor(Math.random() * 5) + 1;
+  for (let i = 0; i < dripCount; i++) {
+    // Only drip downward mostly
+    const angle = Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.5;
+    const length = size * (0.5 + Math.random() * 1.5);
+    const thickness = 2 + Math.random() * 8;
+    
+    splatter.drips.push({
+      angle: angle,
+      length: length,
+      currentLength: 0,
+      thickness: thickness,
+      speed: (0.2 + Math.random() * 0.8) * settings.drippingSpeed,
+      growing: true
+    });
+  }
+  
+  splatters.push(splatter);
+  
+  // 20% chance to add a handprint with this splatter
+  if (Math.random() < 0.2) {
+    handprints.push({
+      x: x + (Math.random() - 0.5) * size,
+      y: y + (Math.random() - 0.5) * size,
+      size: size * (0.5 + Math.random() * 0.5),
+      rotation: Math.random() * Math.PI * 2,
+      opacity: 0.6 + Math.random() * 0.4,
+      flipped: Math.random() < 0.5
+    });
+  }
+}
+
+function createVeins() {
+  // Create vein network that grows across the screen
+  const veinCount = 5 + Math.floor(Math.random() * 7);
+  
+  // Create starting points for veins (often from edges)
+  for (let i = 0; i < veinCount; i++) {
+    let x, y;
+    
+    // 70% chance to start from an edge
+    if (Math.random() < 0.7) {
+      // Pick an edge
+      const edge = Math.floor(Math.random() * 4);
+      switch (edge) {
+        case 0: // Top
+          x = Math.random() * width;
+          y = 0;
+          break;
+        case 1: // Right
+          x = width;
+          y = Math.random() * height;
+          break;
+        case 2: // Bottom
+          x = Math.random() * width;
+          y = height;
+          break;
+        case 3: // Left
+          x = 0;
+          y = Math.random() * height;
+          break;
+      }
+    } else {
+      // Random position
+      x = Math.random() * width;
+      y = Math.random() * height;
+    }
+    
+    // Create main vein
+    veins.push({
+      points: [{x: x, y: y}],
+      thickness: 5 + Math.random() * 10,
+      growthRate: 0.5 + Math.random() * 1.5,
+      growthProgress: 0,
+      maxSegments: 20 + Math.floor(Math.random() * 30),
+      angle: Math.random() * Math.PI * 2,
+      branches: [],
+      growing: true,
+      complete: false
+    });
+  }
+}
+
+function drawAndUpdateVeins(time, bass) {
+  // Base growing speed on horror settings and audio
+  const baseSpeed = 0.001 * settings.drippingSpeed * (0.8 + bass * 0.5);
+  
+  // Decide vein color based on settings
+  let veinColor;
+  if (settings.colorMode === "dried") {
+    veinColor = "rgba(80, 0, 0, 0.9)";
+  } else {
+    veinColor = "rgba(150, 0, 0, 0.9)";
+  }
+  
+  // Process each vein
+  for (let i = 0; i < veins.length; i++) {
+    const vein = veins[i];
+    
+    // Skip completed veins that aren't growing
+    if (vein.complete && !vein.growing) continue;
+    
+    // Grow vein if not complete
+    if (!vein.complete) {
+      vein.growthProgress += baseSpeed * vein.growthRate;
+      
+      // If ready to add a new segment
+      if (vein.growthProgress >= 1 && vein.points.length < vein.maxSegments) {
+        vein.growthProgress = 0;
+        
+        // Get last point
+        const lastPoint = vein.points[vein.points.length - 1];
+        
+        // Slightly change direction
+        vein.angle += (Math.random() - 0.5) * Math.PI * 0.5;
+        
+        // Calculate new point
+        const segmentLength = 10 + Math.random() * 20;
+        const newPoint = {
+          x: lastPoint.x + Math.cos(vein.angle) * segmentLength,
+          y: lastPoint.y + Math.sin(vein.angle) * segmentLength
+        };
+        
+        // Add point if within canvas
+        if (newPoint.x >= 0 && newPoint.x <= width && 
+            newPoint.y >= 0 && newPoint.y <= height) {
+          vein.points.push(newPoint);
+        } else {
+          vein.complete = true;
+        }
+        
+        // Possibly create a branch (15% chance)
+        if (Math.random() < 0.15 && vein.branches.length < 3) {
+          const branchAngle = vein.angle + (Math.random() - 0.5) * Math.PI * 1.0;
+          vein.branches.push({
+            startIndex: vein.points.length - 1,
+            points: [{x: lastPoint.x, y: lastPoint.y}],
+            thickness: vein.thickness * 0.7,
+            growthRate: vein.growthRate * 0.8,
+            growthProgress: 0,
+            maxSegments: Math.floor(vein.maxSegments * 0.7),
+            angle: branchAngle,
+            growing: true,
+            complete: false
+          });
+        }
+      } else if (vein.points.length >= vein.maxSegments) {
+        vein.complete = true;
+      }
+    }
+    
+    // Mark as complete if we reached max segments
+    if (vein.points.length >= vein.maxSegments) {
+      vein.complete = true;
+    }
+    
+    // Draw the vein
+    if (vein.points.length > 1) {
+      // Draw main vein
+      context.strokeStyle = veinColor;
+      context.lineWidth = vein.thickness;
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      
+      context.beginPath();
+      context.moveTo(vein.points[0].x, vein.points[0].y);
+      
+      for (let j = 1; j < vein.points.length; j++) {
+        context.lineTo(vein.points[j].x, vein.points[j].y);
+      }
+      
+      context.stroke();
+      
+      // Draw branches
+      for (let b = 0; b < vein.branches.length; b++) {
+        const branch = vein.branches[b];
+        
+        // Grow branch
+        if (branch.growing && !branch.complete) {
+          branch.growthProgress += baseSpeed * branch.growthRate;
+          
+          if (branch.growthProgress >= 1 && branch.points.length < branch.maxSegments) {
+            branch.growthProgress = 0;
+            
+            // Get last point
+            const lastPoint = branch.points[branch.points.length - 1];
+            
+            // Slightly change direction
+            branch.angle += (Math.random() - 0.5) * Math.PI * 0.5;
+            
+            // Calculate new point
+            const segmentLength = 7 + Math.random() * 15;
+            const newPoint = {
+              x: lastPoint.x + Math.cos(branch.angle) * segmentLength,
+              y: lastPoint.y + Math.sin(branch.angle) * segmentLength
+            };
+            
+            // Add point if within canvas
+            if (newPoint.x >= 0 && newPoint.x <= width && 
+                newPoint.y >= 0 && newPoint.y <= height) {
+              branch.points.push(newPoint);
+            } else {
+              branch.complete = true;
+            }
+          } else if (branch.points.length >= branch.maxSegments) {
+            branch.complete = true;
+          }
+        }
+        
+        // Draw branch if it has points
+        if (branch.points.length > 1) {
+          context.strokeStyle = veinColor;
+          context.lineWidth = branch.thickness;
+          
+          context.beginPath();
+          context.moveTo(branch.points[0].x, branch.points[0].y);
+          
+          for (let j = 1; j < branch.points.length; j++) {
+            context.lineTo(branch.points[j].x, branch.points[j].y);
+          }
+          
+          context.stroke();
+        }
+      }
+    }
+  }
+}
+
+function updateHeartbeat(time, bass) {
+  if (!settings.heartbeatEnabled) return;
+  
+  // Calculate time between heartbeats (faster with more bass)
+  const heartRate = settings.heartbeatRate * 1000 * (1.5 - bass * 0.5);
+  
+  // Check if it's time for a heartbeat
+  if (time - lastHeartbeat > heartRate) {
+    heartbeatTime = time;
+    lastHeartbeat = time;
+    
+    // Add screen shake
+    screenShakeAmount = 1.0;
+  }
+  
+  // Fade heartbeat pulse
+  const timeSinceHeartbeat = time - heartbeatTime;
+  if (timeSinceHeartbeat < 300) {
+    // Strong initial pulse
+    const pulseStrength = Math.sin((timeSinceHeartbeat / 300) * Math.PI);
+    fearFlashOpacity = pulseStrength * 0.2 * settings.pulseIntensity;
+    screenShakeAmount = Math.max(screenShakeAmount, pulseStrength * settings.pulseIntensity);
+  } else if (timeSinceHeartbeat < 450) {
+    // Second softer pulse
+    const pulseProgress = (timeSinceHeartbeat - 300) / 150;
+    const pulseStrength = Math.sin(pulseProgress * Math.PI) * 0.6;
+    fearFlashOpacity = pulseStrength * 0.1 * settings.pulseIntensity;
+    screenShakeAmount = Math.max(screenShakeAmount, pulseStrength * 0.5 * settings.pulseIntensity);
+  } else {
+    // Reset between beats
+    fearFlashOpacity = Math.max(0, fearFlashOpacity - 0.01);
+    screenShakeAmount = Math.max(0, screenShakeAmount - 0.05);
+  }
+}
+
+function drawHeartbeatEffect(time) {
+  // Draw heartbeat line at bottom
+  const lineY = height - 40;
+  const lineHeight = 70;
+  
+  // Calculate heartbeat progress
+  const timeSinceHeartbeat = time - heartbeatTime;
+  const beatDuration = 600; // ms
+  const beatProgress = Math.min(1, timeSinceHeartbeat / beatDuration);
+  
+  // Draw heartbeat line
+  context.strokeStyle = "rgba(180, 0, 0, 0.5)";
+  context.lineWidth = 3;
+  context.beginPath();
+  
+  // Start at left edge
+  context.moveTo(0, lineY);
+  
+  // Create points across the screen
+  const segmentCount = width / 4;
+  for (let i = 0; i <= segmentCount; i++) {
+    const x = (i / segmentCount) * width;
+    
+    // Calculate y position based on heartbeat phase
+    let y = lineY;
+    
+    // Check if this segment is part of the active beat
+    if (beatProgress < 1) {
+      // Position in the heartbeat waveform (0 to 1)
+      const beatX = i / segmentCount;
+      
+      // If we're in the active part of the waveform (adjusted by progress)
+      if (beatX <= beatProgress) {
+        // Heartbeat shape
+        if (beatX > beatProgress - 0.1) {
+          // First peak
+          const peakProgress = (beatX - (beatProgress - 0.1)) * 10;
+          y = lineY - Math.sin(peakProgress * Math.PI) * lineHeight;
+        } else if (beatX > beatProgress - 0.15) {
+          // Dip after first peak
+          const dipProgress = (beatX - (beatProgress - 0.15)) * 20;
+          y = lineY + Math.sin(dipProgress * Math.PI) * (lineHeight * 0.5);
+        } else if (beatX > beatProgress - 0.2) {
+          // Second peak
+          const peakProgress = (beatX - (beatProgress - 0.2)) * 20;
+          y = lineY - Math.sin(peakProgress * Math.PI) * (lineHeight * 0.7);
+        }
+      }
+    }
+    
+    // Add slight jitter
+    y += (Math.random() - 0.5) * 4 * settings.jitterAmount;
+    
+    context.lineTo(x, y);
+  }
+  
+  context.stroke();
+}
+
+function updateScreenShake(audioIntensity) {
+  // Decrease screen shake over time
+  screenShakeAmount = Math.max(0, screenShakeAmount - 0.03);
+  
+  // Add screen shake based on audio intensity
+  if (audioIntensity > 0.8) {
+    screenShakeAmount = Math.max(screenShakeAmount, audioIntensity * 0.5);
+  }
+}
+
+function applyBackgroundFade(audioIntensity) {
+  // Dark background with slight fade for motion trails
+  const alpha = 0.4 - audioIntensity * 0.2;
+  context.fillStyle = `rgba(5, 0, 0, ${alpha})`;
+  context.fillRect(0, 0, width, height);
+}
+
+function drawBloodEffects(time, audioIntensity) {
+  // Choose blood color based on settings
+  let baseColor;
+  if (settings.colorMode === "dried") {
+    baseColor = "rgba(100, 0, 0, 1)";
+    drippedColor = "rgba(70, 0, 0, 0.8)";
+  } else {
+    baseColor = "rgba(190, 0, 0, 1)";
+    drippedColor = "rgba(150, 0, 0, 0.8)";
+  }
+  
+  // Process each splatter
+  for (let i = 0; i < splatters.length; i++) {
+    const splatter = splatters[i];
+    
+    // Draw the main splatter based on shape
+    context.fillStyle = baseColor;
+    
+    if (splatter.shape === 0) {
+      // Irregular blob
+      drawBloodBlob(splatter.x, splatter.y, splatter.size, splatter.rotation, splatter.opacity);
+    } else if (splatter.shape === 1) {
+      // Spray pattern
+      drawBloodSpray(splatter.x, splatter.y, splatter.size, splatter.rotation, splatter.opacity);
+    } else {
+      // Splatter pattern
+      drawBloodSplatter(splatter.x, splatter.y, splatter.size, splatter.rotation, splatter.opacity);
+    }
+    
+    // Process drips
+    for (let j = 0; j < splatter.drips.length; j++) {
+      const drip = splatter.drips[j];
+      
+      // Grow drips
+      if (drip.growing) {
+        const growAmount = drip.speed * 0.5 * (1 + audioIntensity);
+        drip.currentLength = Math.min(drip.length, drip.currentLength + growAmount);
+        
+        // Stop growing when we reach max length
+        if (drip.currentLength >= drip.length) {
+          drip.growing = false;
+        }
+      }
+      
+      // Draw drip
+      const startX = splatter.x;
+      const startY = splatter.y;
+      const endX = startX + Math.cos(drip.angle) * drip.currentLength;
+      const endY = startY + Math.sin(drip.angle) * drip.currentLength;
+      
+      // Draw drip line
+      context.strokeStyle = drippedColor;
+      context.lineWidth = drip.thickness;
+      context.lineCap = "round";
+      context.beginPath();
+      context.moveTo(startX, startY);
+      context.lineTo(endX, endY);
+      context.stroke();
+      
+      // Draw drip end
+      if (!drip.growing && Math.random() < 0.005) {
+        // Occasionally create new drips from the end of this one
+        splatter.drips.push({
+          angle: Math.PI / 2 + (Math.random() - 0.5) * 0.2,
+          length: drip.length * 0.5,
+          currentLength: 0,
+          thickness: drip.thickness * 0.7,
+          speed: drip.speed * 0.8,
+          growing: true,
+          x: endX,
+          y: endY,
+          standalone: true
+        });
+      }
+      
+      // Draw rounded drop at the end
+      const dropSize = drip.thickness * 1.3;
+      context.fillStyle = drippedColor;
+      context.beginPath();
+      context.arc(endX, endY, dropSize, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+}
+
+function drawBloodBlob(x, y, size, rotation, opacity) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(rotation);
+  
+  context.beginPath();
+  context.moveTo(0, -size/2);
+  
+  // Create irregular blob
+  const points = 8;
+  for (let i = 0; i <= points; i++) {
+    const angle = (i / points) * Math.PI * 2;
+    const radius = size/2 * (0.7 + Math.sin(i * 3) * 0.3);
+    context.lineTo(
+      Math.cos(angle) * radius,
+      Math.sin(angle) * radius
+    );
+  }
+  
+  context.closePath();
+  context.globalAlpha = opacity;
+  context.fill();
+  context.globalAlpha = 1;
+  context.restore();
+}
+
+function drawBloodSpray(x, y, size, rotation, opacity) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(rotation);
+  context.globalAlpha = opacity;
+  
+  // Draw spray pattern (multiple small drops)
+  const dropCount = Math.floor(size / 5);
+  for (let i = 0; i < dropCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * size * 0.8;
+    const dropSize = 2 + Math.random() * 8;
+    
+    const dropX = Math.cos(angle) * distance;
+    const dropY = Math.sin(angle) * distance;
+    
+    context.beginPath();
+    context.arc(dropX, dropY, dropSize, 0, Math.PI * 2);
+    context.fill();
+  }
+  
+  // Add some connecting streaks
+  const streakCount = dropCount / 3;
+  for (let i = 0; i < streakCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * size * 0.7;
+    const length = size * (0.2 + Math.random() * 0.3);
+    
+    const startX = Math.cos(angle) * distance * 0.3;
+    const startY = Math.sin(angle) * distance * 0.3;
+    const endX = Math.cos(angle) * (distance + length);
+    const endY = Math.sin(angle) * (distance + length);
+    
+    context.lineWidth = 1 + Math.random() * 4;
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.lineTo(endX, endY);
+    context.stroke();
+  }
+  
+  context.globalAlpha = 1;
+  context.restore();
+}
+
+function drawBloodSplatter(x, y, size, rotation, opacity) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(rotation);
+  context.globalAlpha = opacity;
+  
+  // Draw main splatter
+  context.beginPath();
+  context.arc(0, 0, size * 0.3, 0, Math.PI * 2);
+  context.fill();
+  
+  // Add splatter projections
+  const projectionCount = 7 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < projectionCount; i++) {
+    const angle = (i / projectionCount) * Math.PI * 2;
+    const length = size * (0.3 + Math.random() * 0.7);
+    const width = 5 + Math.random() * 15;
+    
+    context.beginPath();
+    context.moveTo(0, 0);
+    
+    // Create tapered shape
+    const controlX = Math.cos(angle) * length * 0.5;
+    const controlY = Math.sin(angle) * length * 0.5;
+    const endX = Math.cos(angle) * length;
+    const endY = Math.sin(angle) * length;
+    
+    // Draw one side of the projection
+    const sideAngle = angle + Math.PI/2;
+    const sideX = Math.cos(sideAngle) * width/2;
+    const sideY = Math.sin(sideAngle) * width/2;
+    
+    context.lineTo(sideX, sideY);
+    context.quadraticCurveTo(
+      controlX, controlY,
+      endX, endY
+    );
+    
+    // Draw other side
+    context.quadraticCurveTo(
+      controlX, controlY,
+      -sideX, -sideY
+    );
+    
+    context.closePath();
+    context.fill();
+  }
+  
+  context.globalAlpha = 1;
+  context.restore();
+}
+
+function drawHandprints(audioIntensity) {
+  // Draw all handprints
+  for (let i = 0; i < handprints.length; i++) {
+    const print = handprints[i];
+    
+    drawHandprint(
+      print.x, print.y, 
+      print.size, 
+      print.rotation, 
+      print.opacity * (0.8 + audioIntensity * 0.2),
+      print.flipped
+    );
+  }
+  
+  // Potentially add new handprints on high intensity audio
+  if (audioIntensity > 0.85 && Math.random() < 0.07) {
+    // Add handprint at a random edge
+    const edge = Math.floor(Math.random() * 4);
+    let x, y, angle;
+    
+    switch (edge) {
+      case 0: // Top
+        x = Math.random() * width;
+        y = Math.random() * 100;
+        angle = Math.random() * Math.PI * 0.5 - Math.PI * 0.25;
+        break;
+      case 1: // Right
+        x = width - Math.random() * 100;
+        y = Math.random() * height;
+        angle = Math.random() * Math.PI * 0.5 + Math.PI * 0.25;
+        break;
+      case 2: // Bottom
+        x = Math.random() * width;
+        y = height - Math.random() * 100;
+        angle = Math.random() * Math.PI * 0.5 + Math.PI * 0.75;
+        break;
+      case 3: // Left
+        x = Math.random() * 100;
+        y = Math.random() * height;
+        angle = Math.random() * Math.PI * 0.5 + Math.PI * 1.25;
+        break;
+    }
+    
+    handprints.push({
+      x: x,
+      y: y,
+      size: 30 + Math.random() * 60,
+      rotation: angle,
+      opacity: 0.7 + Math.random() * 0.3,
+      flipped: Math.random() < 0.5
+    });
+  }
+}
+
+function drawHandprint(x, y, size, rotation, opacity, flipped) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(rotation);
+  if (flipped) context.scale(-1, 1);
+  context.globalAlpha = opacity;
+  
+  // Choose color based on settings
+  if (settings.colorMode === "dried") {
+    context.fillStyle = "rgba(100, 20, 0, 0.9)";
+  } else {
+    context.fillStyle = "rgba(180, 0, 0, 0.9)";
+  }
+  
+  // Draw palm
+  context.beginPath();
+  context.ellipse(0, 0, size * 0.4, size * 0.5, 0, 0, Math.PI * 2);
+  context.fill();
+  
+  // Draw fingers
+  const fingerCount = 5;
+  const fingerWidth = size * 0.15;
+  const fingerPositions = [
+    {x: -size * 0.2, y: -size * 0.5, angle: -0.2, length: size * 0.45},  // Thumb
+    {x: -size * 0.1, y: -size * 0.7, angle: 0, length: size * 0.6},      // Index
+    {x: size * 0.05, y: -size * 0.75, angle: 0, length: size * 0.65},    // Middle
+    {x: size * 0.2, y: -size * 0.7, angle: 0.1, length: size * 0.6},     // Ring
+    {x: size * 0.3, y: -size * 0.6, angle: 0.3, length: size * 0.5}      // Pinky
+  ];
+  
+  for (let i = 0; i < fingerCount; i++) {
+    const finger = fingerPositions[i];
+    
+    context.save();
+    context.translate(finger.x, finger.y);
+    context.rotate(finger.angle);
+    
+    // Draw finger
+    context.beginPath();
+    context.roundRect(-fingerWidth/2, -fingerWidth/2, fingerWidth, finger.length, fingerWidth/2);
+    context.fill();
+    
+    context.restore();
+  }
+  
+  context.globalAlpha = 1;
+  context.restore();
+}
+
+function applyFearFlash(audioIntensity) {
+  // Apply reddish fear flash effect
+  if (fearFlashOpacity > 0) {
+    context.fillStyle = `rgba(50, 0, 0, ${fearFlashOpacity})`;
+    context.fillRect(0, 0, width, height);
+  }
+  
+  // Apply distortion overlay effect on intense audio
+  if (audioIntensity > 0.7 && settings.fearLevel > 0.3) {
+    const distortionAmount = (audioIntensity - 0.7) * settings.fearLevel * 2;
+    
+    // Draw noise lines
+    context.strokeStyle = `rgba(255, 0, 0, ${distortionAmount * 0.2})`;
+    context.lineWidth = 1;
+    
+    const lineCount = Math.floor(20 * distortionAmount);
+    for (let i = 0; i < lineCount; i++) {
+      const y = Math.random() * height;
+      context.beginPath();
+      context.moveTo(0, y);
+      
+      for (let x = 0; x < width; x += 20) {
+        context.lineTo(x, y + (Math.random() - 0.5) * 10 * distortionAmount);
+      }
+      
+      context.stroke();
+    }
+  }
+}

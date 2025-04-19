@@ -1,0 +1,411 @@
+// Car Racing with Drift Physics
+// Top-down car racing game with realistic drift physics
+
+// Canvas contexts
+let ctx = this.context;          // Main drawing context
+let trackCtx;     // Persistent track layer for tire marks
+let trackCanvas;  // Track canvas element
+
+// Track properties
+const TRACK = {
+  width: 60,      // Track width
+  color: '#333',  // Track color
+  border: '#888'  // Track border color
+};
+
+// Car settings
+const CARS = [
+  { color: [220, 0, 60], x: 300, y: 500, angle: -Math.PI/2, speed: 0, turnAngle: 0, drift: 0, controls: "auto", checkpoint: 0 },
+  { color: [0, 80, 220], x: 350, y: 500, angle: -Math.PI/2, speed: 0, turnAngle: 0, drift: 0, controls: "auto", checkpoint: 0 }
+];
+
+// Physics settings
+const PHYSICS = {
+  maxSpeed: 5,           // Maximum car speed
+  acceleration: 0.1,     // Acceleration rate
+  friction: 0.97,        // Speed reduction each frame
+  handling: 0.05,        // Turn responsiveness
+  driftFactor: 0.3,      // How much the car slides when turning at speed
+  carSize: 10,           // Size of cars
+  collisionForce: 0.5    // How strongly cars bounce off each other
+};
+
+// Track path defined by checkpoints (x, y, recommended angle)
+const TRACK_PATH = [
+  [300, 400, -Math.PI/2],    // Start straight
+  [300, 200, -Math.PI/2],    // Approach first turn
+  [400, 100, 0],             // First turn (right)
+  [600, 100, 0],             // Straight after first turn
+  [700, 200, Math.PI/2],     // Second turn (right)
+  [700, 300, Math.PI/2],     // Continue second turn
+  [600, 400, Math.PI],       // Third turn (right)
+  [400, 400, Math.PI],       // Straight after third turn
+  [300, 500, -Math.PI/2]     // Final turn back to start
+];
+
+// Setup function - runs once at the beginning
+function setup() {
+  // Get main context
+  
+  
+  // Create persistent track canvas
+  trackCanvas = document.createElement('canvas');
+  trackCanvas.width = width;
+  trackCanvas.height = height;
+  trackCtx = trackCanvas.getContext('2d');
+  
+  // Draw the race track
+  drawTrack();
+}
+
+// Main drawing function - called every frame
+function draw(time) {
+  // Clear main canvas with semi-transparent fill for motion trail
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw the track layer first
+  ctx.drawImage(trackCanvas, 0, 0);
+  
+  // Update and draw cars
+  updateCars(time);
+  
+  // Handle collisions between cars
+  handleCollisions();
+  
+  // Draw all cars
+  CARS.forEach(drawCar);
+}
+
+// Draw the race track
+function drawTrack() {
+  trackCtx.fillStyle = '#111';
+  trackCtx.fillRect(0, 0, width, height);
+  
+  // Set track styles
+  trackCtx.strokeStyle = TRACK.border;
+  trackCtx.lineWidth = TRACK.width + 4;
+  trackCtx.lineCap = 'round';
+  trackCtx.lineJoin = 'round';
+  
+  // Draw outer track border
+  trackCtx.beginPath();
+  for (let i = 0; i < TRACK_PATH.length; i++) {
+    const [x, y] = TRACK_PATH[i];
+    if (i === 0) {
+      trackCtx.moveTo(x, y);
+    } else {
+      trackCtx.lineTo(x, y);
+    }
+  }
+  trackCtx.closePath();
+  trackCtx.stroke();
+  
+  // Draw inner track
+  trackCtx.strokeStyle = TRACK.color;
+  trackCtx.lineWidth = TRACK.width;
+  trackCtx.beginPath();
+  for (let i = 0; i < TRACK_PATH.length; i++) {
+    const [x, y] = TRACK_PATH[i];
+    if (i === 0) {
+      trackCtx.moveTo(x, y);
+    } else {
+      trackCtx.lineTo(x, y);
+    }
+  }
+  trackCtx.closePath();
+  trackCtx.stroke();
+  
+  // Add start/finish line
+  trackCtx.fillStyle = '#fff';
+  trackCtx.fillRect(290, 450, 20, 5);
+  trackCtx.fillStyle = '#000';
+  trackCtx.fillRect(300, 450, 10, 5);
+  
+  // Draw racing stripes on track
+  trackCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  trackCtx.lineWidth = 2;
+  trackCtx.setLineDash([10, 20]);
+  
+  // Draw dashed center line
+  trackCtx.beginPath();
+  for (let i = 0; i < TRACK_PATH.length; i++) {
+    const [x, y] = TRACK_PATH[i];
+    if (i === 0) {
+      trackCtx.moveTo(x, y);
+    } else {
+      trackCtx.lineTo(x, y);
+    }
+  }
+  trackCtx.closePath();
+  trackCtx.stroke();
+  trackCtx.setLineDash([]); // Reset line dash
+}
+
+// Update all cars
+function updateCars(time) {
+  for (const car of CARS) {
+    // AI driving behavior
+    aiDriving(car);
+    
+    // Apply physics to update position and handling
+    applyCarPhysics(car);
+    
+    // Add tire marks when drifting
+    if (Math.abs(car.drift) > 0.05) {
+      addTireMarks(car);
+    }
+    
+    // Check if passed checkpoint
+    checkCheckpoint(car);
+  }
+}
+
+// AI driving logic
+function aiDriving(car) {
+  // Calculate next checkpoint to aim for
+  const nextCP = (car.checkpoint + 1) % TRACK_PATH.length;
+  const [cpX, cpY, targetAngle] = TRACK_PATH[nextCP];
+    
+  // Calculate angle to checkpoint
+  const dx = cpX - car.x;
+  const dy = cpY - car.y;
+  const angleToCP = Math.atan2(dy, dx);
+  
+  // Calculate distance to checkpoint
+  const distance = Math.sqrt(dx*dx + dy*dy);
+  
+  // Normalize angles for comparison
+  let carAngle = car.angle;
+  while (carAngle > Math.PI) carAngle -= Math.PI * 2;
+  while (carAngle < -Math.PI) carAngle += Math.PI * 2;
+    
+  // Calculate shortest turning direction
+  let angleDiff = angleToCP - carAngle;
+  while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+  while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+  
+  // Steering strength based on distance
+  const turnStrength = Math.min(1, Math.max(0.2, 50 / distance));
+  car.turnAngle = angleDiff * turnStrength;
+  
+  // Limit turn angle
+  car.turnAngle = Math.max(-0.8, Math.min(0.8, car.turnAngle));
+  
+  // Speed control based on turning (slow down for turns)
+  const targetSpeed = PHYSICS.maxSpeed * (1 - Math.abs(car.turnAngle) * 0.6);
+  car.speed += (targetSpeed - car.speed) * 0.05;
+}
+
+// Apply physics to a car
+function applyCarPhysics(car) {
+  // Apply friction
+  car.speed *= PHYSICS.friction;
+  
+  // Apply acceleration
+  car.speed += PHYSICS.acceleration;
+  
+  // Limit max speed
+  car.speed = Math.min(PHYSICS.maxSpeed, car.speed);
+  
+  // Update car angle based on turning
+  car.angle += car.turnAngle * (PHYSICS.handling + car.speed * 0.01);
+  
+  // Calculate drift - only drift when turning AND at speed
+  const turnIntensity = Math.abs(car.turnAngle);
+  const targetDrift = turnIntensity * car.speed * PHYSICS.driftFactor;
+  
+  // Smooth drift transition
+  car.drift = car.drift * 0.9 + targetDrift * 0.1;
+  
+  // Calculate movement angle (with drift)
+  const moveAngle = car.angle + car.drift;
+  
+  // Update car position
+  car.x += Math.cos(moveAngle) * car.speed;
+  car.y += Math.sin(moveAngle) * car.speed;
+}
+
+// Add tire marks to track
+function addTireMarks(car) {
+  // Calculate wheel positions
+  const wheelDistance = PHYSICS.carSize * 0.8;
+  const wheelOffset = PHYSICS.carSize * 0.4;
+  
+  // Back wheels (where drift marks come from)
+  const leftWheelX = car.x - Math.cos(car.angle) * wheelDistance - Math.sin(car.angle) * wheelOffset;
+  const leftWheelY = car.y - Math.sin(car.angle) * wheelDistance + Math.cos(car.angle) * wheelOffset;
+  
+  const rightWheelX = car.x - Math.cos(car.angle) * wheelDistance + Math.sin(car.angle) * wheelOffset;
+  const rightWheelY = car.y - Math.sin(car.angle) * wheelDistance - Math.cos(car.angle) * wheelOffset;
+  
+  // Draw tire marks based on drift amount
+  const driftIntensity = Math.min(1, Math.abs(car.drift) * 5);
+  trackCtx.fillStyle = `rgba(0, 0, 0, ${driftIntensity * 0.3})`;
+  
+  // Left wheel mark
+  trackCtx.beginPath();
+  trackCtx.arc(leftWheelX, leftWheelY, 3, 0, Math.PI * 2);
+  trackCtx.fill();
+  
+  // Right wheel mark
+  trackCtx.beginPath();
+  trackCtx.arc(rightWheelX, rightWheelY, 3, 0, Math.PI * 2);
+  trackCtx.fill();
+  
+  // Audio-reactive colored marks
+  try {
+    const bass = audiohz(100);
+    if (bass > 0.7) {
+      trackCtx.fillStyle = `rgba(${car.color[0]}, ${car.color[1]}, ${car.color[2]}, 0.3)`;
+      trackCtx.beginPath();
+      trackCtx.arc(leftWheelX, leftWheelY, 5, 0, Math.PI * 2);
+      trackCtx.fill();
+    }
+  } catch (e) {
+    // No audio available
+  }
+}
+
+// Check if car reached next checkpoint
+function checkCheckpoint(car) {
+  // Get next checkpoint
+  const nextCP = (car.checkpoint + 1) % TRACK_PATH.length;
+  const [cpX, cpY] = TRACK_PATH[nextCP];
+  
+  // Calculate distance to checkpoint
+  const dx = cpX - car.x;
+  const dy = cpY - car.y;
+  const distance = Math.sqrt(dx*dx + dy*dy);
+  
+  // Check if close enough to checkpoint
+  if (distance < 30) {
+    car.checkpoint = nextCP;
+    
+    // Flash when hitting checkpoint
+    if (nextCP === 0) {
+      // Completed a lap
+      flashStart(car);
+    }
+  }
+}
+
+// Create a flash effect when crossing start/finish
+function flashStart(car) {
+  ctx.fillStyle = `rgba(255, 255, 100, 0.5)`;
+  ctx.fillRect(280, 400, 40, 100);
+}
+
+// Handle collisions between cars
+function handleCollisions() {
+  for (let i = 0; i < CARS.length; i++) {
+    for (let j = i + 1; j < CARS.length; j++) {
+      const car1 = CARS[i];
+      const car2 = CARS[j];
+      
+      // Calculate distance between cars
+      const dx = car2.x - car1.x;
+      const dy = car2.y - car1.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // Check for collision
+      const minDistance = PHYSICS.carSize * 2;
+      
+      if (distance < minDistance) {
+        // Calculate collision angle
+        const angle = Math.atan2(dy, dx);
+        
+        // Move cars apart
+        const overlap = (minDistance - distance) / 2;
+        car1.x -= Math.cos(angle) * overlap;
+        car1.y -= Math.sin(angle) * overlap;
+        car2.x += Math.cos(angle) * overlap;
+        car2.y += Math.sin(angle) * overlap;
+        
+        // Calculate bounce effect
+        const bounceX = Math.cos(angle) * PHYSICS.collisionForce;
+        const bounceY = Math.sin(angle) * PHYSICS.collisionForce;
+        
+        // Exchange momentum
+        const tempSpeed1 = car1.speed;
+        car1.speed = car2.speed * 0.5;
+        car2.speed = tempSpeed1 * 0.5;
+        
+        // Add skid effect
+        car1.drift -= bounceX * 0.3;
+        car2.drift += bounceX * 0.3;
+        
+        // Draw collision effect
+        ctx.fillStyle = "rgba(255, 255, 200, 0.7)";
+        ctx.beginPath();
+        ctx.arc((car1.x + car2.x) / 2, (car1.y + car2.y) / 2, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+}
+
+// Draw a car
+function drawCar(car) {
+  const carWidth = PHYSICS.carSize * 2;
+  const carHeight = PHYSICS.carSize;
+  
+  // Save context state
+  ctx.save();
+  
+  // Move to car position and rotate
+  ctx.translate(car.x, car.y);
+  ctx.rotate(car.angle);
+  
+  // Draw car body
+  ctx.fillStyle = `rgb(${car.color[0]}, ${car.color[1]}, ${car.color[2]})`;
+  ctx.fillRect(-carWidth/2, -carHeight/2, carWidth, carHeight);
+  
+  // Draw car details (windshield at front)
+  ctx.fillStyle = "rgba(120, 200, 255, 0.8)";
+  ctx.fillRect(carWidth/6, -carHeight/2, carWidth/3, carHeight);
+  
+  // Draw wheels
+  //drawWheels(car, carWidth, carHeight);
+  
+  // Draw drift trail indicator
+  if (Math.abs(car.drift) > 0.05) {
+    ctx.strokeStyle = `rgba(${car.color[0]}, ${car.color[1]}, ${car.color[2]}, 0.7)`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-carWidth/2, -carHeight/2);
+    ctx.lineTo(-carWidth/2 - car.drift * 20, -carHeight/2);
+    ctx.moveTo(-carWidth/2, carHeight/2);
+    ctx.lineTo(-carWidth/2 - car.drift * 20, carHeight/2);
+    ctx.stroke();
+  }
+  
+  // Restore context state
+  ctx.restore();
+}
+
+// Draw car wheels
+function drawWheels(car, carWidth, carHeight) {
+  const wheelWidth = carWidth * 0.15;
+  const wheelHeight = carHeight * 0.7;
+  
+  // Draw wheels
+  ctx.fillStyle = "#222";
+  
+  // Front wheels with steering
+  ctx.save();
+  ctx.translate(carWidth/3, -carHeight/2);
+  ctx.rotate(car.turnAngle + 20);
+  ctx.fillRect(-wheelWidth/2, -wheelHeight/2, wheelWidth, wheelHeight);
+  ctx.restore();
+  
+  ctx.save();
+  ctx.translate(carWidth/3, carHeight/2);
+  ctx.rotate(car.turnAngle + 20);
+  ctx.fillRect(-wheelWidth/2, -wheelHeight/2, wheelWidth, wheelHeight);
+  ctx.restore();
+  
+  // Back wheels (fixed angle)
+  ctx.fillRect(-carWidth/3 - wheelWidth/2, -carHeight/2 - wheelHeight/2, wheelWidth, wheelHeight);
+  ctx.fillRect(-carWidth/3 - wheelWidth/2, carHeight/2 - wheelHeight/2, wheelWidth, wheelHeight);
+}

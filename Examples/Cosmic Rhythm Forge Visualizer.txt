@@ -1,0 +1,1046 @@
+// Cosmic Rhythm Forge Visualizer
+// A dynamic audio-responsive metallic structure that evolves with music
+
+// SETTINGS - Adjust these to customize the visualization
+const settings = {
+  // Core physics
+  particleCount: 300,           // Number of metal particles
+  particleSize: 12,             // Base size of particles
+  viscosity: 0.92,              // How "thick" the metal is (0-1)
+  gravity: 0.05,                // Amount of gravitational pull
+  attractionForce: 0.5,         // Force pulling particles together
+  
+  // Visual settings
+  metalReflectivity: 0.7,       // How reflective the metal appears (0-1)
+  colorPrimary: [220, 180, 55], // Base gold color [R,G,B]
+  colorAccent: [100, 200, 255], // Energy color [R,G,B]
+  backgroundDarkness: 0.2,      // Background darkness (0-1)
+  glowIntensity: 0.6,           // Intensity of the glow effect
+  
+  // Audio reactivity
+  bassImpact: 2.0,              // Impact of bass frequencies
+  midImpact: 0.8,               // Impact of mid frequencies
+  highImpact: 0.5,              // Impact of high frequencies
+  reactivitySmoothing: 0.85,    // Smoothing factor for audio response
+  
+  // Forge elements
+  hammerEnabled: true,          // Enable the rhythmic hammer
+  hammerStrength: 0.8,          // Strength of hammer impacts
+  hammerTiming: 'mid',         // 'bass', 'mid', or 'beat' for hammer timing
+  forgeGlowEnabled: true,       // Enable the forge glow effect
+  forgeTemperature: 0.7,        // Forge temperature (0-1)
+  
+  // Cosmic elements
+  starsEnabled: true,           // Enable background stars
+  starCount: 200,               // Number of background stars
+  cosmicEnergyEnabled: true,    // Enable cosmic energy bolts
+  energyIntensity: 0.6,         // Intensity of cosmic energy
+  
+  // Animation settings
+  cameraMotion: true,           // Enable slight camera motion
+  motionAmount: 0.2             // Amount of camera motion (0-1)
+};
+
+// State variables
+let particles = [];
+let stars = [];
+let energyBolts = [];
+let hammer = null;
+let forge = null;
+let audioLevels = { bass: 0, mid: 0, high: 0, overall: 0 };
+let lastBeat = 0;
+let beatDetected = false;
+let cameraOffset = { x: 0, y: 0 };
+let mainCanvas, mainContext;
+let glowCanvas, glowContext;
+let metalGradient;
+let frameCount = 0;
+let lastBassImpact = 0;
+let timeSinceLastImpact = 0;
+
+// Setup function runs once at the beginning
+function setup() {
+  log("Cosmic Rhythm Forge visualization initializing");
+  
+  // Try to load audio if available
+  if (window.audioProcessor) {
+    try {
+      loadAudio("Music/Wild Card.wav");
+      playAudio();
+      log("Audio loaded and playing");
+    } catch (e) {
+      log("No audio specified, visualization will use simulated audio", "info");
+    }
+  }
+  
+  // Create offscreen canvases for effects
+  createOffscreenBuffers();
+  
+  // Initialize particles
+  initializeParticles();
+  
+  // Initialize stars
+  if (settings.starsEnabled) {
+    initializeStars();
+  }
+  
+  // Initialize forge and hammer
+  initializeForge();
+  initializeHammer();
+  
+  // Set initial black background
+  background(0, 0, 0);
+}
+
+// Create offscreen buffers for visual effects
+function createOffscreenBuffers() {
+  // Main content canvas
+  mainCanvas = document.createElement('canvas');
+  mainCanvas.width = width;
+  mainCanvas.height = height;
+  mainContext = mainCanvas.getContext('2d');
+  
+  // Glow effect canvas
+  glowCanvas = document.createElement('canvas');
+  glowCanvas.width = width;
+  glowCanvas.height = height;
+  glowContext = glowCanvas.getContext('2d');
+  
+  // Create metal gradient
+  createMetalGradient();
+}
+
+// Create the metallic gradient
+function createMetalGradient() {
+  // Create a radial gradient for the metal effect
+  metalGradient = mainContext.createLinearGradient(0, 0, width, height);
+  
+  // Add color stops for metallic look
+  metalGradient.addColorStop(0, `rgb(${settings.colorPrimary[0]}, ${settings.colorPrimary[1]}, ${settings.colorPrimary[2]})`);
+  metalGradient.addColorStop(0.3, `rgb(${Math.min(255, settings.colorPrimary[0] * 1.2)}, ${Math.min(255, settings.colorPrimary[1] * 1.2)}, ${Math.min(255, settings.colorPrimary[2] * 1.2)})`);
+  metalGradient.addColorStop(0.5, `rgb(${Math.min(255, settings.colorPrimary[0] * 0.8)}, ${Math.min(255, settings.colorPrimary[1] * 0.8)}, ${Math.min(255, settings.colorPrimary[2] * 0.8)})`);
+  metalGradient.addColorStop(0.7, `rgb(${Math.min(255, settings.colorPrimary[0] * 1.1)}, ${Math.min(255, settings.colorPrimary[1] * 1.1)}, ${Math.min(255, settings.colorPrimary[2] * 1.1)})`);
+  metalGradient.addColorStop(1, `rgb(${settings.colorPrimary[0]}, ${settings.colorPrimary[1]}, ${settings.colorPrimary[2]})`);
+}
+
+// Initialize particles
+function initializeParticles() {
+  particles = [];
+  
+  // Create initially clustered particles
+  for (let i = 0; i < settings.particleCount; i++) {
+    // Initial position - clustered near center
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * 100;
+    const x = width / 2 + Math.cos(angle) * distance;
+    const y = height / 2 - 50 + Math.sin(angle) * distance * 0.5;
+    
+    // Add particle
+    particles.push({
+      x: x,
+      y: y,
+      vx: (Math.random() - 0.5) * 2,
+      vy: (Math.random() - 0.5) * 2,
+      size: settings.particleSize * (0.7 + Math.random() * 0.6),
+      heat: 0.2 + Math.random() * 0.3,
+      mass: 1 + Math.random() * 2,
+      elasticity: 0.3 + Math.random() * 0.4
+    });
+  }
+}
+
+// Initialize stars
+function initializeStars() {
+  stars = [];
+  
+  for (let i = 0; i < settings.starCount; i++) {
+    stars.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      size: 0.5 + Math.random() * 2,
+      brightness: 0.1 + Math.random() * 0.9,
+      twinkleSpeed: 0.01 + Math.random() * 0.05,
+      twinklePhase: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+// Initialize the forge
+function initializeForge() {
+  // The forge is the area where particles are heated and shaped
+  forge = {
+    x: width / 2,
+    y: height * 0.75,
+    width: width * 0.4,
+    height: height * 0.2,
+    temperature: settings.forgeTemperature,
+    energyLevel: 0,
+    pulsation: 0
+  };
+}
+
+// Initialize the hammer
+function initializeHammer() {
+  // The hammer strikes and shapes the metal
+  hammer = {
+    x: width / 2,
+    y: height * 0.3,
+    width: width * 0.15,
+    height: height * 0.1,
+    angle: 45,
+    targetAngle: 0,
+    striking: false,
+    strikeProgress: 0,
+    strikeSpeed: 0.1,
+    lastStrikeTime: 0,
+    impacts: []
+  };
+}
+
+// Main draw function, called on every frame
+function draw(time) {
+  // Update audio levels
+  updateAudioLevels();
+  
+  // Update camera position
+  updateCamera(time);
+  
+  // Apply background
+  drawBackground();
+  
+  // Draw stars if enabled
+  if (settings.starsEnabled) {
+    drawStars(time);
+  }
+  
+  // Clear the main canvas
+  mainContext.clearRect(0, 0, width, height);
+  glowContext.clearRect(0, 0, width, height);
+  
+  // Draw the forge
+  drawForge();
+  
+  // Update the particles
+  updateParticles();
+  
+  // Draw the particles
+  drawParticles();
+  
+  // Draw the hammer
+  if (settings.hammerEnabled) {
+    updateHammer(time);
+    drawHammer();
+  }
+  
+  // Update and draw cosmic energy bolts
+  if (settings.cosmicEnergyEnabled) {
+    updateEnergyBolts();
+    drawEnergyBolts();
+  }
+  
+  // Apply the glow effect
+  applyGlowEffect();
+  
+  // Draw main content to screen
+  context.drawImage(mainCanvas, cameraOffset.x, cameraOffset.y);
+  
+  // Increment frame counter
+  frameCount++;
+  timeSinceLastImpact++;
+}
+
+// Update audio levels from the audio processor
+function updateAudioLevels() {
+  // Store previous beat detection state
+  const prevBeatDetected = beatDetected;
+  
+  if (window.audiohz) {
+    // Sample frequencies in each range for more accurate detection
+    let bassSum = 0;
+    for (let freq = 60; freq <= 250; freq += 30) {
+      bassSum += audiohz(freq);
+    }
+    
+    let midSum = 0;
+    for (let freq = 400; freq <= 2000; freq += 200) {
+      midSum += audiohz(freq);
+    }
+    
+    let highSum = 0;
+    for (let freq = 3000; freq <= 8000; freq += 500) {
+      highSum += audiohz(freq);
+    }
+    
+    // Calculate averages with smoothing
+    const bassRaw = bassSum / 7;
+    const midRaw = midSum / 9;
+    const highRaw = highSum / 11;
+    
+    audioLevels.bass = audioLevels.bass * settings.reactivitySmoothing + 
+                       bassRaw * (1 - settings.reactivitySmoothing);
+                       
+    audioLevels.mid = audioLevels.mid * settings.reactivitySmoothing + 
+                     midRaw * (1 - settings.reactivitySmoothing);
+                     
+    audioLevels.high = audioLevels.high * settings.reactivitySmoothing + 
+                       highRaw * (1 - settings.reactivitySmoothing);
+    
+    // Beat detection algorithm
+    const threshold = 0.6;
+    const minTimeBetweenBeats = 15; // frames
+    
+    beatDetected = false;
+    if (bassRaw > threshold && frameCount - lastBeat > minTimeBetweenBeats) {
+      beatDetected = true;
+      lastBeat = frameCount;
+    }
+    
+    // Strong bass impact detection (for hammer strikes)
+    if (bassRaw > lastBassImpact + 0.2 && bassRaw > 0.7 && timeSinceLastImpact > 15) {
+      triggerHammerStrike();
+      lastBassImpact = bassRaw;
+      timeSinceLastImpact = 0;
+    }
+    lastBassImpact = lastBassImpact * 0.95 + bassRaw * 0.05;
+    
+  } else {
+    // Simulated audio if not available
+    const time = frameCount * 0.02;
+    audioLevels.bass = 0.3 + 0.3 * Math.sin(time * 0.3);
+    audioLevels.mid = 0.3 + 0.3 * Math.sin(time * 0.5 + 1);
+    audioLevels.high = 0.3 + 0.3 * Math.sin(time * 0.7 + 2);
+    
+    // Simulated beats
+    beatDetected = false;
+    if (frameCount % 60 === 0) {
+      beatDetected = true;
+      lastBeat = frameCount;
+      triggerHammerStrike();
+    }
+  }
+  
+  // Calculate overall audio reactivity
+  audioLevels.overall = 
+    audioLevels.bass * settings.bassImpact * 0.5 + 
+    audioLevels.mid * settings.midImpact * 0.3 + 
+    audioLevels.high * settings.highImpact * 0.2;
+    
+  // If beat was just detected, trigger cosmic energy
+  if (beatDetected && !prevBeatDetected && settings.cosmicEnergyEnabled) {
+    createEnergyBolt();
+  }
+}
+
+// Update camera position
+function updateCamera(time) {
+  if (!settings.cameraMotion) {
+    cameraOffset.x = 0;
+    cameraOffset.y = 0;
+    return;
+  }
+  
+  // Calculate gentle camera motion
+  const motionScale = settings.motionAmount * 10;
+  const slowTime = time * 0.0003;
+  
+  cameraOffset.x = Math.sin(slowTime) * Math.cos(slowTime * 0.5) * motionScale;
+  cameraOffset.y = Math.sin(slowTime * 0.7) * Math.cos(slowTime * 0.3) * motionScale;
+  
+  // Add extra camera shake on hammer impacts
+  if (hammer.striking && hammer.strikeProgress > 0.9 && hammer.strikeProgress < 0.95) {
+    const shakeAmount = audioLevels.bass * 5;
+    cameraOffset.x += (Math.random() - 0.5) * shakeAmount;
+    cameraOffset.y += (Math.random() - 0.5) * shakeAmount;
+  }
+}
+
+// Draw the starry background
+function drawBackground() {
+  // Calculate background color based on settings and audio
+  const bgBase = settings.backgroundDarkness * 20;
+  const bgBoost = audioLevels.overall * 5;
+  const r = bgBase + bgBoost;
+  const g = bgBase * 0.8 + bgBoost * 0.8;
+  const b = bgBase * 1.2 + bgBoost;
+  
+  // Fill the background
+  context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+  context.fillRect(0, 0, width, height);
+}
+
+// Draw stars in the background
+function drawStars(time) {
+  for (const star of stars) {
+    // Calculate twinkle effect
+    const twinkle = 0.5 + 0.5 * Math.sin(time * 0.001 * star.twinkleSpeed + star.twinklePhase);
+    const brightness = star.brightness * (0.6 + 0.4 * twinkle);
+    
+    // Boost brightness with high frequencies
+    const audioBrightness = brightness * (1 + audioLevels.high * 0.5);
+    const b = 255 * audioBrightness;
+    
+    // Draw star
+    context.fillStyle = `rgb(${b}, ${b}, ${b})`;
+    context.beginPath();
+    context.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+    context.fill();
+  }
+}
+
+// Draw the forge
+function drawForge() {
+  const audioHeat = audioLevels.bass * 0.5 + audioLevels.mid * 0.3 + audioLevels.high * 0.2;
+  const glowIntensity = settings.forgeTemperature * (0.7 + 0.5 * audioHeat);
+  
+  // Draw forge base
+  mainContext.fillStyle = '#333';
+  mainContext.beginPath();
+  mainContext.rect(forge.x - forge.width/2, forge.y, forge.width, forge.height);
+  mainContext.fill();
+  
+  // Draw forge glow if enabled
+  if (settings.forgeGlowEnabled) {
+    // Create a gradient for the glow
+    const gradient = mainContext.createRadialGradient(
+      forge.x, forge.y, 0,
+      forge.x, forge.y, forge.width * 0.7
+    );
+    
+    const intensity = glowIntensity * 255;
+    const r = Math.min(255, 180 + intensity * 0.5);
+    const g = Math.min(255, 100 + intensity * 0.3);
+    const b = 50;
+    
+    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${glowIntensity})`);
+    gradient.addColorStop(1, 'rgba(100, 50, 0, 0)');
+    
+    // Draw glow on main canvas
+    mainContext.fillStyle = gradient;
+    mainContext.beginPath();
+    mainContext.arc(forge.x, forge.y, forge.width * 0.6, 0, Math.PI * 2);
+    mainContext.fill();
+    
+    // Draw stronger glow on glow canvas
+    glowContext.fillStyle = gradient;
+    glowContext.globalAlpha = 2 * glowIntensity;
+    glowContext.beginPath();
+    glowContext.arc(forge.x, forge.y, forge.width * 0.8, 0, Math.PI * 2);
+    glowContext.fill();
+    glowContext.globalAlpha = 1;
+  }
+}
+
+// Update all particles
+function updateParticles() {
+  // Calculate audio impact
+  const audioPush = audioLevels.overall * settings.bassImpact * 0.2;
+  
+  // Update each particle
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    
+    // Apply gravity
+    p.vy += settings.gravity;
+    
+    // Apply audio-based forces
+    if (audioPush > 0.1) {
+      // Push particles based on audio
+      const dx = p.x - width/2;
+      const dy = p.y - height/2;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      
+      if (dist > 0) {
+        const angle = Math.atan2(dy, dx);
+        p.vx += Math.cos(angle) * audioPush * 0.2;
+        p.vy += Math.sin(angle) * audioPush * 0.2;
+      }
+    }
+    
+    // Apply hammer impact forces
+    applyHammerForces(p);
+    
+    // Calculate attractive forces to other particles
+    applyParticleAttractions(p, i);
+    
+    // Check if particle is in forge and apply heating
+    if (isInForge(p)) {
+      p.heat = Math.min(1, p.heat + 0.02 * settings.forgeTemperature);
+    } else {
+      // Slowly cool down outside forge
+      p.heat = Math.max(0, p.heat - 0.005);
+    }
+    
+    // Apply viscosity (drag)
+    p.vx *= settings.viscosity;
+    p.vy *= settings.viscosity;
+    
+    // Update position
+    p.x += p.vx;
+    p.y += p.vy;
+    
+    // Bounce off walls
+    if (p.x < p.size) {
+      p.x = p.size;
+      p.vx *= -p.elasticity;
+    }
+    if (p.x > width - p.size) {
+      p.x = width - p.size;
+      p.vx *= -p.elasticity;
+    }
+    if (p.y < p.size) {
+      p.y = p.size;
+      p.vy *= -p.elasticity;
+    }
+    if (p.y > height - p.size) {
+      p.y = height - p.size;
+      p.vy *= -p.elasticity;
+    }
+  }
+}
+
+// Check if a particle is inside the forge
+function isInForge(particle) {
+  return (
+    particle.x > forge.x - forge.width/2 &&
+    particle.x < forge.x + forge.width/2 &&
+    particle.y > forge.y &&
+    particle.y < forge.y + forge.height
+  );
+}
+
+// Apply particle-to-particle attraction forces
+function applyParticleAttractions(particle, index) {
+  // Skip some calculations for performance
+  const skipFactor = Math.floor(Math.max(1, particles.length / 150));
+  
+  for (let j = 0; j < particles.length; j += skipFactor) {
+    if (j === index) continue;
+    
+    const other = particles[j];
+    const dx = other.x - particle.x;
+    const dy = other.y - particle.y;
+    const distSq = dx*dx + dy*dy;
+    
+    // Skip if too far away
+    if (distSq > 40000) continue;
+    
+    // Skip if too close (prevent extreme forces)
+    if (distSq < 1) continue;
+    
+    const dist = Math.sqrt(distSq);
+    
+    // Calculate base attraction
+    const force = settings.attractionForce / dist * 5;
+    
+    // Increase attraction if particles are hot
+    const heatFactor = 1 + (particle.heat + other.heat) * 0.5;
+    
+    // Apply force
+    const fx = dx / dist * force * heatFactor;
+    const fy = dy / dist * force * heatFactor;
+    
+    particle.vx += fx / particle.mass;
+    particle.vy += fy / particle.mass;
+  }
+}
+
+// Apply forces from hammer impacts
+function applyHammerForces(particle) {
+  if (!settings.hammerEnabled) return;
+  
+  // Check each active impact
+  for (let i = hammer.impacts.length - 1; i >= 0; i--) {
+    const impact = hammer.impacts[i];
+    
+    // Calculate distance to impact
+    const dx = particle.x - impact.x;
+    const dy = particle.y - impact.y;
+    const distSq = dx*dx + dy*dy;
+    
+    // Skip if too far away
+    if (distSq > impact.radius * impact.radius) {
+      continue;
+    }
+    
+    const dist = Math.sqrt(distSq);
+    
+    // Calculate impact force (stronger near center)
+    const force = impact.strength * (1 - dist / impact.radius);
+    
+    // Skip if negligible force
+    if (force < 0.01) continue;
+    
+    // Calculate direction
+    const angle = Math.atan2(dy, dx);
+    
+    // Apply force
+    particle.vx += Math.cos(angle) * force;
+    particle.vy += Math.sin(angle) * force * 1.5; // Extra vertical force
+    
+    // Heat up particle on impact
+    particle.heat = Math.min(1, particle.heat + force * 0.2);
+  }
+  
+  // Clean up expired impacts
+  hammer.impacts = hammer.impacts.filter(impact => impact.life > 0);
+}
+
+// Draw all particles
+function drawParticles() {
+  // First pass: draw connections between particles
+  //drawParticleConnections();
+  
+  // Second pass: draw the particles themselves
+  for (const p of particles) {
+    // Calculate size based on heat
+    const sizeMultiplier = 1 + p.heat * 0.5;
+    const drawSize = p.size * sizeMultiplier;
+    
+    // Calculate color based on heat
+    const baseR = settings.colorPrimary[0];
+    const baseG = settings.colorPrimary[1];
+    const baseB = settings.colorPrimary[2];
+    
+    const heatR = 255;
+    const heatG = 150 + p.heat * 105;
+    const heatB = 50 + p.heat * 50;
+    
+    // Interpolate color based on heat
+    const r = baseR + (heatR - baseR) * p.heat;
+    const g = baseG + (heatG - baseG) * p.heat;
+    const b = baseB + (heatB - baseB) * p.heat;
+    
+    // Create a radial gradient for the particle
+    const gradient = mainContext.createRadialGradient(
+      p.x, p.y, 0,
+      p.x, p.y, drawSize
+    );
+    
+    const reflectR = Math.min(255, r + 40);
+    const reflectG = Math.min(255, g + 40);
+    const reflectB = Math.min(255, b + 40);
+    
+    gradient.addColorStop(0, `rgb(${reflectR}, ${reflectG}, ${reflectB})`);
+    gradient.addColorStop(0.4, `rgb(${r}, ${g}, ${b})`);
+    gradient.addColorStop(1, `rgb(${r*0.7}, ${g*0.7}, ${b*0.7})`);
+    
+    // Draw to main canvas
+    mainContext.fillStyle = gradient;
+    mainContext.beginPath();
+    mainContext.arc(p.x, p.y, drawSize, 0, Math.PI * 2);
+    mainContext.fill();
+    
+    // Draw to glow canvas for hot particles
+    if (p.heat > 0.3) {
+      const glowSize = drawSize * (1 + p.heat * 0.5);
+      const glowAlpha = p.heat * 0.5;
+      
+      glowContext.fillStyle = `rgba(${heatR}, ${heatG}, ${heatB}, ${glowAlpha})`;
+      glowContext.beginPath();
+      glowContext.arc(p.x, p.y, glowSize, 0, Math.PI * 2);
+      glowContext.fill();
+    }
+  }
+}
+
+// Draw connections between close particles
+function drawParticleConnections() {
+  mainContext.strokeStyle = metalGradient;
+  mainContext.lineWidth = 3;
+  
+  // Get average particle location for gradient angle adjustment
+  let avgX = 0, avgY = 0;
+  for (const p of particles) {
+    avgX += p.x;
+    avgY += p.y;
+  }
+  avgX /= particles.length;
+  avgY /= particles.length;
+  
+  // Update metal gradient angle
+  const gradientAngle = Math.atan2(avgY - height/2, avgX - width/2);
+  const gradientX = width/2 + Math.cos(gradientAngle) * width/2;
+  const gradientY = height/2 + Math.sin(gradientAngle) * height/2;
+  
+  metalGradient = mainContext.createLinearGradient(
+    width/2 - Math.cos(gradientAngle) * width/2, 
+    height/2 - Math.sin(gradientAngle) * height/2,
+    gradientX, 
+    gradientY
+  );
+  
+  // Add color stops for reflective look
+  metalGradient.addColorStop(0, `rgb(${Math.min(255, settings.colorPrimary[0] * 1.3)}, ${Math.min(255, settings.colorPrimary[1] * 1.3)}, ${Math.min(255, settings.colorPrimary[2] * 1.3)})`);
+  metalGradient.addColorStop(0.3, `rgb(${Math.min(255, settings.colorPrimary[0] * 0.9)}, ${Math.min(255, settings.colorPrimary[1] * 0.9)}, ${Math.min(255, settings.colorPrimary[2] * 0.9)})`);
+  metalGradient.addColorStop(0.6, `rgb(${Math.min(255, settings.colorPrimary[0] * 1.1)}, ${Math.min(255, settings.colorPrimary[1] * 1.1)}, ${Math.min(255, settings.colorPrimary[2] * 1.1)})`);
+  metalGradient.addColorStop(1, `rgb(${Math.min(255, settings.colorPrimary[0] * 0.9)}, ${Math.min(255, settings.colorPrimary[1] * 0.9)}, ${Math.min(255, settings.colorPrimary[2] * 0.9)})`);
+  
+  // Hard-coded connection distance for now
+  const maxDist = 40;
+  const maxDistSquared = maxDist * maxDist;
+  
+  // For each particle, check connections to others
+  mainContext.beginPath();
+  let hasConnections = false;
+  
+  for (let i = 0; i < particles.length; i++) {
+    const p1 = particles[i];
+    
+    for (let j = i + 1; j < particles.length; j++) {
+      const p2 = particles[j];
+      
+      // Calculate squared distance
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const distSquared = dx*dx + dy*dy;
+      
+      // Connect if close enough
+      if (distSquared < maxDistSquared) {
+        const dist = Math.sqrt(distSquared);
+        const alpha = 1 - dist/maxDist;
+        
+        // Create heat-based width
+        const avgHeat = (p1.heat + p2.heat) / 2;
+        const width = 1.5 + avgHeat * 3;
+        
+        mainContext.moveTo(p1.x, p1.y);
+        mainContext.lineTo(p2.x, p2.y);
+        hasConnections = true;
+      }
+    }
+  }
+  
+  if (hasConnections) {
+    mainContext.stroke();
+  }
+  
+  // Draw to glow canvas as well
+  glowContext.strokeStyle = `rgba(${settings.colorPrimary[0]}, ${settings.colorPrimary[1]}, ${settings.colorPrimary[2]}, 0.3)`;
+  glowContext.lineWidth = 5;
+  
+  // Re-do connections for glow canvas
+  glowContext.beginPath();
+  for (let i = 0; i < particles.length; i++) {
+    const p1 = particles[i];
+    if (p1.heat < 0.3) continue; // Only glow hot connections
+    
+    for (let j = i + 1; j < particles.length; j++) {
+      const p2 = particles[j];
+      if (p2.heat < 0.3) continue;
+      
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const distSquared = dx*dx + dy*dy;
+      
+      if (distSquared < maxDistSquared) {
+        const avgHeat = (p1.heat + p2.heat) / 2;
+        glowContext.globalAlpha = avgHeat * 0.5;
+        
+        glowContext.moveTo(p1.x, p1.y);
+        glowContext.lineTo(p2.x, p2.y);
+      }
+    }
+  }
+  
+  if (hasConnections) {
+    glowContext.stroke();
+  }
+  glowContext.globalAlpha = 1.0;
+}
+
+// Update the hammer
+function updateHammer(time) {
+  // Decide when to strike
+  if (!hammer.striking) {
+    // Check if we should strike based on settings
+    let shouldStrike = false;
+    
+    if (settings.hammerTiming === 'bass') {
+      // Strike on high bass
+      shouldStrike = audioLevels.bass > 0.7 && frameCount - hammer.lastStrikeTime > 30;
+    } else if (settings.hammerTiming === 'beat') {
+      // Strike on beat
+      shouldStrike = beatDetected && frameCount - hammer.lastStrikeTime > 15;
+    } else {
+      // Strike at regular intervals for mid frequencies
+      shouldStrike = audioLevels.mid > 0.6 && frameCount - hammer.lastStrikeTime > 45;
+    }
+    
+    if (shouldStrike) {
+      triggerHammerStrike();
+    }
+  }
+  
+  // Update hammer strike animation
+  if (hammer.striking) {
+    hammer.strikeProgress += hammer.strikeSpeed;
+    
+    if (hammer.strikeProgress < 0.5) {
+      // First half - raise hammer
+      const t = hammer.strikeProgress * 2; // 0 to 1
+      hammer.angle = -Math.PI/4 * easeCubicOut(t);
+    } else if (hammer.strikeProgress < 0.9) {
+      // Second half - strike down
+      const t = (hammer.strikeProgress - 0.5) * 2.5; // 0 to 1
+      hammer.angle = -Math.PI/4 * (1 - easeCubicIn(t));
+    } else if (hammer.strikeProgress >= 0.9 && hammer.strikeProgress <= 0.95) {
+      // At impact point
+      hammer.angle = 0;
+      
+      // Create impact at this moment
+      if (hammer.strikeProgress >= 0.9 && hammer.strikeProgress < 0.91) {
+        createHammerImpact();
+      }
+    } else {
+      // After impact
+      hammer.angle = 0;
+    }
+    
+    // End strike
+    if (hammer.strikeProgress >= 1) {
+      hammer.striking = false;
+      hammer.strikeProgress = 0;
+    }
+  } else {
+    // Gentle hovering motion when not striking
+    hammer.angle = Math.sin(time * 0.001) * 0.05;
+  }
+  
+  // Update existing impacts
+  for (const impact of hammer.impacts) {
+    impact.life -= 0.05;
+  }
+}
+
+// Trigger a hammer strike
+function triggerHammerStrike() {
+  if (hammer.striking) return; // Already striking
+  
+  hammer.striking = true;
+  hammer.strikeProgress = 0;
+  hammer.lastStrikeTime = frameCount;
+  
+  // Strike speed affected by audio
+  hammer.strikeSpeed = 0.04 + audioLevels.overall * 0.03;
+}
+
+// Create a hammer impact
+function createHammerImpact() {
+  // Calculate impact position
+  const x = hammer.x;
+  const y = hammer.y + hammer.height + 10;
+  
+  // Create impact
+  hammer.impacts.push({
+    x: x,
+    y: y,
+    radius: 100 + audioLevels.bass * 50,
+    strength: settings.hammerStrength * (1 + audioLevels.overall),
+    life: 1
+  });
+}
+
+// Draw the hammer
+function drawHammer() {
+  // Calculate position
+  const pivotX = hammer.x;
+  const pivotY = hammer.y - hammer.height;
+  
+  // Save context for rotation
+  mainContext.save();
+  mainContext.translate(pivotX, pivotY);
+  mainContext.rotate(hammer.angle - 8);
+  
+  // Draw hammer handle
+  mainContext.fillStyle = '#654321';
+  mainContext.beginPath();
+  mainContext.rect(-5, 0, 10, hammer.height * 1.5);
+  mainContext.fill();
+  
+  // Draw hammer head
+  mainContext.fillStyle = '#999';
+  mainContext.beginPath();
+  mainContext.rect(-hammer.width/2, hammer.height * 1.5, hammer.width, hammer.height);
+  mainContext.fill();
+  
+  // Add metallic highlights
+  mainContext.fillStyle = '#CCC';
+  mainContext.beginPath();
+  mainContext.rect(-hammer.width/2, hammer.height * 1.5, hammer.width, hammer.height * 0.2);
+  mainContext.fill();
+  
+  // Draw glow for hot hammer
+  if (settings.forgeGlowEnabled && hammer.striking) {
+    glowContext.save();
+    glowContext.translate(pivotX, pivotY);
+    glowContext.rotate(hammer.angle);
+    
+    // Head glow when striking
+    const glowAlpha = Math.max(0, 0.5 - Math.abs(hammer.strikeProgress - 0.9) * 5);
+    if (glowAlpha > 0) {
+      glowContext.fillStyle = `rgba(255, 200, 100, ${glowAlpha})`;
+      glowContext.beginPath();
+      glowContext.rect(-hammer.width/2 - 5, hammer.height * 1.5 - 5, 
+                     hammer.width + 10, hammer.height + 10);
+      glowContext.fill();
+    }
+    
+    glowContext.restore();
+  }
+  
+  // Restore context
+  mainContext.restore();
+}
+
+// Create a cosmic energy bolt
+function createEnergyBolt() {
+  // Create start and end points
+  const startX = Math.random() * width;
+  const startY = 0;
+  const endX = hammer.x;
+  const endY = hammer.y;
+  
+  // Create points along the path
+  const points = [{x: startX, y: startY}];
+  
+  // Number of segments based on distance
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const segmentCount = Math.floor(dist / 20);
+  
+  // Create zigzag pattern
+  for (let i = 1; i < segmentCount; i++) {
+    const t = i / segmentCount;
+    const midX = startX + dx * t;
+    const midY = startY + dy * t;
+    
+    // Add randomness to path
+    const jitter = 20 + Math.random() * 30;
+    const offsetX = (Math.random() - 0.5) * jitter;
+    
+    points.push({x: midX + offsetX, y: midY});
+  }
+  
+  // Add end point
+  points.push({x: endX, y: endY});
+  
+  // Create energy bolt
+  energyBolts.push({
+    points: points,
+    width: 3 + audioLevels.high * 5,
+    life: 1,
+    decay: 0.05 + Math.random() * 0.1
+  });
+}
+
+// Update energy bolts
+function updateEnergyBolts() {
+  // Update each bolt
+  for (let i = energyBolts.length - 1; i >= 0; i--) {
+    const bolt = energyBolts[i];
+    
+    // Decrease life
+    bolt.life -= bolt.decay;
+    
+    // Remove dead bolts
+    if (bolt.life <= 0) {
+      energyBolts.splice(i, 1);
+    }
+  }
+}
+
+// Draw energy bolts
+function drawEnergyBolts() {
+  for (const bolt of energyBolts) {
+    // Skip if no points
+    if (bolt.points.length < 2) continue;
+    
+    // Draw path on main canvas
+    mainContext.strokeStyle = `rgba(${settings.colorAccent[0]}, ${settings.colorAccent[1]}, ${settings.colorAccent[2]}, ${bolt.life})`;
+    mainContext.lineWidth = bolt.width;
+    mainContext.lineCap = 'round';
+    mainContext.lineJoin = 'bevel';
+    
+    mainContext.beginPath();
+    mainContext.moveTo(bolt.points[0].x, bolt.points[0].y);
+    
+    for (let i = 1; i < bolt.points.length; i++) {
+      mainContext.lineTo(bolt.points[i].x, bolt.points[i].y);
+    }
+    
+    mainContext.stroke();
+    
+    // Draw glow on glow canvas
+    glowContext.strokeStyle = `rgba(${settings.colorAccent[0]}, ${settings.colorAccent[1]}, ${settings.colorAccent[2]}, ${bolt.life * 0.8})`;
+    glowContext.lineWidth = bolt.width * 3;
+    glowContext.lineCap = 'round';
+    glowContext.lineJoin = 'bevel';
+    
+    glowContext.beginPath();
+    glowContext.moveTo(bolt.points[0].x, bolt.points[0].y);
+    
+    for (let i = 1; i < bolt.points.length; i++) {
+      glowContext.lineTo(bolt.points[i].x, bolt.points[i].y);
+    }
+    
+    glowContext.stroke();
+    
+    // Draw energy particles along the bolt
+    if (bolt.life > 0.5) {
+      const particleCount = Math.floor(bolt.points.length * 2);
+      
+      for (let i = 0; i < particleCount; i++) {
+        const t = Math.random();
+        const index = Math.floor(t * (bolt.points.length - 1));
+        const p1 = bolt.points[index];
+        const p2 = bolt.points[index + 1];
+        
+        const x = p1.x + (p2.x - p1.x) * (t * bolt.points.length - index);
+        const y = p1.y + (p2.y - p1.y) * (t * bolt.points.length - index);
+        
+        const size = (1 + Math.random() * 2) * bolt.life;
+        
+        glowContext.fillStyle = `rgba(${settings.colorAccent[0]}, ${settings.colorAccent[1]}, ${settings.colorAccent[2]}, ${bolt.life})`;
+        glowContext.beginPath();
+        glowContext.arc(x, y, size, 0, Math.PI * 2);
+        glowContext.fill();
+      }
+    }
+  }
+}
+
+// Apply glow effect
+function applyGlowEffect() {
+  // Skip if no glow
+  if (settings.glowIntensity <= 0) return;
+  
+  const intensity = settings.glowIntensity * (1 + audioLevels.overall * 0.5);
+  
+  // Apply multi-pass blur for better quality
+  glowContext.filter = `blur(${8 * intensity}px)`;
+  glowContext.globalAlpha = 0.5;
+  glowContext.drawImage(glowCanvas, 0, 0);
+  
+  glowContext.filter = `blur(${4 * intensity}px)`;
+  glowContext.globalAlpha = 0.4;
+  glowContext.drawImage(glowCanvas, 0, 0);
+  
+  // Reset filter
+  glowContext.filter = 'none';
+  glowContext.globalAlpha = 1.0;
+  
+  // Composite glow onto main canvas
+  mainContext.globalCompositeOperation = 'screen';
+  mainContext.drawImage(glowCanvas, 0, 0);
+  mainContext.globalCompositeOperation = 'source-over';
+}
+
+// Easing functions
+function easeCubicIn(t) {
+  return t * t * t;
+}
+
+function easeCubicOut(t) {
+  return 1 - Math.pow(1 - t, 3);
+}

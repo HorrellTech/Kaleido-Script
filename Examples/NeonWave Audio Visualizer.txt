@@ -1,0 +1,237 @@
+// NeonWave Audio Visualizer
+// A hypnotic, flowing audio visualizer with reactive sine waves
+
+// SETTINGS - Adjust these to customize the visualization
+const settings = {
+  // General settings
+  bgColor: { r: 8, g: 3, b: 15 },    // Dark background color
+  padding: -10,                        // Screen edge padding
+  
+  // Wave settings
+  waveCount: 10,                       // Number of wave lines
+  wavePoints: 24,                     // Control points per wave
+  waveSmoothing: 0.2,                 // How smooth the waves are (0-1)
+  waveThickness: 2,                   // Base thickness of wave lines
+  
+  // Motion settings
+  motionSpeed: 0.8,                   // Base movement speed
+  frequencyInfluence: 2,            // How much audio affects motion
+  
+  // Visual effects
+  blurAmount: 120,                     // Amount of blur for trails
+  glowIntensity: 1.8,                 // Intensity of the glow effect
+  trailOpacity: 0.15,                 // Opacity of the trails (lower = less intense)
+  
+  // Color settings
+  colors: [
+    { r: 255, g: 0, b: 128 },         // Hot pink
+    { r: 0, g: 255, b: 140 },         // Neon green
+    { r: 80, g: 0, b: 255 },          // Purple
+    { r: 255, g: 90, b: 0 },          // Orange
+    { r: 0, g: 200, b: 255 }          // Cyan
+  ]
+};
+
+// Wave line objects with their own properties
+let waves = [];
+
+// Offscreen canvas for the glow effect
+let offscreenCanvas, offscreenContext;
+
+// Setup function runs once at the beginning
+function setup() {
+  log("NeonWave visualizer starting up");
+  
+  // Create offscreen canvas for glow effects
+  offscreenCanvas = document.createElement('canvas');
+  offscreenCanvas.width = width;
+  offscreenCanvas.height = height;
+  offscreenContext = offscreenCanvas.getContext('2d');
+  
+  // Try to load audio
+  if (window.audioProcessor) {
+    try {
+      // You can replace with your audio file name
+      loadAudio("Music/Wild Card.wav");
+      playAudio();
+      log("Audio loaded and playing");
+    } catch (e) {
+      log("No audio specified or error loading audio", "warning");
+    }
+  }
+  
+  // Initialize wave objects
+  createWaves();
+  
+  // Set initial background
+  background(settings.bgColor.r, settings.bgColor.g, settings.bgColor.b);
+}
+
+// Create wave objects with their control points
+function createWaves() {
+  for (let i = 0; i < settings.waveCount; i++) {
+    // Choose a color for this wave
+    const color = settings.colors[i % settings.colors.length];
+    
+    // Create points for this wave
+    const points = [];
+    for (let j = 0; j < settings.wavePoints; j++) {
+      points.push({
+        x: Math.random() * (width - settings.padding * 2) + settings.padding,
+        y: Math.random() * (height - settings.padding * 2) + settings.padding,
+        vx: (Math.random() - 0.5) * settings.motionSpeed,
+        vy: (Math.random() - 0.5) * settings.motionSpeed,
+        // Give each point its own phase for organic movement
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    
+    // Add the wave to our collection
+    waves.push({
+      points: points,
+      color: color,
+      frequency: 100 + i * 1000  // Each wave responds to a different frequency
+    });
+  }
+}
+
+// Draw function runs on every frame
+function draw(time) {
+  // Apply a semi-transparent background for trail effect
+  fill(settings.bgColor.r, settings.bgColor.g, settings.bgColor.b, settings.trailOpacity);
+  rect(0, 0, width, height);
+  
+  // Clear the offscreen canvas for glow effects
+  offscreenContext.clearRect(0, 0, width, height);
+  
+  // Get different frequency ranges for audio reactivity
+  const bassLevel = window.audiohz ? audiohz(100) : 0.5;
+  const midLevel = window.audiohz ? audiohz(1000) : 0.5;
+  const highLevel = window.audiohz ? audiohz(5000) : 0.5;
+  
+  // Draw each wave
+  waves.forEach((wave, index) => {
+    // Get the frequency response for this wave
+    const freqResponse = window.audiohz ? 
+      audiohz(wave.frequency) : 
+      0.3 + 0.2 * Math.sin(time/1000 + index);
+    
+    // Calculate influence based on audio
+    const influence = freqResponse * settings.frequencyInfluence;
+    
+    // Update wave points
+    updateWavePoints(wave, time, influence);
+    
+    // Draw the wave to the offscreen canvas for glow effect
+    drawWave(offscreenContext, wave, time, freqResponse);
+    
+    // Now draw the wave to the main canvas
+    drawWave(context, wave, time, freqResponse);
+  });
+  
+  // Apply the glow effect
+  applyGlowEffect();
+}
+
+// Update the position of wave points based on time and audio
+function updateWavePoints(wave, time, influence) {
+  const padding = settings.padding;
+  
+  wave.points.forEach((point, i) => {
+    // Each point moves with its own velocity
+    point.x += point.vx * (1 + influence);
+    point.y += point.vy * (1 + influence);
+    
+    // Add some organic motion based on sine waves and time
+    const phaseSpeed = 0.0005;
+    point.phase += phaseSpeed * (1 + influence);
+    
+    // Apply audio-reactive force
+    // Create spiral-like motions with varying speeds
+    const spiralForce = 0.05 * influence;
+    const angleShift = (i / wave.points.length) * Math.PI * 2 + time/5000;
+    point.vx += Math.cos(angleShift + point.phase) * spiralForce;
+    point.vy += Math.sin(angleShift + point.phase) * spiralForce;
+    
+    // Apply velocity limits based on audio influence
+    const maxVelocity = 1 + influence * 2;
+    const speed = Math.sqrt(point.vx * point.vx + point.vy * point.vy);
+    if (speed > maxVelocity) {
+      point.vx = (point.vx / speed) * maxVelocity;
+      point.vy = (point.vy / speed) * maxVelocity;
+    }
+    
+    // Apply some damping
+    point.vx *= 0.98;
+    point.vy *= 0.98;
+    
+    // Bounce off the edges with padding
+    if (point.x < padding || point.x > width - padding) {
+      point.vx = -point.vx * 0.8;
+      point.x = Math.max(padding, Math.min(width - padding, point.x));
+    }
+    if (point.y < padding || point.y > height - padding) {
+      point.vy = -point.vy * 0.8;
+      point.y = Math.max(padding, Math.min(height - padding, point.y));
+    }
+  });
+}
+
+// Draw a wave to the specified context
+function drawWave(ctx, wave, time, freqResponse) {
+  const { points, color } = wave;
+  if (points.length < 2) return;
+  
+  // Set line style based on frequency response
+  ctx.lineWidth = settings.waveThickness * (1 + freqResponse);
+  
+  // Create gradient based on wave color with audio-reactive brightness
+  const intensity = 0.5 + freqResponse * 0.5;
+  ctx.strokeStyle = `rgba(${color.r * intensity}, ${color.g * intensity}, ${color.b * intensity}, 1)`;
+  
+  // Begin the path for this wave
+  ctx.beginPath();
+  
+  // Start from the first point
+  ctx.moveTo(points[0].x, points[0].y);
+  
+  // Use a spline curve through all points for smooth waves
+  for (let i = 0; i < points.length - 1; i++) {
+    const current = points[i];
+    const next = points[i + 1];
+    
+    // Calculate control points for the curve
+    // This creates a smooth curve between points
+    const smoothing = settings.waveSmoothing;
+    const cpX1 = current.x + (next.x - points[Math.max(0, i-1)].x) * smoothing;
+    const cpY1 = current.y + (next.y - points[Math.max(0, i-1)].y) * smoothing;
+    const cpX2 = next.x - (points[Math.min(points.length-1, i+2)].x - current.x) * smoothing;
+    const cpY2 = next.y - (points[Math.min(points.length-1, i+2)].y - current.y) * smoothing;
+    
+    // Draw the curve
+    ctx.bezierCurveTo(cpX1, cpY1, cpX2, cpY2, next.x, next.y);
+  }
+  
+  // Add subtle animation to line width based on time
+  const pulseRate = 0.001 + freqResponse * 0.002;
+  const pulseMagnitude = 1 + Math.sin(time * pulseRate) * 0.2 * freqResponse;
+  ctx.lineWidth *= pulseMagnitude;
+  
+  // Draw the path
+  ctx.stroke();
+}
+
+// Apply a glow effect by blurring the offscreen canvas and combining with main canvas
+function applyGlowEffect() {
+  // Apply blur filter to the offscreen canvas
+  offscreenContext.filter = `blur(${settings.blurAmount}px)`;
+  offscreenContext.drawImage(offscreenCanvas, 0, 0);
+  offscreenContext.filter = 'none';
+  
+  // Draw the blurred canvas onto the main canvas with specified blend mode
+  context.globalCompositeOperation = 'lighter';
+  context.globalAlpha = settings.glowIntensity;
+  context.drawImage(offscreenCanvas, 0, 0);
+  context.globalAlpha = 1.0;
+  context.globalCompositeOperation = 'source-over';
+}

@@ -1,0 +1,40 @@
+function setup() {
+  loadAudio("Music/Reaching the Subconscious.wav");
+  playAudio();
+}
+
+function draw(time) {
+  // Forest background
+  background(5, 15, 10);
+
+  // Audio reactivity
+  const bass = audiohz(60);
+  const highs = audiohz(2000);
+
+  // Fog/mist effect
+  visualFog(0, 0, width, height, 6, 100, 200, 0.3, 20, 200, 0.3, 
+            `rgba(100, 200, 150, ${0.2 + bass * 0.1})`, true);
+
+  // Draw three audio-reactive trees
+  for (let i = 0; i < 3; i++) {
+    const treeX = width * (i + 1) / 4;
+    stroke(20, 100 + bass * 50, 50);
+    lineWidth(2 + bass * 3);
+    visualTree(
+      treeX, height, 
+      100 * (1 + bass * 0.3), 
+      Math.PI/2 + Math.sin(i + time * 0.001) * 0.05,
+      4 + Math.floor(highs * 3),
+      100 + i * 200, 2000, true
+    );
+  }
+
+  // Firefly particles
+  fill(200 + highs * 55, 255, 200);
+  visualParticle(0, 0, width, height * 0.7, 20, 1000, 3000, true);
+
+  // Ground ripples
+  stroke(100, 200, 150, 0.5);
+  lineWidth(1);
+  visualRipple(0, height * 0.8, width, height * 0.2, 3, 20, 500, true);
+}

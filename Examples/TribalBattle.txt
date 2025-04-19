@@ -1,0 +1,1289 @@
+const settings = {
+    // Audio
+    songPath: "Music/Be My Moon (1).wav",
+    freqMin: 50,        // Minimum frequency to analyze
+    freqMax: 3000,      // Maximum frequency to analyze
+    freqSteps: 10,      // Number of frequency bands
+    
+    // Village Settings
+    numVillages: 3,           
+    initialRadius: 35,        
+    radiusPerHouse: 3,        
+    villagersPerHouse: 4,    
+    maxVillagers: 80,         
+    
+    // Resources
+    treeDensity: 0.15,       
+    houseResourceCost: 10,    
+    towerResourceCost: 20,   
+    initialResources: 12,     
+    resourceReturnThreshold: 2,
+    treeSearchRadius: 150,    
+    
+    // Visual Settings
+    villagerSize: 3,         
+    houseSize: 8,            
+    towerSize: 10,           
+    treeHeight: 12,          
+    treeCanopySize: 4,       
+    treeTrunkWidth: 2,
+    
+    // Song timeline settings
+    timelineHeight: 45,      // Height of timeline area
+    timelineY: 45,          // Y position of timeline
+    timelineBannerHeight: 70, // Height for battle banner
+    timelinePeacefulColor: [60, 200, 100],  // Green for peace
+    timelineBattleColor: [230, 60, 20],    // Red for battle
+    timelineFinalColor: [230, 190, 20],    // Gold for final battle
+    
+    // Combat
+    towerRange: 60,          
+    towerDamage: 3,          
+    villagerAttackDamage: 8,
+    villagerHealthMax: 100,   
+    
+    // Game Balance & Timeline
+    villagerSpeed: 0.4,      
+    growthRate: 0.001,       
+    peacefulStartTime: 0.5,   // Half the song is peaceful
+    forceBattleTime: 0.75,    // At 75% of song length, force battle
+    finalBattleTime: 0.9,    // Final battle phase
+    battleModeSpeed: 0.7,
+    pulseAmount: 0.5,        // Territory pulse amount
+    
+    // UI Toggles
+    showHealthBars: true,     // h
+    showVillageStats: true,   // s
+    showBattleNotices: true,  // b
+    showTaskIndicators: true, // t
+    showProgressBar: true,    // p
+    showDebug: false,         // d
+}
+
+// Format time in mm:ss format properly
+function formatTime(seconds) {
+    if (isNaN(seconds) || seconds < 0) return "0:00";
+    
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+// Get current audio playback time safely
+function getCurrentAudioTime() {
+    try {
+        if (window.interpreter && window.interpreter.audio) {
+            return window.interpreter.audio.currentTime || 0;
+        }
+    } catch (e) {
+        console.log("Error getting audio time:", e);
+    }
+    return (Date.now() / 1000) - startTime;
+}
+
+// Get audio duration safely
+function getAudioDuration() {
+    try {
+        if (window.interpreter && window.interpreter.audio && 
+            window.interpreter.audio.duration && 
+            isFinite(window.interpreter.audio.duration)) {
+            return window.interpreter.audio.duration;
+        }
+    } catch (e) {
+        console.log("Error getting audio duration:", e);
+    }
+    return songDuration;
+}
+
+
+
+// Generate random colors for teams
+function generateTeamColor() {
+    // Generate vibrant colors
+    const hue = Math.random() * 360;
+    const r = Math.floor(Math.sin(0.024 * hue + 0) * 127 + 128);
+    const g = Math.floor(Math.sin(0.024 * hue + 2) * 127 + 128);
+    const b = Math.floor(Math.sin(0.024 * hue + 4) * 127 + 128);
+    return [r, g, b];
+}
+
+// Generate random frequencies for teams
+function generateTeamFrequency(index) {
+    // Distribute frequencies across the spectrum but keep them distinct
+    const freq = settings.freqMin + 
+        (settings.freqMax - settings.freqMin) * 
+        (index + Math.random() * 0.5) / settings.numVillages;
+    return Math.floor(freq);
+}
+
+class Village {
+    constructor(x, y, color, freq) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.freq = freq;
+        this.villagers = [];
+        this.houses = [];
+        this.towers = [];
+        this.resources = settings.initialResources;
+        this.radius = settings.initialRadius;
+        this.battleMode = false;
+        this.target = null;
+        this.evolutionStage = 0;
+        this.lastResourceUpdate = 0;
+        this.lastHouseAttempt = 0;
+        this.lastBattleCheck = 0;
+        this.victorious = false;
+        
+        // Start with initial villagers
+        for (let i = 0; i < 3; i++) {
+            this.addVillager();
+        }
+    }
+    
+    addVillager() {
+        if (this.villagers.length < this.getTotalCapacity() && 
+            this.villagers.length < settings.maxVillagers) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * (this.radius * 0.7);
+            this.villagers.push({
+                x: this.x + Math.cos(angle) * dist,
+                y: this.y + Math.sin(angle) * dist,
+                task: 'idle',
+                targetX: null,
+                targetY: null,
+                targetTree: null,
+                targetVillager: null,
+                targetBuilding: null,
+                health: settings.villagerHealthMax,
+                resourceCarrying: 0,
+                gatheringTimer: 0,
+                attackCooldown: 0,
+                lastTaskTime: 0,
+                idleTime: 0,
+                combatSkill: Math.random() * 0.5,
+                gatheringSkill: Math.random() * 0.5
+            });
+        }
+    }
+    
+    addHouse(time) {
+        if (this.resources >= settings.houseResourceCost && time - this.lastHouseAttempt > 2) {
+            this.lastHouseAttempt = time;
+            
+            // Find a spot for the house
+            let houseX, houseY, validSpot = false;
+            let attempts = 0;
+            
+            while (!validSpot && attempts < 10) {
+                attempts++;
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * (this.radius * 0.7);
+                houseX = this.x + Math.cos(angle) * dist;
+                houseY = this.y + Math.sin(angle) * dist;
+                
+                // Check if spot is clear
+                validSpot = true;
+                for (const house of this.houses) {
+                    if (Math.hypot(house.x - houseX, house.y - houseY) < settings.houseSize * 2.5) {
+                        validSpot = false;
+                        break;
+                    }
+                }
+            }
+            
+            if (validSpot) {
+                this.houses.push({
+                    x: houseX,
+                    y: houseY,
+                    health: 100,
+                    maxHealth: 100,
+                    constructionProgress: 0 // Houses start incomplete
+                });
+                this.resources -= settings.houseResourceCost;
+                
+                // Expand village radius with each new house
+                this.radius += settings.radiusPerHouse;
+                
+                // Reset idle villagers to start building
+                for (const v of this.villagers) {
+                    if (v.task === 'idle' || v.task === 'wandering') {
+                        v.task = 'idle';
+                        v.targetX = null;
+                        v.targetY = null;
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    addTower(time) {
+        if (this.resources >= settings.towerResourceCost && 
+            this.evolutionStage > 0 && 
+            time - this.lastHouseAttempt > 5) {
+            
+            this.lastHouseAttempt = time;
+            
+            // Place tower near perimeter
+            const angle = Math.random() * Math.PI * 2;
+            const dist = this.radius * 0.7;
+            
+            this.towers.push({
+                x: this.x + Math.cos(angle) * dist,
+                y: this.y + Math.sin(angle) * dist,
+                health: 150,
+                maxHealth: 150,
+                lastFired: 0,
+                cooldown: 2,
+                constructionProgress: 0
+            });
+            this.resources -= settings.towerResourceCost;
+            return true;
+        }
+        return false;
+    }
+    
+    getTotalCapacity() {
+        // Count completed houses
+        let completedHouses = 0;
+        for (const house of this.houses) {
+            if (house.constructionProgress >= 1) {
+                completedHouses++;
+            }
+        }
+        return completedHouses * settings.villagersPerHouse + 5;
+    }
+    
+    checkEvolution() {
+        // Count completed houses for evolution
+        let completedHouses = 0;
+        for (const house of this.houses) {
+            if (house.constructionProgress >= 1) {
+                completedHouses++;
+            }
+        }
+        
+        // Set evolution stage based on houses
+        if (completedHouses >= 30) {
+            this.evolutionStage = 3;
+        } else if (completedHouses >= 15) {
+            this.evolutionStage = 2;
+        } else if (completedHouses >= 5) {
+            this.evolutionStage = 1;
+        }
+    }
+    
+    checkBoundaryClash(otherVillages, songProgress, time) {
+        // No conflicts during peaceful start time
+        if (songProgress < settings.peacefulStartTime) {
+            return false;
+        }
+        
+        // Don't check too often
+        if (time - this.lastBattleCheck < 1) {
+            return false;
+        }
+        this.lastBattleCheck = time;
+        
+        // Force battle if near end of song
+        if (songProgress > settings.forceBattleTime && !this.battleMode) {
+            let closest = null;
+            let closestDist = Infinity;
+            
+            for (const village of otherVillages) {
+                if (village !== this && !village.battleMode) {
+                    const dist = Math.hypot(village.x - this.x, village.y - this.y);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closest = village;
+                    }
+                }
+            }
+            
+            if (closest) {
+                this.battleMode = true;
+                closest.battleMode = true;
+                this.target = closest;
+                closest.target = this;
+                return true;
+            }
+        }
+        
+        // Regular boundary clashes
+        for (const village of otherVillages) {
+            if (village !== this && !this.battleMode && !village.battleMode) {
+                const dist = Math.hypot(village.x - this.x, village.y - this.y);
+                if (dist < this.radius + village.radius + 5) {
+                    this.battleMode = true;
+                    village.battleMode = true;
+                    this.target = village;
+                    village.target = this;
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    findNearestTree(x, y, trees) {
+        let closest = null;
+        let closestDist = settings.treeSearchRadius;
+        
+        for (const tree of trees) {
+            if (!tree.beingHarvested) {
+                const dist = Math.hypot(tree.x - x, tree.y - y);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = tree;
+                }
+            }
+        }
+        
+        return closest;
+    }
+    
+    findUnfinishedBuilding() {
+        // Check for unfinished houses
+        for (const house of this.houses) {
+            if (house.constructionProgress < 1) {
+                return { building: house, type: 'house' };
+            }
+        }
+        
+        // Check for unfinished towers
+        for (const tower of this.towers) {
+            if (tower.constructionProgress < 1) {
+                return { building: tower, type: 'tower' };
+            }
+        }
+        
+        return null;
+    }
+    
+    assignTask(villager, trees, time, songProgress) {
+        // Reset idle timer
+        villager.idleTime = 0;
+        villager.lastTaskTime = time;
+        
+        // Battle mode tasks
+        if (this.battleMode && this.target) {
+            // 70% chance to attack, 30% to defend
+            if (Math.random() < 0.7 || songProgress > settings.finalBattleTime) {
+                villager.task = 'battle';
+                villager.targetX = this.target.x + (Math.random() - 0.5) * this.target.radius;
+                villager.targetY = this.target.y + (Math.random() - 0.5) * this.target.radius;
+            } else {
+                villager.task = 'defend';
+                const angle = Math.random() * Math.PI * 2;
+                villager.targetX = this.x + Math.cos(angle) * this.radius * 0.7;
+                villager.targetY = this.y + Math.sin(angle) * this.radius * 0.7;
+            }
+            return;
+        }
+        
+        // Check for unfinished buildings first
+        const unfinishedBuilding = this.findUnfinishedBuilding();
+        if (unfinishedBuilding) {
+            villager.task = 'building';
+            villager.targetX = unfinishedBuilding.building.x;
+            villager.targetY = unfinishedBuilding.building.y;
+            villager.targetBuilding = unfinishedBuilding.building;
+            return;
+        }
+        
+        // Check if villager has resources to return
+        if (villager.resourceCarrying >= settings.resourceReturnThreshold) {
+            villager.task = 'returning';
+            villager.targetX = this.x;
+            villager.targetY = this.y;
+            return;
+        }
+        
+        // Find tree and gather resources
+        const nearestTree = this.findNearestTree(villager.x, villager.y, trees);
+        if (nearestTree) {
+            villager.task = 'gathering';
+            villager.targetX = nearestTree.x;
+            villager.targetY = nearestTree.y;
+            villager.targetTree = nearestTree;
+            nearestTree.beingHarvested = true;
+        } else {
+            // No trees found, wander
+            villager.task = 'wandering';
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * this.radius * 1.1;
+            villager.targetX = this.x + Math.cos(angle) * dist;
+            villager.targetY = this.y + Math.sin(angle) * dist;
+        }
+    }
+    
+    updateTowers(time, deltaTime) {
+        if (!this.battleMode || !this.target) return;
+        
+        for (const tower of this.towers) {
+            if (tower.health <= 0 || tower.constructionProgress < 1) continue;
+            
+            if (time - tower.lastFired > tower.cooldown) {
+                let closest = null;
+                let closestDist = settings.towerRange;
+                
+                // Find closest enemy villager
+                for (const enemy of this.target.villagers) {
+                    const dist = Math.hypot(tower.x - enemy.x, tower.y - enemy.y);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closest = enemy;
+                    }
+                }
+                
+                // Fire at enemy
+                if (closest) {
+                    tower.lastFired = time;
+                    closest.health -= settings.towerDamage;
+                    
+                    // Tower attack visual
+                    if (settings.showTaskIndicators) {
+                        stroke(this.color[0], this.color[1], this.color[2], 0.7);
+                        lineWidth(1);
+                        line(tower.x, tower.y, closest.x, closest.y);
+                    }
+                }
+            }
+        }
+    }
+    
+    handleVillagerAttack(villager, enemy, time) {
+        if (villager.attackCooldown <= 0 && 
+            Math.hypot(villager.x - enemy.x, villager.y - enemy.y) < 8) {
+            
+            // Apply damage
+            enemy.health -= settings.villagerAttackDamage;
+            villager.attackCooldown = 1;
+            
+            // Attack visual
+            if (settings.showTaskIndicators) {
+                fill(this.color[0], this.color[1], this.color[2], 0.7);
+                circle((villager.x + enemy.x) / 2, (villager.y + enemy.y) / 2, 3);
+            }
+            
+            return true;
+        }
+        return false;
+    }
+    
+    handleBuildingAttack(villager, building, targetVillage, time) {
+        if (villager.attackCooldown <= 0 && 
+            Math.hypot(villager.x - building.x, villager.y - building.y) < 8 &&
+            building.constructionProgress >= 1) {
+            
+            // Apply damage
+            building.health -= settings.villagerAttackDamage * 0.5;
+            villager.attackCooldown = 1.2;
+            
+            // Attack visual
+            if (settings.showTaskIndicators) {
+                fill(this.color[0], this.color[1], this.color[2], 0.7);
+                circle(villager.x, villager.y, 4);
+            }
+            
+            // Check if building destroyed
+            if (building.health <= 0) {
+                if (targetVillage.houses.includes(building)) {
+                    const index = targetVillage.houses.indexOf(building);
+                    targetVillage.houses.splice(index, 1);
+                } else if (targetVillage.towers.includes(building)) {
+                    const index = targetVillage.towers.indexOf(building);
+                    targetVillage.towers.splice(index, 1);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    update(amplitude, trees, otherVillages, songProgress, time, deltaTime) {
+        // Check for battle
+        if (songProgress >= settings.peacefulStartTime) {
+            this.checkBoundaryClash(otherVillages, songProgress, time);
+        }
+        
+        // Growth based on amplitude and song progression
+        if (amplitude > 0.3 && Math.random() < amplitude * settings.growthRate && 
+            this.villagers.length < this.getTotalCapacity()) {
+            this.addVillager();
+        }
+        
+        // Resource ticks
+        if (time - this.lastResourceUpdate > 3) {
+            this.resources += 0.2 * (this.evolutionStage + 1);
+            this.lastResourceUpdate = time;
+        }
+        
+        // Update towers in battle mode
+        if (this.battleMode) {
+            this.updateTowers(time, deltaTime);
+        }
+        
+        // Build houses if not in battle mode
+        if (!this.battleMode) {
+            const populationRatio = this.villagers.length / Math.max(this.getTotalCapacity(), 1);
+            if (populationRatio > 0.6 && this.resources >= settings.houseResourceCost) {
+                this.addHouse(time);
+            }
+            
+            // Build towers after some houses
+            if (this.evolutionStage > 0 && 
+                this.houses.length > 5 && 
+                this.towers.length < 3 && 
+                this.resources >= settings.towerResourceCost) {
+                this.addTower(time);
+            }
+        }
+        
+        // Force final battle mode if time has come
+        if (songProgress > settings.finalBattleTime && !this.battleMode) {
+            // Find any other village to attack
+            for (const village of otherVillages) {
+                if (village !== this) {
+                    this.battleMode = true;
+                    village.battleMode = true;
+                    this.target = village;
+                    village.target = this;
+                    break;
+                }
+            }
+        }
+        
+        // Check for evolution based on completed houses
+        this.checkEvolution();
+        
+        // Update villagers
+        for (let i = this.villagers.length - 1; i >= 0; i--) {
+            const villager = this.villagers[i];
+            
+            // Villager death check
+            if (villager.health <= 0) {
+                this.villagers.splice(i, 1);
+                continue;
+            }
+            
+            // Cool down attack timer
+            if (villager.attackCooldown > 0) {
+                villager.attackCooldown -= deltaTime;
+            }
+            
+            // Handle idle villagers
+            if (!villager.task || villager.task === 'idle') {
+                villager.idleTime += deltaTime;
+                if (villager.idleTime > 0.5) {
+                    this.assignTask(villager, trees, time, songProgress);
+                }
+            }
+            
+            // Move towards target if one exists
+            if (villager.targetX !== null && villager.targetY !== null) {
+                const dx = villager.targetX - villager.x;
+                const dy = villager.targetY - villager.y;
+                const dist = Math.hypot(dx, dy);
+                
+                // Speed based on audio and battle mode
+                let speed = settings.villagerSpeed * (0.7 + amplitude * 0.3);
+                if (this.battleMode) {
+                    speed *= settings.battleModeSpeed;
+                }
+                
+                if (dist > 2) {
+                    villager.x += dx / dist * speed;
+                    villager.y += dy / dist * speed;
+                    
+                    // Update target if attacking villager
+                    if (villager.task === 'attack' && villager.targetVillager) {
+                        villager.targetX = villager.targetVillager.x;
+                        villager.targetY = villager.targetVillager.y;
+                    }
+                } else {
+                    // Reached target - perform task
+                    switch (villager.task) {
+                        case 'gathering':
+                            if (villager.targetTree) {
+                                // Gathering animation and collection
+                                villager.gatheringTimer += 0.05 + amplitude * 0.02;
+                                
+                                if (villager.gatheringTimer >= 1) {
+                                    villager.resourceCarrying += 1;
+                                    villager.targetTree.size -= 0.2;
+                                    villager.gatheringTimer = 0;
+                                    
+                                    // Tree depleted or carrying enough
+                                    if (villager.targetTree.size <= 0.7 || 
+                                        villager.resourceCarrying >= settings.resourceReturnThreshold) {
+                                        if (villager.targetTree.size <= 0.7) {
+                                            const index = trees.indexOf(villager.targetTree);
+                                            if (index !== -1) {
+                                                trees.splice(index, 1);
+                                            }
+                                        } else {
+                                            villager.targetTree.beingHarvested = false;
+                                        }
+                                        // Return with resources
+                                        villager.task = 'returning';
+                                        villager.targetX = this.x;
+                                        villager.targetY = this.y;
+                                        villager.targetTree = null;
+                                    }
+                                }
+                            }
+                            break;
+                            
+                        case 'returning':
+                            // Return resources to village center
+                            this.resources += villager.resourceCarrying;
+                            villager.resourceCarrying = 0;
+                            villager.task = 'idle';
+                            villager.targetX = null;
+                            villager.targetY = null;
+                            break;
+                            
+                        case 'building':
+                            if (villager.targetBuilding) {
+                                // Building progress
+                                const progress = 0.01 + (amplitude * 0.005);
+                                villager.targetBuilding.constructionProgress = 
+                                    Math.min(1, villager.targetBuilding.constructionProgress + progress);
+                                
+                                // Building complete
+                                if (villager.targetBuilding.constructionProgress >= 1) {
+                                    villager.task = 'idle';
+                                    villager.targetX = null;
+                                    villager.targetY = null;
+                                    villager.targetBuilding = null;
+                                    
+                                    // Check evolution after building completion
+                                    this.checkEvolution();
+                                }
+                            } else {
+                                villager.task = 'idle';
+                                villager.targetX = null; 
+                                villager.targetY = null;
+                            }
+                            break;
+                            
+                        case 'battle':
+                            if (this.target) {
+                                // Find closest enemy
+                                let closestEnemy = null;
+                                let closestDist = 20;
+                                
+                                for (const enemy of this.target.villagers) {
+                                    const dist = Math.hypot(enemy.x - villager.x, enemy.y - villager.y);
+                                    if (dist < closestDist) {
+                                        closestDist = dist;
+                                        closestEnemy = enemy;
+                                    }
+                                }
+                                
+                                if (closestEnemy) {
+                                    // Attack enemy
+                                    villager.task = 'attack';
+                                    villager.targetVillager = closestEnemy;
+                                    villager.targetX = closestEnemy.x;
+                                    villager.targetY = closestEnemy.y;
+                                    this.handleVillagerAttack(villager, closestEnemy, time);
+                                } else {
+                                    // Attack buildings if no villagers nearby
+                                    let targetFound = false;
+                                    
+                                    // Check houses
+                                    for (const house of this.target.houses) {
+                                        if (house.constructionProgress >= 1) {
+                                            const dist = Math.hypot(house.x - villager.x, house.y - villager.y);
+                                            if (dist < 30) {
+                                                villager.targetBuilding = house;
+                                                villager.targetX = house.x;
+                                                villager.targetY = house.y;
+                                                this.handleBuildingAttack(villager, house, this.target, time);
+                                                targetFound = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    
+                                    // If no target found, move deeper into enemy territory
+                                    if (!targetFound) {
+                                        const angle = Math.random() * Math.PI * 2;
+                                        villager.targetX = this.target.x + Math.cos(angle) * this.target.radius * 0.5;
+                                        villager.targetY = this.target.y + Math.sin(angle) * this.target.radius * 0.5;
+                                    }
+                                }
+                            }
+                            break;
+                            
+                        case 'attack':
+                            if (villager.targetVillager) {
+                                if (this.handleVillagerAttack(villager, villager.targetVillager, time)) {
+                                    // Attack successful
+                                } else {
+                                    // Target out of range or gone
+                                    villager.task = 'battle';
+                                    villager.targetVillager = null;
+                                }
+                            } else {
+                                villager.task = 'battle';
+                            }
+                            break;
+                            
+                        case 'defend':
+                        case 'wandering':
+                        default:
+                            // Task complete, get a new one
+                            villager.task = 'idle';
+                            villager.targetX = null;
+                            villager.targetY = null;
+                            break;
+                    }
+                }
+            } else {
+                // No target, assign a new task
+                this.assignTask(villager, trees, time, songProgress);
+            }
+        }
+    }
+    
+    draw(amplitude, songProgress) {
+        // Calculate territory pulse based on frequency amplitude and battle mode
+        const pulseAmount = amplitude * settings.pulseAmount;
+        let displayRadius = this.radius * (1 + pulseAmount);
+        
+        // Territory color alpha based on battle mode
+        const alpha = this.battleMode ? 0.25 : 0.15;
+        
+        // Territory fill
+        fill(this.color[0], this.color[1], this.color[2], alpha);
+        
+        // Territory border
+        if (this.battleMode) {
+            stroke(this.color[0], this.color[1], this.color[2], 0.6);
+            lineWidth(2);
+        } else {
+            stroke(this.color[0], this.color[1], this.color[2], 0.3);
+            lineWidth(1 + this.evolutionStage * 0.5);
+        }
+        
+        circle(this.x, this.y, displayRadius * 2, true);
+        
+        // Draw central village marker
+        fill(this.color[0], this.color[1], this.color[2], 0.7);
+        
+        // Village center evolves with age
+        if (this.evolutionStage === 0) {
+            circle(this.x, this.y, 8); // Simple circle
+        } else if (this.evolutionStage === 1) {
+            // Fortress
+            fill(this.color[0]*0.9, this.color[1]*0.9, this.color[2]*0.9);
+            rect(this.x - 6, this.y - 6, 12, 12);
+        } else if (this.evolutionStage >= 2) {
+            // Advanced fortress
+            fill(this.color[0]*0.9, this.color[1]*0.9, this.color[2]*0.9);
+            rect(this.x - 7, this.y - 7, 14, 14);
+            fill(this.color[0], this.color[1], this.color[2]);
+            circle(this.x - 7, this.y - 7, 3);
+            circle(this.x + 7, this.y - 7, 3);
+            circle(this.x - 7, this.y + 7, 3);
+            circle(this.x + 7, this.y + 7, 3);
+        }
+        
+        // Draw towers
+        for (const tower of this.towers) {
+            const progress = tower.constructionProgress;
+            
+            if (progress < 1) {
+                // Under construction
+                fill(this.color[0]*0.7, this.color[1]*0.7, this.color[2]*0.7, 0.5 + progress * 0.5);
+                circle(tower.x, tower.y, settings.towerSize * progress);
+            } else {
+                // Complete tower
+                fill(this.color[0]*0.4, this.color[1]*0.4, this.color[2]*0.4, 0.9);
+                circle(tower.x, tower.y, settings.towerSize);
+                fill(this.color[0], this.color[1], this.color[2], 0.6);
+                circle(tower.x, tower.y, settings.towerSize * 0.6);
+            }
+            
+            // Health bar
+            if (settings.showHealthBars && tower.health < tower.maxHealth) {
+                fill(255, 0, 0);
+                rect(tower.x - settings.towerSize, tower.y - settings.towerSize - 3, 
+                     (tower.health / tower.maxHealth) * settings.towerSize * 2, 2);
+            }
+        }
+        
+        // Draw houses with team color
+        for (const house of this.houses) {
+            const progress = house.constructionProgress;
+            
+            if (progress < 1) {
+                // Under construction - team-colored scaffolding
+                fill(this.color[0] * 0.5, this.color[1] * 0.5, this.color[2] * 0.5, 0.5 + progress * 0.5);
+                circle(house.x, house.y, settings.houseSize * progress);
+                stroke(this.color[0] * 0.6, this.color[1] * 0.6, this.color[2] * 0.6, 0.7);
+                lineWidth(1);
+                circle(house.x, house.y, settings.houseSize * 1.2, true);
+            } else {
+                // Complete house - team colored
+                if (this.evolutionStage === 0) {
+                    // Simple houses
+                    fill(this.color[0] * 0.7, this.color[1] * 0.7, this.color[2] * 0.7, 0.9);
+                    circle(house.x, house.y, settings.houseSize);
+                } else {
+                    // Square houses
+                    fill(this.color[0] * 0.7, this.color[1] * 0.7, this.color[2] * 0.7, 0.9);
+                    rect(house.x - settings.houseSize/2, house.y - settings.houseSize/2, 
+                         settings.houseSize, settings.houseSize);
+                    
+                    // Roof
+                    fill(this.color[0] * 0.9, this.color[1] * 0.9, this.color[2] * 0.9, 0.8);
+                    rect(house.x - settings.houseSize/2 - 1, house.y - settings.houseSize/2 - 2, 
+                         settings.houseSize + 2, 2);
+                }
+            }
+            
+            // Health bar
+            if (settings.showHealthBars && house.health < house.maxHealth) {
+                fill(255, 0, 0);
+                rect(house.x - settings.houseSize, house.y - settings.houseSize - 3, 
+                     (house.health / house.maxHealth) * settings.houseSize * 2, 2);
+            }
+        }
+        
+        // Draw villagers - with color variations based on task but within team color
+        for (const villager of this.villagers) {
+            // Base color is team color
+            let r = this.color[0];
+            let g = this.color[1]; 
+            let b = this.color[2];
+            
+            // Task-based modifications within team color
+            if (villager.resourceCarrying > 0) {
+                // Carrying resources: brighter
+                r = Math.min(255, r * 1.3);
+                g = Math.min(255, g * 1.3);
+                b = Math.min(255, b * 1.3);
+                fill(r, g, b, 0.9);
+                circle(villager.x, villager.y, settings.villagerSize + 1);
+            } else if (villager.task === 'attack' || villager.task === 'battle') {
+                // Battle mode: more red/intense
+                r = Math.min(255, r * 1.2);
+                g = Math.max(0, g * 0.7);
+                b = Math.max(0, b * 0.7);
+                fill(r, g, b, 0.9);
+                circle(villager.x, villager.y, settings.villagerSize);
+            } else if (villager.task === 'gathering') {
+                // Gathering: more green
+                r = Math.max(0, r * 0.8);
+                g = Math.min(255, g * 1.2);
+                b = Math.max(0, b * 0.8);
+                fill(r, g, b, 0.8);
+                circle(villager.x, villager.y, settings.villagerSize);
+            } else if (villager.task === 'building') {
+                // Building: more yellow/orange
+                r = Math.min(255, r * 1.1);
+                g = Math.min(255, g * 1.1);
+                b = Math.max(0, b * 0.7);
+                fill(r, g, b, 0.8);
+                circle(villager.x, villager.y, settings.villagerSize);
+            } else {
+                // Default: team color
+                fill(r, g, b, 0.9);
+                circle(villager.x, villager.y, settings.villagerSize);
+            }
+            
+            // Health bar
+            if (settings.showHealthBars && villager.health < settings.villagerHealthMax) {
+                fill(255, 0, 0);
+                rect(villager.x - 5, villager.y - settings.villagerSize - 2, 
+                     (villager.health / settings.villagerHealthMax) * 10, 1);
+            }
+        }
+        
+        // Draw village stats
+        if (settings.showVillageStats) {
+            fill(255, 255, 255, 0.8);
+            text(`Village: ${this.villagers.length}/${this.getTotalCapacity()}`, this.x, this.y + this.radius + 15, 10, "Arial", "center");
+            text(`Houses: ${this.houses.length}, Resources: ${Math.floor(this.resources)}`, this.x, this.y + this.radius + 27, 10, "Arial", "center");
+            
+            // Battle mode indicator
+            if (this.battleMode) {
+                fill(255, 50, 50, 0.8);
+                text("BATTLE MODE", this.x, this.y + this.radius + 39, 10, "Arial", "center");
+            }
+            
+            // Victory indicator
+            if (this.victorious) {
+                glowStart([255, 215, 0], 10);
+                fill(255, 215, 0);
+                text("VICTORIOUS!", this.x, this.y - this.radius - 20, 20, "Arial", "center");
+                glowEnd();
+            }
+        }
+    }
+}
+
+// Global variables
+let villages = [];
+let trees = [];
+let startTime = Date.now() / 1000;
+let lastTime = startTime;
+let battleStarted = false;
+let songDuration = 180; // Default 3 minutes
+let victoryDeclared = false;
+let audioStarted = false;
+let audioLoaded = false;
+let audioPlayer = null;
+let currentTime = 0;
+
+// Keyboard handler for toggles
+document.addEventListener('keydown', function(event) {
+    switch(event.key.toLowerCase()) {
+        case 'h': settings.showHealthBars = !settings.showHealthBars; break;
+        case 's': settings.showVillageStats = !settings.showVillageStats; break;
+        case 't': settings.showTaskIndicators = !settings.showTaskIndicators; break;
+        case 'b': settings.showBattleNotices = !settings.showBattleNotices; break;
+        case 'p': settings.showProgressBar = !settings.showProgressBar; break;
+        case 'd': settings.showDebug = !settings.showDebug; break;
+    }
+});
+
+// Get current audio playback time
+function getCurrentAudioTime() {
+    if (window.interpreter && window.interpreter.audio) {
+        return window.interpreter.audio.currentTime;
+    }
+    return currentTime;
+}
+
+// Get audio duration 
+function getAudioDuration() {
+    if (window.interpreter && window.interpreter.audio) {
+        return window.interpreter.audio.duration || songDuration;
+    }
+    return songDuration;
+}
+
+function setup() {
+    // Create villages with random colors
+    const colors = [];
+    const freqs = [];
+    
+    // Generate unique colors and frequencies
+    for (let i = 0; i < settings.numVillages; i++) {
+        colors.push(generateTeamColor());
+        freqs.push(generateTeamFrequency(i));
+    }
+    
+    // Place villages
+    for (let i = 0; i < settings.numVillages; i++) {
+        const angle = (i / settings.numVillages) * Math.PI * 2;
+        const radius = Math.min(width, height) * 0.35;
+        const x = width/2 + Math.cos(angle) * radius;
+        const y = height/2 + Math.sin(angle) * radius;
+        villages.push(new Village(x, y, colors[i], freqs[i]));
+    }
+    
+    // Plant trees
+    const numTrees = Math.floor(width * height * settings.treeDensity / 1000);
+    for (let i = 0; i < numTrees; i++) {
+        let validPosition = false;
+        let treeX, treeY;
+        
+        // Find valid position
+        while (!validPosition) {
+            treeX = Math.random() * width;
+            treeY = Math.random() * height;
+            validPosition = true;
+            
+            for (const village of villages) {
+                const dist = Math.hypot(village.x - treeX, village.y - treeY);
+                if (dist < village.radius * 0.5) {
+                    validPosition = false;
+                    break;
+                }
+            }
+        }
+        
+        trees.push({
+            x: treeX,
+            y: treeY,
+            size: settings.treeHeight / 2 + Math.random() * 2,
+            beingHarvested: false,
+            swayOffset: Math.random() * Math.PI * 2
+        });
+    }
+    
+    // Load audio
+    loadAudio(settings.songPath);
+    playAudio();
+    startTime = Date.now() / 1000;
+    lastTime = startTime;
+    
+    // Listen for audio load if possible
+    try {
+        if (window.interpreter && window.interpreter.audio) {
+            window.interpreter.audio.addEventListener('loadedmetadata', function() {
+                songDuration = window.interpreter.audio.duration;
+                audioLoaded = true;
+                console.log("Audio loaded, duration:", songDuration);
+            });
+            
+            window.interpreter.audio.addEventListener('play', function() {
+                audioStarted = true;
+                startTime = Date.now() / 1000 - window.interpreter.audio.currentTime;
+                console.log("Audio started playing");
+            });
+        }
+    } catch (e) {
+        console.log("Could not attach audio event listeners:", e);
+    }
+}
+
+function getSongProgress(time) {
+    // Try to get accurate audio time from the audio element directly
+    if (audioLoaded && window.interpreter && window.interpreter.audio) {
+        const elapsed = window.interpreter.audio.currentTime;
+        const duration = window.interpreter.audio.duration || songDuration;
+        return Math.min(1.0, elapsed / duration);
+    }
+    
+    // Fallback to time-based estimation
+    return Math.min(1.0, (time - startTime) / songDuration);
+}
+
+function formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+function drawSongTimeline(songProgress) {
+    const tlHeight = settings.timelineHeight;
+    const tlY = settings.timelineY;
+    
+    // Get accurate time info
+    const duration = getAudioDuration();
+    const currentTime = getCurrentAudioTime();
+    const timeRemaining = duration - currentTime;
+    
+    // Background for timeline
+    fill(30, 30, 40, 0.7);
+    rect(0, tlY - tlHeight/2, width, tlHeight);
+    
+    // Draw peaceful period
+    const peacefulWidth = width * settings.peacefulStartTime;
+    fill(settings.timelinePeacefulColor[0], settings.timelinePeacefulColor[1], settings.timelinePeacefulColor[2], 0.6);
+    rect(0, tlY - tlHeight/2, peacefulWidth, tlHeight);
+    
+    // Draw battle period
+    const battleStart = width * settings.peacefulStartTime;
+    const battleWidth = width * (settings.forceBattleTime - settings.peacefulStartTime);
+    fill(settings.timelineBattleColor[0], settings.timelineBattleColor[1], settings.timelineBattleColor[2], 0.5);
+    rect(battleStart, tlY - tlHeight/2, battleWidth, tlHeight);
+    
+    // Draw final battle period
+    const finalStart = width * settings.forceBattleTime;
+    const finalWidth = width * (1 - settings.forceBattleTime);
+    fill(settings.timelineFinalColor[0], settings.timelineFinalColor[1], settings.timelineFinalColor[2], 0.6);
+    rect(finalStart, tlY - tlHeight/2, finalWidth, tlHeight);
+    
+    // Current position marker
+    const markerSize = settings.timelineMarkerSize;
+    const markerX = width * songProgress;
+    fill(255, 255, 255, 0.9);
+    circle(markerX, tlY, markerSize);
+    
+    // Labels
+    fill(255, 255, 255, 0.8);
+    text("PEACE", peacefulWidth/2, tlY - tlHeight/2 - 8, 14, "Arial", "center");
+    if (battleWidth > 0) {
+        text("CONFLICT", battleStart + battleWidth/2, tlY - tlHeight/2 - 8, 14, "Arial", "center");
+    }
+    if (finalWidth > 0) {
+        text("WAR", finalStart + finalWidth/2, tlY - tlHeight/2 - 8, 14, "Arial", "center");
+    }
+    
+    // Time display
+    fill(255, 255, 255, 0.9);
+    text(`${formatTime(currentTime)} / ${formatTime(duration)}`, width - 70, tlY + 20, 12, "Arial", "right");
+    
+    // Song phase notification
+    if (songProgress > settings.forceBattleTime) {
+        // Final battle notification with pulsing effect
+        const pulse = (Math.sin(time * 4) + 1) * 0.5;
+        fill(settings.timelineFinalColor[0], settings.timelineFinalColor[1], settings.timelineFinalColor[2], 0.7 + pulse * 0.3);
+        
+        // Epic battle banner
+        rect(0, 0, width, settings.timelineBannerHeight);
+        fill(255, 255, 255, 0.8 + pulse * 0.2);
+        
+        // Glow effect
+        glowStart([255, 200, 50], 10);
+        text("THE FINAL BATTLE", width/2, settings.timelineBannerHeight/2, 30, "Arial", "center");
+        glowEnd();
+    } else if (songProgress > settings.peacefulStartTime && battleStarted) {
+        // Regular battle notification
+        fill(settings.timelineBattleColor[0], settings.timelineBattleColor[1], settings.timelineBattleColor[2], 0.6);
+        rect(0, 0, width, 30);
+        fill(255, 255, 255, 0.8);
+        text("BATTLE PHASE", width/2, 20, 16, "Arial", "center");
+    }
+}
+
+function checkForBattleStart() {
+    if (battleStarted) return;
+    
+    for (const village of villages) {
+        if (village.battleMode) {
+            battleStarted = true;
+            break;
+        }
+    }
+}
+
+function checkForVictory() {
+    if (victoryDeclared) return;
+    
+    // Count alive villages
+    let aliveVillages = 0;
+    let lastAliveVillage = null;
+    
+    for (const village of villages) {
+        if (village.villagers.length > 0) {
+            aliveVillages++;
+            lastAliveVillage = village;
+        }
+    }
+    
+    if (battleStarted && aliveVillages === 1 && lastAliveVillage) {
+        lastAliveVillage.victorious = true;
+        victoryDeclared = true;
+        return true;
+    }
+    
+    return false;
+}
+
+function draw(time) {
+    // Calculate delta time
+    const deltaTime = Math.min(1/15, time - lastTime);
+    lastTime = time;
+    
+    // Update current time (fallback if audio API not accessible)
+    currentTime += deltaTime;
+    
+    // Clear previous frame
+    clear();
+    background(20, 30, 40);
+    
+    // Song progress - accurately tracked from audio element when possible
+    const songProgress = getSongProgress(time);
+    
+    // Draw trees
+    for (const tree of trees) {
+        const swayAmount = Math.sin(time * 1.5 + tree.swayOffset) * 0.7;
+        
+        // Tree trunk
+        fill(80, 50, 20);
+        rect(tree.x - settings.treeTrunkWidth/2 + swayAmount*0.3, 
+             tree.y - tree.size, 
+             settings.treeTrunkWidth, 
+             settings.treeHeight);
+        
+        // Tree canopy
+        const greenIntensity = 80 + Math.floor(tree.size * 8);
+        fill(30, greenIntensity, 30);
+        circle(tree.x + swayAmount, tree.y - tree.size - settings.treeCanopySize, settings.treeCanopySize * 2);
+        
+        // Show harvesting indicator
+        if (tree.beingHarvested && settings.showTaskIndicators) {
+            stroke(255, 255, 0, 0.3);
+            lineWidth(1);
+            circle(tree.x, tree.y - tree.size, settings.treeCanopySize * 2.5, true);
+        }
+    }
+    
+    // Check for battle start
+    checkForBattleStart();
+    
+    // Force battle at song 75% if not already fighting
+    if (songProgress > settings.forceBattleTime && !battleStarted) {
+        for (let i = 0; i < villages.length; i++) {
+            for (let j = i + 1; j < villages.length; j++) {
+                villages[i].battleMode = true;
+                villages[j].battleMode = true;
+                villages[i].target = villages[j];
+                villages[j].target = villages[i];
+                battleStarted = true;
+                break;
+            }
+            if (battleStarted) break;
+        }
+    }
+    
+    // Update and draw villages
+    for (let i = 0; i < villages.length; i++) {
+        const village = villages[i];
+        // Use village's specific frequency
+        const amplitude = audiohz(village.freq);
+        
+        village.update(amplitude, trees, villages, songProgress, time, deltaTime);
+        village.draw(amplitude, songProgress);
+      
+      	if(village.villagers.length >= settings.maxVillagers / 4) {
+          village.battleMode = true;
+        }
+    }
+  
+  
+    visualFog(0, 0, width, height, 12, 80, 200, 1, 20, 200, 0.5, "rgba(255, 255, 255, 0.1)", false);
+    
+    // Draw song timeline
+    drawSongTimeline(songProgress);
+    
+    // Check for victory
+    if (checkForVictory()) {
+        // Display epic victory banner
+        glowStart([255, 215, 0], 15);
+        fill(255, 215, 0);
+        
+        // Draw victory banner at screen center
+        const victoryVillage = villages.find(v => v.victorious);
+        if (victoryVillage) {
+            const vColor = victoryVillage.color;
+            fill(vColor[0], vColor[1], vColor[2], 0.3);
+            rect(0, height/2 - 40, width, 80);
+            
+            fill(255, 255, 255, 0.9);
+            text("VICTORY!", width/2, height/2, 40, "Arial", "center");
+        }
+        glowEnd();
+    }
+  
+  	fill(220, 10, 10, 0.4);
+  	visualCircular(width/2, height/2, 50, 100, 512, 20, 2000, time*0.1, true);
+    
+    // Debug info
+    if (settings.showDebug) {
+        fill(255, 255, 255, 0.7);
+        text(`Trees: ${trees.length}`, 10, 120, 12);
+        
+        let villageSummary = "";
+        for (let i = 0; i < villages.length; i++) {
+            const v = villages[i];
+            villageSummary += `Village ${i+1}: ${v.villagers.length} 👤 ${v.houses.length} 🏠  `;
+        }
+        
+        text(villageSummary, 10, 140, 12);
+        text(`Song: ${Math.floor(songProgress * 100)}% - Battle: ${battleStarted ? "YES" : "NO"}`, 10, 160, 12);
+        text(`Audio Time: ${formatTime(getCurrentAudioTime())} / ${formatTime(getAudioDuration())}`, 10, 180, 12);
+    }
+}

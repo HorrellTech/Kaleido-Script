@@ -1,0 +1,521 @@
+// Pulse Circle Spectrum Visualizer
+// Features:
+// - Circular audio spectrum analyzer with customizable settings
+// - Central image that pulses with bass frequencies
+// - Glowing gradient effects with smooth animations
+// - Highly configurable visual parameters
+
+// SETTINGS - Adjust these to customize the visualization
+const settings = {
+  // Spectrum analyzer settings
+  spectrumBars: 2000,           // Number of bars in circular spectrum (higher = more detail)
+  spectrumSmoothing: 0.1,     // Smoothing factor for spectrum movement (0-1, higher = smoother)
+  spectrumMinHeight: 0.4,      // Minimum height for quiet frequencies (0-1)
+  spectrumMaxHeight: 0.1,      // Maximum height multiplier (higher = longer bars)
+  spectrumSpacing: 0.05,       // Space between spectrum bars (0-1)
+  
+  // Visual settings
+  primaryColor: [255, 50, 0], // Main color [R,G,B] - emerald green
+  glowColor: [255, 255, 70],     // Glow color for effects
+  glowIntensity: 1,          // Glow strength (0-1)
+  circlePulse: 0.7,            // How much the circle pulses with bass (0-1)
+  
+  // Frequency response
+  bassImpact: 2.5,             // Bass impact on animations
+  midImpact: 0.8,              // Mid frequency impact
+  highImpact: 0.5,             // High frequency impact
+  frequencyRange: {            // Frequency ranges to analyze (Hz)
+    bass: [60, 250],
+    mid: [250, 2000],
+    high: [2000, 8000]
+  },
+  
+  // Image settings
+  imageEnabled: true,          // Whether to show central image
+  imagePath: "logo.png",       // Path to image (set to "" to disable)
+  imageSize: 0.25,             // Size of image relative to circle (0-1)
+  imagePulseAmount: 0.15,      // How much the image pulses with bass (0-1)
+  
+  // Animation settings
+  rotationSpeed: 0.15,          // Circle rotation speed
+  rotationDirection: 1,        // 1 = clockwise, -1 = counter-clockwise
+  
+  // Advanced settings
+  circleRadius: 0.7,          // Size of main circle relative to screen
+  radialDecay: 0.1,            // How quickly the glow fades (higher = faster)
+  bgFadeSpeed: 0.01,           // Background fade speed for trails
+  colorCycleEnabled: false,    // Enable color cycling over time
+  colorCycleSpeed: 0.001,        // Speed of color cycling
+  debugMode: false             // Show debug info
+};
+
+// State variables
+let centerX, centerY;
+let radius;
+let frequencyData = [];
+let smoothedFrequencyData = [];
+let image = null;
+let imageLoaded = false;
+let backgroundCanvas, backgroundContext;
+let glowCanvas, glowContext;
+let lastTime = 0;
+let frameCount = 0;
+let audioLevels = {
+  bass: 0,
+  mid: 0,
+  high: 0,
+  overall: 0
+};
+
+// Setup function runs once at the beginning
+function setup() {
+  log("Pulse Circle Spectrum visualization initializing");
+  
+  // Calculate dimensions
+  centerX = width / 2;
+  centerY = height / 2;
+  radius = Math.min(width, height) * settings.circleRadius / 2;
+  
+  // Try to load the image if enabled
+  if (settings.imageEnabled && settings.imagePath) {
+    loadVisualizerImage(settings.imagePath);
+  }
+  
+  // Initialize offscreen canvases for effects
+  createOffscreenBuffers();
+  
+  // Create initial frequency data arrays
+  frequencyData = new Array(settings.spectrumBars).fill(0);
+  smoothedFrequencyData = new Array(settings.spectrumBars).fill(0);
+  
+  // Try to load audio if available
+  if (window.audioProcessor) {
+    try {
+      loadAudio("Music/Wild Card.wav");
+      playAudio();
+      log("Audio loaded and playing");
+    } catch (e) {
+      log("No audio specified, visualizer will use default values", "info");
+    }
+  }
+  
+  // Set initial black background
+  background(0, 0, 0);
+}
+
+// Create offscreen buffers for visual effects
+function createOffscreenBuffers() {
+  // Background buffer for trails
+  backgroundCanvas = document.createElement('canvas');
+  backgroundCanvas.width = width;
+  backgroundCanvas.height = height;
+  backgroundContext = backgroundCanvas.getContext('2d');
+  backgroundContext.fillStyle = 'rgb(0,0,0)';
+  backgroundContext.fillRect(0, 0, width, height);
+  
+  // Glow buffer for effects
+  glowCanvas = document.createElement('canvas');
+  glowCanvas.width = width;
+  glowCanvas.height = height;
+  glowContext = glowCanvas.getContext('2d');
+}
+
+// Load the central image
+function loadVisualizerImage(imagePath) {
+  // Create an image element
+  image = new Image();
+  
+  // Set up load handler
+  image.onload = function() {
+    imageLoaded = true;
+    log(`Image loaded: ${imagePath}`);
+  };
+  
+  // Set up error handler
+  image.onerror = function() {
+    log(`Error loading image: ${imagePath}`, "warning");
+    imageLoaded = false;
+    image = null;
+  };
+  
+  // Start loading the image
+  try {
+    image.src = imagePath;
+  } catch (e) {
+    log(`Error with image path: ${e.message}`, "error");
+  }
+}
+
+// Main draw function runs on every frame
+function draw(time) {
+  // Calculate delta time for smooth animations
+  const deltaTime = time - lastTime;
+  lastTime = time;
+  
+  // Update audio levels
+  updateAudioLevels();
+  
+  // Apply background fade for trails
+  applyBackgroundFade();
+  
+  // Draw the circle gradient background
+  drawCircleGradient();
+  
+  // Draw the frequency spectrum
+  drawSpectrum();
+  
+  // Draw the central image if available
+  if (settings.imageEnabled && imageLoaded) {
+    drawCentralImage();
+  }
+  
+  // Apply glow effects
+  applyGlowEffects();
+  
+  // Show debug info if enabled
+  if (settings.debugMode) {
+    drawDebugInfo();
+  }
+  
+  // Increment frame counter
+  frameCount++;
+}
+
+// Update audio analysis levels
+function updateAudioLevels() {
+  // Use real audio data if available, otherwise fallback to sin wave simulation
+  if (window.audiohz) {
+    // Extract levels for different frequency ranges
+    const bassRange = settings.frequencyRange.bass;
+    const midRange = settings.frequencyRange.mid;
+    const highRange = settings.frequencyRange.high;
+    
+    // Get multiple frequency samples and average them for each range
+    let bassSum = 0;
+    let bassCount = 0;
+    for (let freq = bassRange[0]; freq <= bassRange[1]; freq += 30) {
+      bassSum += audiohz(freq);
+      bassCount++;
+    }
+    
+    let midSum = 0;
+    let midCount = 0;
+    for (let freq = midRange[0]; freq <= midRange[1]; freq += 200) {
+      midSum += audiohz(freq);
+      midCount++;
+    }
+    
+    let highSum = 0;
+    let highCount = 0;
+    for (let freq = highRange[0]; freq <= highRange[1]; freq += 500) {
+      highSum += audiohz(freq);
+      highCount++;
+    }
+    
+    // Calculate averages
+    const bassLevel = bassSum / bassCount;
+    const midLevel = midSum / midCount;
+    const highLevel = highSum / highCount;
+    
+    // Apply smoothing to the audio levels
+    audioLevels.bass = audioLevels.bass * 0.7 + bassLevel * 0.3;
+    audioLevels.mid = audioLevels.mid * 0.7 + midLevel * 0.3;
+    audioLevels.high = audioLevels.high * 0.7 + highLevel * 0.3;
+    
+    // Get frequency data for the spectrum
+    const freqCount = settings.spectrumBars;
+    const freqStep = (highRange[1] - bassRange[0]) / freqCount;
+    
+    for (let i = 0; i < freqCount; i++) {
+      const freq = bassRange[0] + i * freqStep;
+      const value = audiohz(freq);
+      
+      // Apply smoothing to the frequency data
+      frequencyData[i] = value;
+      smoothedFrequencyData[i] = smoothedFrequencyData[i] * settings.spectrumSmoothing + 
+                                frequencyData[i] * (1 - settings.spectrumSmoothing);
+    }
+  } else {
+    // Fallback to simulated audio levels using sine waves
+    const time = frameCount / 60;
+    
+    // Simulate different frequency ranges
+    audioLevels.bass = 0.5 + 0.4 * Math.sin(time * 0.5);
+    audioLevels.mid = 0.5 + 0.4 * Math.sin(time * 1.5 + 1);
+    audioLevels.high = 0.5 + 0.3 * Math.sin(time * 3.0 + 2);
+    
+    // Generate simulated spectrum data
+    for (let i = 0; i < settings.spectrumBars; i++) {
+      const wave1 = Math.sin(time * 0.5 + i * 0.2) * 0.5 + 0.5;
+      const wave2 = Math.sin(time * 0.2 + i * 0.1) * 0.5 + 0.5;
+      const value = Math.pow(wave1 * wave2, 1.5) * 0.8 + 0.2;
+      
+      frequencyData[i] = value;
+      smoothedFrequencyData[i] = smoothedFrequencyData[i] * settings.spectrumSmoothing + 
+                                value * (1 - settings.spectrumSmoothing);
+    }
+  }
+  
+  // Calculate overall audio level weighted by impact settings
+  audioLevels.overall = 
+    audioLevels.bass * settings.bassImpact * 0.5 + 
+    audioLevels.mid * settings.midImpact * 0.3 + 
+    audioLevels.high * settings.highImpact * 0.2;
+}
+
+// Apply background fade for trails effect
+function applyBackgroundFade() {
+  // Draw a semi-transparent black rectangle over the background
+  backgroundContext.fillStyle = `rgba(0, 0, 0, ${settings.bgFadeSpeed})`;
+  backgroundContext.fillRect(0, 0, width, height);
+  
+  // Copy the background to the main canvas
+  context.drawImage(backgroundCanvas, 0, 0);
+}
+
+// Draw the central circle gradient
+function drawCircleGradient() {
+  // Calculate pulsing circle size based on bass
+  const circlePulseAmount = settings.circlePulse * audioLevels.bass;
+  const pulseRadius = radius * (1 + circlePulseAmount * 0.3);
+  
+  // Create radial gradient
+  const gradient = context.createRadialGradient(
+    centerX, centerY, 0,
+    centerX, centerY, pulseRadius * 1.5
+  );
+  
+  // Get dynamic color
+  const color = settings.colorCycleEnabled ? 
+    getColorCycle(frameCount * settings.colorCycleSpeed) : 
+    settings.primaryColor;
+  
+  // Create color stops for the gradient
+  const brightness = 0.6 + audioLevels.bass * 0.4;
+  gradient.addColorStop(0, `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${brightness})`);
+  gradient.addColorStop(0.5, `rgba(${color[0] * 0.3}, ${color[1] * 0.3}, ${color[2] * 0.3}, ${brightness * 0.6})`);
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  
+  // Draw the gradient circle
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.arc(centerX, centerY, pulseRadius * 1.5, 0, Math.PI * 2);
+  context.fill();
+  
+  // Draw to the glow canvas for later effects
+  glowContext.clearRect(0, 0, width, height);
+  glowContext.fillStyle = gradient;
+  glowContext.beginPath();
+  glowContext.arc(centerX, centerY, pulseRadius * 1.5, 0, Math.PI * 2);
+  glowContext.fill();
+}
+
+// Draw the circular spectrum analyzer
+function drawSpectrum() {
+  // Calculate rotation based on time and settings
+  const rotation = (frameCount * settings.rotationSpeed * 0.01 * settings.rotationDirection) % (Math.PI * 2);
+  
+  // Draw each spectrum bar
+  for (let i = 0; i < settings.spectrumBars; i++) {
+    // Calculate angle
+    const angle = (i / settings.spectrumBars) * Math.PI * 2 + rotation;
+    
+    // Get frequency value (smoothed)
+    const value = smoothedFrequencyData[i];
+    
+    // Calculate bar height based on audio data and settings
+    const minHeight = radius * settings.spectrumMinHeight;
+    const maxHeight = radius * settings.spectrumMaxHeight;
+    const barHeight = minHeight + (maxHeight - minHeight) * value;
+    
+    // Calculate bar width based on spacing
+    const barWidth = (Math.PI * 2 * radius) / settings.spectrumBars * (1 - settings.spectrumSpacing);
+    
+    // Calculate start and end points for the bar
+    const innerRadius = radius * (1 - 0.05 - value * 0.1);
+    const outerRadius = innerRadius + barHeight;
+    
+    const startX = centerX + Math.cos(angle) * innerRadius;
+    const startY = centerY + Math.sin(angle) * innerRadius;
+    const endX = centerX + Math.cos(angle) * outerRadius;
+    const endY = centerY + Math.sin(angle) * outerRadius;
+    
+    // Determine color based on frequency
+    let barColor;
+    if (i < settings.spectrumBars * 0.33) {
+      // Bass frequencies - more red
+      barColor = [
+        settings.primaryColor[0] + 50, 
+        settings.primaryColor[1], 
+        settings.primaryColor[2] - 30
+      ];
+    } else if (i < settings.spectrumBars * 0.66) {
+      // Mid frequencies - use primary color
+      barColor = [...settings.primaryColor];
+    } else {
+      // High frequencies - more blue
+      barColor = [
+        settings.primaryColor[0] - 30, 
+        settings.primaryColor[1], 
+        settings.primaryColor[2] + 50
+      ];
+    }
+    
+    // Ensure color values are valid
+    barColor = barColor.map(c => Math.max(0, Math.min(255, c)));
+    
+    // Calculate alpha based on volume
+    const alpha = 0.5 + value * 0.5;
+    
+    // Draw the bar
+    context.strokeStyle = `rgba(${barColor[0]}, ${barColor[1]}, ${barColor[2]}, ${alpha})`;
+    context.lineWidth = barWidth;
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.lineTo(endX, endY);
+    context.stroke();
+    
+    // Also draw to the glow canvas for effects
+    glowContext.strokeStyle = `rgba(${barColor[0]}, ${barColor[1]}, ${barColor[2]}, ${alpha})`;
+    glowContext.lineWidth = barWidth;
+    glowContext.beginPath();
+    glowContext.moveTo(startX, startY);
+    glowContext.lineTo(endX, endY);
+    glowContext.stroke();
+  }
+}
+
+// Draw the central image
+function drawCentralImage() {
+  if (!image || !imageLoaded) return;
+  
+  // Calculate image size with pulsing effect
+  const baseSize = radius * 2 * settings.imageSize;
+  const pulseAmount = audioLevels.bass * settings.imagePulseAmount;
+  const imageSize = baseSize * (1 + pulseAmount);
+  
+  // Calculate image position (centered)
+  const x = centerX - imageSize / 2;
+  const y = centerY - imageSize / 2;
+  
+  // Draw the image
+  context.drawImage(image, x, y, imageSize, imageSize);
+  
+  // Add a subtle glow around the image that pulses with the bass
+  const glowSize = imageSize * (1 + pulseAmount * 2);
+  const glowX = centerX - glowSize / 2;
+  const glowY = centerY - glowSize / 2;
+  
+  // Create a subtle glow effect on the glow canvas
+  const imageGlow = glowContext.createRadialGradient(
+    centerX, centerY, imageSize * 0.4,
+    centerX, centerY, imageSize
+  );
+  
+  const glowColor = settings.glowColor;
+  const glowAlpha = 0.3 + audioLevels.bass * 0.3;
+  
+  imageGlow.addColorStop(0, `rgba(${glowColor[0]}, ${glowColor[1]}, ${glowColor[2]}, 0)`);
+  imageGlow.addColorStop(0.7, `rgba(${glowColor[0]}, ${glowColor[1]}, ${glowColor[2]}, ${glowAlpha})`);
+  imageGlow.addColorStop(1, `rgba(${glowColor[0]}, ${glowColor[1]}, ${glowColor[2]}, 0)`);
+  
+  glowContext.fillStyle = imageGlow;
+  glowContext.beginPath();
+  glowContext.arc(centerX, centerY, imageSize, 0, Math.PI * 2);
+  glowContext.fill();
+}
+
+// Apply glow effects to the visualization
+function applyGlowEffects() {
+  if (settings.glowIntensity <= 0) return;
+  
+  // Use the glow canvas to create a bloom effect
+  // Apply multiple blur passes for better quality
+  const glowAmount = settings.glowIntensity * (1 + audioLevels.bass * 0.5);
+  
+  // First pass - larger blur
+  context.filter = `blur(${6 * glowAmount}px)`;
+  context.globalAlpha = 0.4 * glowAmount;
+  context.drawImage(glowCanvas, 0, 0);
+  
+  // Second pass - medium blur
+  context.filter = `blur(${3 * glowAmount}px)`;
+  context.globalAlpha = 0.3 * glowAmount;
+  context.drawImage(glowCanvas, 0, 0);
+  
+  // Third pass - subtle blur
+  context.filter = `blur(${1.5 * glowAmount}px)`;
+  context.globalAlpha = 0.2 * glowAmount;
+  context.drawImage(glowCanvas, 0, 0);
+  
+  // Reset context properties
+  context.filter = 'none';
+  context.globalAlpha = 1.0;
+}
+
+// Get a color from the cycle based on time
+function getColorCycle(time) {
+  // Rotate through hues
+  const hue = (time * 20) % 360;
+  
+  // Convert HSV to RGB
+  return hsvToRgb(hue, 0.8, 0.9);
+}
+
+// Convert HSV color to RGB
+function hsvToRgb(h, s, v) {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  
+  let r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255)
+  ];
+}
+
+// Draw debug information
+function drawDebugInfo() {
+  context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  context.fillRect(10, 10, 250, 120);
+  
+  context.font = '12px monospace';
+  context.fillStyle = 'white';
+  context.fillText(`Bass: ${audioLevels.bass.toFixed(2)}`, 20, 30);
+  context.fillText(`Mid: ${audioLevels.mid.toFixed(2)}`, 20, 50);
+  context.fillText(`High: ${audioLevels.high.toFixed(2)}`, 20, 70);
+  context.fillText(`Overall: ${audioLevels.overall.toFixed(2)}`, 20, 90);
+  context.fillText(`Frame: ${frameCount}`, 20, 110);
+  
+  // Draw audio level bars
+  drawLevelBar(130, 26, 100, 10, audioLevels.bass, [255, 100, 100]);
+  drawLevelBar(130, 46, 100, 10, audioLevels.mid, [100, 255, 100]);
+  drawLevelBar(130, 66, 100, 10, audioLevels.high, [100, 100, 255]);
+  drawLevelBar(130, 86, 100, 10, audioLevels.overall, [255, 255, 255]);
+}
+
+// Helper to draw level bars
+function drawLevelBar(x, y, width, height, level, color) {
+  const barWidth = width * level;
+  
+  // Background
+  context.fillStyle = 'rgba(40, 40, 40, 0.8)';
+  context.fillRect(x, y, width, height);
+  
+  // Level
+  context.fillStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.8)`;
+  context.fillRect(x, y, barWidth, height);
+  
+  // Border
+  context.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+  context.strokeRect(x, y, width, height);
+}

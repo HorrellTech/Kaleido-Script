@@ -11,11 +11,12 @@ KaleidoScript is an interactive web-based application for creating code-based an
 ## Features
 
 - **Code-Based Animation Engine**: Create dynamic visualizations using JavaScript
-- **Real-Time Preview**: See your animations instantly as you code
 - **Audio Visualization**: Create music-reactive graphics that respond to audio frequencies
 - **Export Options**: Save your creations as PNG, GIF
 - **Responsive Canvas**: Adjust canvas size with preset aspect ratios
 - **Recording Capability**: Record your animations with audio as video files
+- **Heaps of examples**: More examples will be added over time, also, check the examples folder to see some more complex visualizers
+- **Basic 3D Capabilities**: Add basic 3D Shapes that react to audio frequencies. Have the camera orbit the visualizer if you desire
 
 ## Getting Started
 

@@ -1,0 +1,62 @@
+const settings = {
+    bubbleCount: 25,
+    fishCount: 15,
+    rippleStrength: 0.7
+}
+
+function setup() {
+    loadAudio("audio.mp3");
+    playAudio();
+}
+
+function draw(time) {
+    clear();
+    
+    // Create water background color that subtly shifts with time
+    const r = 5 + Math.sin(time * 0.3) * 5;
+    const g = 20 + Math.sin(time * 0.2) * 10;
+    const b = 50 + Math.sin(time * 0.1) * 20;
+    background(r, g, b);
+    
+    // Get audio data
+    const bassAmplitude = audiohz(60);
+    const midAmplitude = audiohz(500);
+    const highAmplitude = audiohz(3000);
+    
+    // Apply motion blur for dreamy effect
+    motionBlurStart(0.4, "source-over");
+    
+    // Create fish pond with reactive colors
+    visualFishPond(
+        0, 0, width, height,
+        settings.fishCount,           // Fish count
+        [10 + bassAmplitude * 30, 40 + midAmplitude * 40, 80 + highAmplitude * 40], // Pond color
+        [160 + bassAmplitude * 40, 150 + midAmplitude * 30, 120], // Shore color
+        true                          // Glow
+    );
+    
+    // Add bubbles that float up
+    visualBubble(
+        0, 0, width, height,
+        settings.bubbleCount,         // Bubble count
+        5 + midAmplitude * 10,        // Min size
+        15 + bassAmplitude * 40,      // Max size
+        60, 2000,                     // Frequency range
+        true                          // Glow
+    );
+    
+    // Add water ripple effects during audio peaks
+    if (bassAmplitude > 0.2) {
+        glowStart("rgba(200, 240, 255, 0.5)", 10);
+        visualRipple(
+            width/2, height/2,            // Center position
+            width, height,                // Dimensions
+            1 + Math.floor(bassAmplitude * settings.rippleStrength * 10), // Ripple count
+            20, 200,                      // Frequency range
+            false                         // Already using glow
+        );
+        glowEnd();
+    }
+    
+    motionBlurEnd();
+}

@@ -1,0 +1,965 @@
+// Nebula Resonance Visualizer
+// A cosmic particle system that transforms sound into visual energy fields
+
+// SETTINGS - Adjust these to customize the visualization
+const settings = {
+  // Particle system
+  particleCount: 1500,          // Number of particles
+  particleBaseSize: 1,        // Base particle size
+  particleMaxSize: 4,           // Maximum particle size with audio boost
+  particleMinSpeed: 0.2,        // Minimum particle movement speed
+  particleMaxSpeed: 1.0,        // Maximum particle speed with audio boost
+  
+  // Field settings
+  fieldCount: 7,                // Number of gravitational fields
+  fieldStrength: 0.3,           // Base strength of fields
+  fieldRadius: 300,             // Field radius of influence
+  fieldEvolution: 0.004,       // How quickly fields move and evolve
+  
+  // Visual settings
+  hueBase: 220,                 // Base color (in HSL degrees, 0-360)
+  hueRange: 60,                 // Color variation range
+  hueCycleSpeed: 0.1,          // Speed of automatic color cycling
+  saturationBase: 80,           // Base saturation (0-100)
+  brightnessBase: 60,           // Base brightness (0-100)
+  
+  // Effects
+  glowStrength: 0.8,            // Strength of glow effect (0-1)
+  bloomRadius: 15,              // Radius of bloom effect
+  bloomQuality: 'high',         // Quality of bloom effect ('low', 'medium', 'high')
+  trailLength: 0.92,            // Length of particle trails (0-1, higher = longer)
+  
+  // Audio reactivity
+  bassImpact: 2.0,              // How much bass affects the system
+  midImpact: 1.2,               // How much mid frequencies affect the system
+  highImpact: 0.8,              // How much high frequencies affect the system
+  reactivitySmoothing: 0.95,    // Smoothing factor for audio reactivity (0-1)
+  
+  // Motion effects
+  vortexEnabled: true,          // Create vortex effects
+  vortexStrength: 1.1,          // Strength of vortex effect
+  shockwavesEnabled: true,      // Create audio-driven shockwaves
+  shockwaveThreshold: 0.2,      // Audio level to trigger shockwaves (0-1)
+  turbulenceEnabled: true,      // Add turbulent motion
+  turbulenceScale: 0.02,       // Scale of turbulence
+  
+  // Advanced visuals
+  depthEnabled: true,           // Use 3D-like depth effects
+  depthFactor: 1.2,             // Strength of depth effect
+  energyFieldsEnabled: true,    // Draw energy fields connecting particles
+  energyFieldThreshold: 120,    // Maximum distance for energy connections
+  nebulaEffectEnabled: true,    // Create nebula-like gas clouds
+  nebulaOpacity: 0.1            // Opacity of nebula effect
+};
+
+// State variables for the visualization
+let particles = [];
+let fields = [];
+let shockwaves = [];
+let audioLevels = { bass: 0, mid: 0, high: 0, overall: 0 };
+let lastAudioLevels = { bass: 0, mid: 0, high: 0, overall: 0 };
+let audioReactivity = 0;
+let hueOffset = 0;
+let frameCount = 0;
+let mainCanvas, mainContext;
+let glowCanvas, glowContext;
+let depthLayers = [];
+let turbulenceField;
+let nebulaClouds = [];
+
+// Setup function runs once at the beginning
+function setup() {
+  log("Nebula Resonance visualization initializing");
+  
+  // Try to load audio if available
+  if (window.audioProcessor) {
+    try {
+      loadAudio("Music/Wild Card.wav");
+      playAudio();
+      log("Audio loaded and playing");
+    } catch (e) {
+      log("No audio specified, visualization will use default patterns", "info");
+    }
+  }
+  
+  // Create offscreen canvases for effects
+  createOffscreenBuffers();
+  
+  // Initialize particle system
+  initializeParticles();
+  
+  // Initialize gravitational fields
+  initializeFields();
+  
+  // Initialize nebula clouds if enabled
+  if (settings.nebulaEffectEnabled) {
+    initializeNebulaClouds();
+  }
+  
+  // Initialize turbulence field if enabled
+  if (settings.turbulenceEnabled) {
+    initializeTurbulence();
+  }
+  
+  // Set initial black background
+  background(0, 0, 0);
+}
+
+// Create offscreen buffers for visual effects
+function createOffscreenBuffers() {
+  // Main content canvas
+  mainCanvas = document.createElement('canvas');
+  mainCanvas.width = width;
+  mainCanvas.height = height;
+  mainContext = mainCanvas.getContext('2d');
+  
+  // Glow effect canvas
+  glowCanvas = document.createElement('canvas');
+  glowCanvas.width = width;
+  glowCanvas.height = height;
+  glowContext = glowCanvas.getContext('2d');
+  
+  // Create depth layers if depth effect is enabled
+  if (settings.depthEnabled) {
+    const layerCount = 3;
+    for (let i = 0; i < layerCount; i++) {
+      const layerCanvas = document.createElement('canvas');
+      layerCanvas.width = width;
+      layerCanvas.height = height;
+      depthLayers.push({
+        canvas: layerCanvas,
+        context: layerCanvas.getContext('2d'),
+        depth: i / (layerCount - 1)  // 0 = front, 1 = back
+      });
+    }
+  }
+}
+
+// Initialize particles
+function initializeParticles() {
+  particles = [];
+  for (let i = 0; i < settings.particleCount; i++) {
+    particles.push(createParticle());
+  }
+}
+
+// Create a single particle with random properties
+function createParticle(atPosition = null) {
+  const depth = settings.depthEnabled ? Math.random() : 0.5;
+  const speedFactor = settings.depthEnabled ? 
+    (1 - settings.depthFactor * (depth - 0.5)) : 1;
+  
+  return {
+    x: atPosition ? atPosition.x : Math.random() * width,
+    y: atPosition ? atPosition.y : Math.random() * height,
+    vx: (Math.random() * 2 - 1) * settings.particleMinSpeed * speedFactor,
+    vy: (Math.random() * 2 - 1) * settings.particleMinSpeed * speedFactor,
+    size: settings.particleBaseSize * (0.5 + Math.random() * 0.5),
+    color: calculateParticleColor(Math.random()),
+    energy: 0.2 + Math.random() * 0.8,
+    life: 1,
+    depth: depth,
+    pulse: 0,
+    age: Math.random() * 100  // Used for color variation
+  };
+}
+
+// Calculate a color for a particle
+function calculateParticleColor(value) {
+  // Adjust hue by the global offset plus individual variation
+  const hue = (settings.hueBase + hueOffset + value * settings.hueRange) % 360;
+  const saturation = settings.saturationBase;
+  const brightness = settings.brightnessBase + value * 20;
+  
+  // Return HSL color
+  return `hsl(${hue}, ${saturation}%, ${brightness}%)`;
+}
+
+// Initialize gravitational fields
+function initializeFields() {
+  fields = [];
+  for (let i = 0; i < settings.fieldCount; i++) {
+    fields.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      strength: (Math.random() * 2 - 1) * settings.fieldStrength,
+      radius: settings.fieldRadius * (0.5 + Math.random() * 1),
+      phase: Math.random() * Math.PI * 2,
+      color: calculateParticleColor(Math.random())
+    });
+  }
+}
+
+// Initialize nebula clouds
+function initializeNebulaClouds() {
+  nebulaClouds = [];
+  const cloudCount = 5;
+  
+  for (let i = 0; i < cloudCount; i++) {
+    nebulaClouds.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      radius: 100 + Math.random() * 200,
+      density: 0.2 + Math.random() * 0.3,
+      colorValue: Math.random(),
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.0005 + Math.random() * 0.001
+    });
+  }
+}
+
+// Initialize turbulence field
+function initializeTurbulence() {
+  turbulenceField = {
+    grid: [],
+    resolution: 20,  // Size of turbulence grid cells
+    time: 0
+  };
+  
+  // Initialize grid points
+  const cols = Math.ceil(width / turbulenceField.resolution);
+  const rows = Math.ceil(height / turbulenceField.resolution);
+  
+  for (let y = 0; y <= rows; y++) {
+    const row = [];
+    for (let x = 0; x <= cols; x++) {
+      row.push({
+        x: x * turbulenceField.resolution,
+        y: y * turbulenceField.resolution,
+        angle: Math.random() * Math.PI * 2
+      });
+    }
+    turbulenceField.grid.push(row);
+  }
+}
+
+// Main draw function, called on every frame
+function draw(time) {
+  // Update audio levels
+  updateAudioLevels();
+  
+  // Apply background fade for trails
+  applyBackgroundFade();
+  
+  // Clear depth layers if using depth effect
+  if (settings.depthEnabled) {
+    for (const layer of depthLayers) {
+      layer.context.clearRect(0, 0, width, height);
+    }
+  }
+  
+  // Clear the main canvas for this frame
+  mainContext.clearRect(0, 0, width, height);
+  
+  // Clear the glow canvas
+  glowContext.clearRect(0, 0, width, height);
+  
+  // Update gravitational fields
+  updateFields(time);
+  
+  // Draw nebula effect if enabled
+  if (settings.nebulaEffectEnabled) {
+    drawNebulaClouds();
+  }
+  
+  // Update all particles
+  updateParticles(time);
+  
+  // Draw energy connections between particles if enabled
+  if (settings.energyFieldsEnabled) {
+    drawEnergyConnections();
+  }
+  
+  // Draw fields (gravitational centers)
+  drawFields();
+  
+  // Update and draw shockwaves
+  updateShockwaves();
+  
+  // Apply the bloom/glow effect
+  if (settings.glowStrength > 0) {
+    applyBloomEffect();
+  }
+  
+  // Combine all layers onto the main canvas
+  if (settings.depthEnabled) {
+    // Draw back-to-front for proper depth sorting
+    for (let i = depthLayers.length - 1; i >= 0; i--) {
+      context.drawImage(depthLayers[i].canvas, 0, 0);
+    }
+  } else {
+    // Draw directly to the main canvas
+    context.drawImage(mainCanvas, 0, 0);
+  }
+  
+  // Draw glow layer on top with screen blend mode
+  context.globalCompositeOperation = 'screen';
+  context.drawImage(glowCanvas, 0, 0);
+  context.globalCompositeOperation = 'source-over';
+  
+  // Update global state
+  updateGlobalState(time);
+}
+
+// Update audio levels from the audio processor
+function updateAudioLevels() {
+  if (window.audiohz) {
+    // Store previous values
+    lastAudioLevels = {...audioLevels};
+    
+    // Sample multiple frequencies in each range and average them
+    let bassSum = 0;
+    for (let freq = 60; freq <= 250; freq += 30) {
+      bassSum += audiohz(freq);
+    }
+    
+    let midSum = 0;
+    for (let freq = 400; freq <= 2000; freq += 200) {
+      midSum += audiohz(freq);
+    }
+    
+    let highSum = 0;
+    for (let freq = 3000; freq <= 8000; freq += 500) {
+      highSum += audiohz(freq);
+    }
+    
+    // Calculate averages
+    const bassRaw = bassSum / 7;
+    const midRaw = midSum / 9;
+    const highRaw = highSum / 11;
+    
+    // Apply smoothing
+    audioLevels.bass = audioLevels.bass * settings.reactivitySmoothing + 
+                       bassRaw * (1 - settings.reactivitySmoothing);
+                       
+    audioLevels.mid = audioLevels.mid * settings.reactivitySmoothing + 
+                     midRaw * (1 - settings.reactivitySmoothing);
+                     
+    audioLevels.high = audioLevels.high * settings.reactivitySmoothing + 
+                       highRaw * (1 - settings.reactivitySmoothing);
+    
+    // Calculate overall audio reactivity
+    audioLevels.overall = 
+      audioLevels.bass * settings.bassImpact * 0.5 + 
+      audioLevels.mid * settings.midImpact * 0.3 + 
+      audioLevels.high * settings.highImpact * 0.2;
+    
+    // Check for bass hits to trigger shockwaves
+    const bassDelta = audioLevels.bass - lastAudioLevels.bass;
+    if (settings.shockwavesEnabled && 
+        bassDelta > 0.1 && 
+        audioLevels.bass > settings.shockwaveThreshold) {
+      createShockwave();
+    }
+    
+  } else {
+    // Simulate audio if not available
+    const time = frameCount * 0.02;
+    audioLevels.bass = 0.3 + 0.2 * Math.sin(time * 0.3);
+    audioLevels.mid = 0.3 + 0.2 * Math.sin(time * 0.5 + 1);
+    audioLevels.high = 0.3 + 0.2 * Math.sin(time * 0.7 + 2);
+    audioLevels.overall = 0.3 + 0.2 * Math.sin(time * 0.4);
+    
+    // Create occasional shockwaves
+    if (settings.shockwavesEnabled && Math.random() < 0.01) {
+      createShockwave();
+    }
+  }
+  
+  // Calculate overall reactivity for this frame
+  audioReactivity = audioLevels.overall;
+}
+
+// Apply a fade to the background for trail effect
+function applyBackgroundFade() {
+  // Calculate trail amount based on audio
+  const trailAmount = Math.max(0, settings.trailLength - audioLevels.high * 0.2);
+  const fadeAlpha = 1 - trailAmount;
+  
+  // Fill with transparent black for fade effect
+  context.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
+  context.fillRect(0, 0, width, height);
+}
+
+// Update the gravitational fields
+function updateFields(time) {
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i];
+    
+    // Move fields with a Lissajous pattern
+    const t = time * settings.fieldEvolution + field.phase;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const rangeX = width * 0.4;
+    const rangeY = height * 0.4;
+    
+    field.x = centerX + Math.sin(t * 0.3) * Math.cos(t * 0.1) * rangeX;
+    field.y = centerY + Math.sin(t * 0.4) * Math.cos(t * 0.2) * rangeY;
+    
+    // Pulsate field strength with audio
+    field.strength = (Math.sin(t) > 0 ? 1 : -1) * 
+                     settings.fieldStrength * 
+                     (1 + audioLevels.bass * settings.bassImpact * 0.5);
+    
+    // Update field color
+    field.color = calculateParticleColor(i / fields.length);
+  }
+}
+
+// Draw the nebula cloud effect
+function drawNebulaClouds() {
+  // Skip if disabled
+  if (!settings.nebulaEffectEnabled) return;
+  
+  for (const cloud of nebulaClouds) {
+    // Update cloud position and parameters
+    cloud.phase += cloud.speed * (1 + audioLevels.mid);
+    
+    // Draw cloud with radial gradient
+    const gradient = mainContext.createRadialGradient(
+      cloud.x, cloud.y, 0,
+      cloud.x, cloud.y, cloud.radius * (1 + audioLevels.bass * 0.3)
+    );
+    
+    // Calculate cloud color from base color
+    const hue = (settings.hueBase + hueOffset + cloud.colorValue * settings.hueRange) % 360;
+    const opacity = settings.nebulaOpacity * (0.3 + audioLevels.bass * 0.7);
+    
+    gradient.addColorStop(0, `hsla(${hue}, ${settings.saturationBase}%, ${settings.brightnessBase}%, ${opacity})`);
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    
+    // Draw the cloud
+    mainContext.fillStyle = gradient;
+    mainContext.beginPath();
+    mainContext.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
+    mainContext.fill();
+    
+    // Also draw to glow canvas for bloom effect
+    glowContext.fillStyle = gradient;
+    glowContext.beginPath();
+    glowContext.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
+    glowContext.fill();
+    
+    // Slowly move clouds
+    cloud.x += Math.sin(cloud.phase) * 0.5;
+    cloud.y += Math.cos(cloud.phase * 0.7) * 0.5;
+    
+    // Wrap clouds around screen
+    if (cloud.x < -cloud.radius) cloud.x = width + cloud.radius;
+    if (cloud.x > width + cloud.radius) cloud.x = -cloud.radius;
+    if (cloud.y < -cloud.radius) cloud.y = height + cloud.radius;
+    if (cloud.y > height + cloud.radius) cloud.y = -cloud.radius;
+  }
+}
+
+// Update all particles in the system
+function updateParticles(time) {
+  const audioBoost = audioLevels.overall;
+  const maxSpeed = settings.particleMinSpeed + 
+                   (settings.particleMaxSpeed - settings.particleMinSpeed) * audioBoost;
+  
+  // Process each particle
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    
+    // Apply field forces to particles
+    applyFieldsToParticle(p);
+    
+    // Apply global vortex if enabled
+    if (settings.vortexEnabled) {
+      applyVortexToParticle(p, time);
+    }
+    
+    // Apply turbulence if enabled
+    if (settings.turbulenceEnabled) {
+      applyTurbulenceToParticle(p);
+    }
+    
+    // Apply shockwaves
+    applyShockwavesToParticle(p);
+    
+    // Limit particle velocity
+    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+    if (speed > maxSpeed) {
+      p.vx = (p.vx / speed) * maxSpeed;
+      p.vy = (p.vy / speed) * maxSpeed;
+    }
+    
+    // Update position
+    p.x += p.vx;
+    p.y += p.vy;
+    
+    // Wrap around screen edges with a bit of extra buffer
+    if (p.x < -50) p.x = width + 50;
+    if (p.x > width + 50) p.x = -50;
+    if (p.y < -50) p.y = height + 50;
+    if (p.y > height + 50) p.y = -50;
+    
+    // Update particle energy and pulse based on audio
+    const freqResponse = p.depth < 0.33 ? audioLevels.high : 
+                       (p.depth < 0.66 ? audioLevels.mid : audioLevels.bass);
+                       
+    p.energy = 0.2 + freqResponse * 0.8;
+    p.pulse = Math.max(0, p.pulse - 0.05);
+    
+    // Apply occasional random pulse
+    if (Math.random() < 0.001 + audioLevels.overall * 0.01) {
+      p.pulse = 1;
+    }
+    
+    // Update color based on energy and age
+    p.color = calculateParticleColor((i / settings.particleCount) + Math.sin(p.age * 0.01) * 0.2);
+    p.age += 0.1;
+    
+    // Draw the particle
+    drawParticle(p);
+  }
+  
+  // Occasionally add new particles on strong bass hits
+  if (audioLevels.bass > 0.8 && Math.random() < audioLevels.bass * 0.2) {
+    // Add particles in a burst
+    const burstCenter = {
+      x: width * (0.3 + Math.random() * 0.4),
+      y: height * (0.3 + Math.random() * 0.4)
+    };
+    
+    const burstCount = Math.floor(5 + audioLevels.bass * 15);
+    for (let i = 0; i < burstCount; i++) {
+      // Add some spread around the burst center
+      const burstPos = {
+        x: burstCenter.x + (Math.random() * 100 - 50),
+        y: burstCenter.y + (Math.random() * 100 - 50)
+      };
+      
+      particles.push(createParticle(burstPos));
+      
+      // Remove an old particle to keep count consistent
+      if (particles.length > settings.particleCount) {
+        particles.shift();
+      }
+    }
+  }
+}
+
+// Apply gravitational fields to a particle
+function applyFieldsToParticle(particle) {
+  for (const field of fields) {
+    // Calculate distance to field
+    const dx = field.x - particle.x;
+    const dy = field.y - particle.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // Skip if outside field radius
+    if (distance > field.radius) continue;
+    
+    // Calculate normalized force (stronger near the center)
+    const force = field.strength * (1 - distance / field.radius);
+    
+    // Apply force to particle velocity
+    particle.vx += dx / distance * force * 0.2;
+    particle.vy += dy / distance * force * 0.2;
+    
+    // Increase pulse when close to field center
+    if (distance < field.radius * 0.2) {
+      particle.pulse = Math.max(particle.pulse, 0.5);
+    }
+  }
+}
+
+// Apply vortex effect to a particle
+function applyVortexToParticle(particle, time) {
+  // Skip if not enabled
+  if (!settings.vortexEnabled) return;
+  
+  // Calculate distance to center
+  const dx = particle.x - width / 2;
+  const dy = particle.y - height / 2;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  
+  // Skip if too close to center
+  if (distance < 20) return;
+  
+  // Calculate vortex strength based on audio and settings
+  const vortexForce = settings.vortexStrength * (0.5 + audioLevels.mid * 0.5);
+  
+  // Calculate tangential force direction
+  const angle = Math.atan2(dy, dx);
+  const vx = -Math.sin(angle) * vortexForce;
+  const vy = Math.cos(angle) * vortexForce;
+  
+  // Apply force with distance falloff
+  const distanceFactor = 1 - Math.min(1, distance / (Math.min(width, height) * 0.7));
+  particle.vx += vx * distanceFactor;
+  particle.vy += vy * distanceFactor;
+}
+
+// Apply turbulence to a particle
+function applyTurbulenceToParticle(particle) {
+  if (!settings.turbulenceEnabled || !turbulenceField) return;
+  
+  // Find grid cell that contains the particle
+  const gridX = Math.floor(particle.x / turbulenceField.resolution);
+  const gridY = Math.floor(particle.y / turbulenceField.resolution);
+  
+  // Skip if outside grid
+  if (gridX < 0 || gridY < 0 || 
+      gridX >= turbulenceField.grid[0].length - 1 || 
+      gridY >= turbulenceField.grid.length - 1) return;
+  
+  // Get surrounding grid points
+  const p00 = turbulenceField.grid[gridY][gridX];
+  const p10 = turbulenceField.grid[gridY][gridX + 1];
+  const p01 = turbulenceField.grid[gridY + 1][gridX];
+  const p11 = turbulenceField.grid[gridY + 1][gridX + 1];
+  
+  // Calculate interpolation factors
+  const fx = (particle.x - p00.x) / turbulenceField.resolution;
+  const fy = (particle.y - p00.y) / turbulenceField.resolution;
+  
+  // Bilinear interpolation of angle
+  const angle = 
+    p00.angle * (1 - fx) * (1 - fy) +
+    p10.angle * fx * (1 - fy) +
+    p01.angle * (1 - fx) * fy +
+    p11.angle * fx * fy;
+  
+  // Apply force in that direction
+  const turbulenceForce = settings.turbulenceScale * (1 + audioLevels.high * 2);
+  particle.vx += Math.cos(angle) * turbulenceForce;
+  particle.vy += Math.sin(angle) * turbulenceForce;
+}
+
+// Create a new shockwave at a random position
+function createShockwave() {
+  // Determine position - more likely near screen center
+  const centerBias = 0.7;
+  const x = width * (0.5 + (Math.random() - 0.5) * (1 - centerBias));
+  const y = height * (0.5 + (Math.random() - 0.5) * (1 - centerBias));
+  
+  // Determine size based on audio levels
+  const baseSize = Math.min(width, height) * 0.1;
+  const maxSize = Math.min(width, height) * 0.5;
+  const finalSize = baseSize + (maxSize - baseSize) * audioLevels.bass;
+  
+  // Create shockwave object
+  shockwaves.push({
+    x: x,
+    y: y,
+    currentRadius: 0,
+    maxRadius: finalSize,
+    strength: 0.5 + audioLevels.bass * 1.5,
+    life: 1,
+    speed: 5 + audioLevels.overall * 10,
+    color: calculateParticleColor(Math.random())
+  });
+}
+
+// Update all active shockwaves
+function updateShockwaves() {
+  for (let i = shockwaves.length - 1; i >= 0; i--) {
+    const wave = shockwaves[i];
+    
+    // Expand the wave
+    wave.currentRadius += wave.speed;
+    
+    // Decrease life as it expands
+    wave.life = Math.max(0, 1 - (wave.currentRadius / wave.maxRadius));
+    
+    // Draw the wave
+    const waveWidth = 10 * wave.life;
+    const waveOpacity = wave.life * 0.7;
+    
+    // Draw to main canvas
+    mainContext.strokeStyle = wave.color.replace(')', `, ${waveOpacity})`).replace('rgb', 'rgba');
+    mainContext.lineWidth = waveWidth;
+    mainContext.beginPath();
+    mainContext.arc(wave.x, wave.y, wave.currentRadius, 0, Math.PI * 2);
+    mainContext.stroke();
+    
+    // Draw to glow canvas with higher opacity for bloom effect
+    glowContext.strokeStyle = wave.color.replace(')', `, ${waveOpacity * 2})`).replace('rgb', 'rgba');
+    glowContext.lineWidth = waveWidth * 1.5;
+    glowContext.beginPath();
+    glowContext.arc(wave.x, wave.y, wave.currentRadius, 0, Math.PI * 2);
+    glowContext.stroke();
+    
+    // Remove dead waves
+    if (wave.life <= 0) {
+      shockwaves.splice(i, 1);
+    }
+  }
+}
+
+// Apply shockwaves to a particle
+function applyShockwavesToParticle(particle) {
+  for (const wave of shockwaves) {
+    // Calculate distance to shockwave center
+    const dx = particle.x - wave.x;
+    const dy = particle.y - wave.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // Calculate distance to shockwave ring
+    const distToRing = Math.abs(distance - wave.currentRadius);
+    
+    // Only affect particles near the ring
+    const effectWidth = 30;
+    if (distToRing > effectWidth) continue;
+    
+    // Calculate force (stronger closer to the ring)
+    const force = wave.strength * (1 - distToRing / effectWidth) * wave.life;
+    
+    // Apply force away from center
+    if (distance > 0) {
+      const normX = dx / distance;
+      const normY = dy / distance;
+      particle.vx += normX * force;
+      particle.vy += normY * force;
+    }
+    
+    // Increase particle pulse when hit by shockwave
+    particle.pulse = Math.max(particle.pulse, force);
+  }
+}
+
+// Draw a single particle
+function drawParticle(p) {
+  // Calculate size based on energy and pulse
+  const baseSize = settings.particleBaseSize * (1 + p.energy);
+  const pulseBoost = p.pulse * audioLevels.bass * 3;
+  const audioBoost = audioReactivity * settings.bassImpact * 0.5;
+  const size = baseSize + baseSize * pulseBoost + audioBoost * settings.particleMaxSize;
+  
+  // Determine which canvas to draw to based on depth
+  let targetContext;
+  
+  if (settings.depthEnabled) {
+    // Find the closest depth layer
+    const layerIndex = Math.floor(p.depth * depthLayers.length);
+    const clampedIndex = Math.max(0, Math.min(depthLayers.length - 1, layerIndex));
+    targetContext = depthLayers[clampedIndex].context;
+  } else {
+    targetContext = mainContext;
+  }
+  
+  // Draw the particle
+  targetContext.fillStyle = p.color;
+  targetContext.beginPath();
+  targetContext.arc(p.x, p.y, size, 0, Math.PI * 2);
+  targetContext.fill();
+  
+  // Draw glow version for bloom effect
+  const glowSize = size * (1 + p.pulse * 2);
+  glowContext.fillStyle = p.color;
+  glowContext.beginPath();
+  glowContext.arc(p.x, p.y, glowSize, 0, Math.PI * 2);
+  glowContext.fill();
+}
+
+// Draw the gravitational fields
+function drawFields() {
+  for (const field of fields) {
+    // Skip drawing weak fields
+    if (Math.abs(field.strength) < 0.1) continue;
+    
+    // Create radial gradient
+    const gradient = mainContext.createRadialGradient(
+      field.x, field.y, 0,
+      field.x, field.y, field.radius
+    );
+    
+    // Get field color and adjust opacity based on strength
+    const fieldOpacity = Math.min(0.7, Math.abs(field.strength) * 0.5);
+    const fieldColor = field.color.replace(')', `, ${fieldOpacity})`).replace('rgb', 'rgba');
+    const fieldColorFade = field.color.replace(')', ', 0)').replace('rgb', 'rgba');
+    
+    gradient.addColorStop(0, fieldColor);
+    gradient.addColorStop(1, fieldColorFade);
+    
+    // Draw the field to main canvas
+    mainContext.fillStyle = gradient;
+    mainContext.beginPath();
+    mainContext.arc(field.x, field.y, field.radius, 0, Math.PI * 2);
+    mainContext.fill();
+    
+    // Draw the field to glow canvas with higher opacity
+    const glowOpacity = Math.min(1, Math.abs(field.strength) * 0.7);
+    const glowColor = field.color.replace(')', `, ${glowOpacity})`).replace('rgb', 'rgba');
+    const glowGradient = glowContext.createRadialGradient(
+      field.x, field.y, 0,
+      field.x, field.y, field.radius * 1.2
+    );
+    
+    glowGradient.addColorStop(0, glowColor);
+    glowGradient.addColorStop(1, fieldColorFade);
+    
+    glowContext.fillStyle = glowGradient;
+    glowContext.beginPath();
+    glowContext.arc(field.x, field.y, field.radius * 1.2, 0, Math.PI * 2);
+    glowContext.fill();
+  }
+}
+
+// Draw energy connections between nearby particles
+function drawEnergyConnections() {
+  if (!settings.energyFieldsEnabled) return;
+  
+  // Adjust connection distance by audio
+  const maxDist = settings.energyFieldThreshold * (0.5 + audioLevels.mid * 0.5);
+  const maxDistSquared = maxDist * maxDist;
+  
+  // Draw connections (efficiently - only check a subset of particles each frame)
+  const step = 3 + Math.floor(particles.length / 200); // Skip particles for performance
+  
+  mainContext.lineWidth = 0.5;
+  glowContext.lineWidth = 1;
+  
+  for (let i = 0; i < particles.length; i += step) {
+    const p1 = particles[i];
+    
+    // Skip particles with low energy
+    if (p1.energy < 0.3) continue;
+    
+    for (let j = i + 1; j < particles.length; j += step) {
+      const p2 = particles[j];
+      
+      // Skip if depths are too far apart (for 3D effect)
+      if (settings.depthEnabled && Math.abs(p1.depth - p2.depth) > 0.3) continue;
+      
+      // Calculate squared distance (faster than using sqrt)
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const distSquared = dx * dx + dy * dy;
+      
+      // Skip if too far apart
+      if (distSquared > maxDistSquared) continue;
+      
+      // Calculate opacity based on distance and energy
+      const dist = Math.sqrt(distSquared);
+      const opacity = (1 - dist / maxDist) * 0.2 * p1.energy * p2.energy;
+      
+      // Skip if nearly invisible
+      if (opacity < 0.02) continue;
+      
+      // Get average color between the particles
+      const color1 = p1.color.match(/\d+/g).map(Number);
+      const color2 = p2.color.match(/\d+/g).map(Number);
+      const avgColor = [
+        Math.round((color1[0] + color2[0]) / 2),
+        Math.round((color1[1] + color2[1]) / 2),
+        Math.round((color1[2] + color2[2]) / 2)
+      ];
+      
+      // Draw connection line
+      const lineColor = `rgba(${avgColor[0]}, ${avgColor[1]}, ${avgColor[2]}, ${opacity})`;
+      
+      // Determine which canvas to draw to based on depth
+      let targetContext;
+      
+      if (settings.depthEnabled) {
+        // Use average depth to determine layer
+        const avgDepth = (p1.depth + p2.depth) / 2;
+        const layerIndex = Math.floor(avgDepth * depthLayers.length);
+        const clampedIndex = Math.max(0, Math.min(depthLayers.length - 1, layerIndex));
+        targetContext = depthLayers[clampedIndex].context;
+      } else {
+        targetContext = mainContext;
+      }
+      
+      // Draw the line
+      targetContext.strokeStyle = lineColor;
+      targetContext.beginPath();
+      targetContext.moveTo(p1.x, p1.y);
+      targetContext.lineTo(p2.x, p2.y);
+      targetContext.stroke();
+      
+      // Also draw to glow canvas with higher opacity for bloom effect
+      const glowOpacity = opacity * 2;
+      glowContext.strokeStyle = `rgba(${avgColor[0]}, ${avgColor[1]}, ${avgColor[2]}, ${glowOpacity})`;
+      glowContext.beginPath();
+      glowContext.moveTo(p1.x, p1.y);
+      glowContext.lineTo(p2.x, p2.y);
+      glowContext.stroke();
+    }
+  }
+}
+
+// Apply the bloom/glow effect
+function applyBloomEffect() {
+  const bloomAmount = settings.glowStrength * (1 + audioLevels.overall * 0.5);
+  if (bloomAmount <= 0) return;
+  
+  let blurPasses;
+  let blurStrength;
+  
+  // Adjust blur quality based on settings
+  switch (settings.bloomQuality) {
+    case 'low':
+      blurPasses = 1;
+      blurStrength = settings.bloomRadius;
+      break;
+    case 'medium':
+      blurPasses = 2;
+      blurStrength = settings.bloomRadius * 0.7;
+      break;
+    case 'high':
+    default:
+      blurPasses = 3;
+      blurStrength = settings.bloomRadius * 0.5;
+      break;
+  }
+  
+  // Apply multi-pass blur for better quality
+  for (let i = 0; i < blurPasses; i++) {
+    // Progressive blur strength
+    const passStrength = blurStrength * (blurPasses - i) / blurPasses;
+    const passOpacity = 0.6 / blurPasses;
+    
+    glowContext.filter = `blur(${passStrength}px)`;
+    glowContext.globalAlpha = passOpacity;
+    glowContext.drawImage(glowCanvas, 0, 0);
+  }
+  
+  // Reset context properties
+  glowContext.filter = 'none';
+  glowContext.globalAlpha = 1.0;
+}
+
+// Update global state between frames
+function updateGlobalState(time) {
+  // Update color cycling
+  hueOffset += settings.hueCycleSpeed * (1 + audioLevels.mid * 0.5);
+  if (hueOffset > 360) hueOffset -= 360;
+  
+  // Update turbulence field if enabled
+  if (settings.turbulenceEnabled) {
+    turbulenceField.time += 0.01 * (1 + audioLevels.high);
+    
+    // Update angle of each grid point
+    for (let y = 0; y < turbulenceField.grid.length; y++) {
+      for (let x = 0; x < turbulenceField.grid[0].length; x++) {
+        const point = turbulenceField.grid[y][x];
+        const noiseValue = simplex(
+          x * settings.turbulenceScale, 
+          y * settings.turbulenceScale, 
+          turbulenceField.time
+        );
+        point.angle = noiseValue * Math.PI * 2;
+      }
+    }
+  }
+  
+  // Increment frame counter
+  frameCount++;
+}
+
+// Simplex noise function for turbulence (simplified version)
+function simplex(x, y, z) {
+  // Simple noise approximation using sine waves
+  const a = Math.sin(x * 13.5 + z * 1.1) * 43758.5453123;
+  const b = Math.sin(y * 17.7 + z * 0.7) * 43758.5453123;
+  const c = Math.sin(x * 5.3 + y * 11.1 + z * 1.3) * 43758.5453123;
+  
+  return (
+    (Math.sin(a) + Math.sin(b) + Math.sin(c)) / 3
+  );
+}

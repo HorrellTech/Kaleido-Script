@@ -1,0 +1,270 @@
+// Snake Music Visualizer
+// Snakes move toward apples and get confused by high energy music
+
+function setup() {
+    // Initialize audio
+    loadAudio("sounds/default-music.mp3");
+    playAudio();
+    
+    // Create initial snakes and apples
+    createSnakes();
+    createApples();
+}
+
+// Customizable settings
+const settings = {
+    // Snake settings
+    snakeCount: 8,
+    snakeLength: 15,
+    snakeSpeed: 2.5,
+    snakeColors: ["#ff3333", "#33ff33", "#3333ff", "#ffff33", "#ff33ff", "#33ffff"],
+    snakeThickness: 6,
+    
+    // Apple settings
+    appleCount: 5,
+    appleSize: 10,
+    appleColor: "#ff0000",
+    appleRespawnTime: 100,
+    
+    // Audio reactivity
+    confusionFreqStart: 1000,    // High frequency that causes confusion
+    confusionFreqEnd: 2000,      // End of high frequency range
+    confusionThreshold: 0.4,     // Amplitude threshold to trigger confusion
+    confusionIntensity: 2.5,     // How much confusion affects movement
+    bassFrequency: 100,          // Bass frequency for general energy
+    
+    // Visual effects
+    glow: true,                  // Enable glow effect
+    backgroundColor: [15, 15, 25] // Background color
+};
+
+let snakes = [];
+let apples = [];
+
+function createSnakes() {
+    snakes = [];
+    for (let i = 0; i < settings.snakeCount; i++) {
+        const snake = {
+            segments: [],
+            color: settings.snakeColors[i % settings.snakeColors.length],
+            speed: settings.snakeSpeed,
+            angle: Math.random() * Math.PI * 2,
+            targetApple: null,
+            confusion: 0
+        };
+        
+        // Create initial segments
+        const startX = Math.random() * width;
+        const startY = Math.random() * height;
+        
+        for (let j = 0; j < settings.snakeLength; j++) {
+            snake.segments.push({
+                x: startX,
+                y: startY
+            });
+        }
+        
+        snakes.push(snake);
+    }
+}
+
+function createApples() {
+    apples = [];
+    for (let i = 0; i < settings.appleCount; i++) {
+        createApple();
+    }
+}
+
+function createApple() {
+    apples.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        size: settings.appleSize,
+        alpha: 0,
+        fadeDir: 1, // 1 = fade in, -1 = fade out
+        eaten: false
+    });
+}
+
+function draw(time) {
+    // Clear background
+    background(...settings.backgroundColor);
+    
+    // Get audio energy levels
+    const bassEnergy = audiohz(settings.bassFrequency);
+    let highEnergy = 0;
+    
+    // Calculate high frequency energy (average over range)
+    for (let freq = settings.confusionFreqStart; freq <= settings.confusionFreqEnd; freq += 100) {
+        highEnergy += audiohz(freq);
+    }
+    highEnergy /= ((settings.confusionFreqEnd - settings.confusionFreqStart) / 100) || 1;
+    
+    // Update and draw apples
+    updateApples(bassEnergy);
+    
+    // Update and draw snakes
+    updateSnakes(time, highEnergy, bassEnergy);
+}
+
+function updateApples(energy) {
+    for (let i = 0; i < apples.length; i++) {
+        const apple = apples[i];
+        
+        // Handle fading
+        if (apple.eaten) {
+            apple.fadeDir = -1;
+        } else if (apple.alpha < 1) {
+            apple.fadeDir = 1;
+        }
+        
+        // Apply fade direction
+        apple.alpha += apple.fadeDir * 0.02;
+        
+        // Check if apple needs respawning
+        if (apple.alpha <= 0 && apple.eaten) {
+            apple.x = Math.random() * width;
+            apple.y = Math.random() * height;
+            apple.eaten = false;
+        }
+        
+        // Clamp alpha value
+        apple.alpha = Math.max(0, Math.min(1, apple.alpha));
+        
+        // Draw apple with pulsing effect
+        if (apple.alpha > 0) {
+            if (settings.glow) {
+                context.shadowBlur = 10;
+                context.shadowColor = settings.appleColor;
+            }
+            
+            const pulseSize = apple.size * (1 + energy * 0.3);
+            
+            // Draw apple
+            fill(255, 0, 0, apple.alpha);
+            circle(apple.x, apple.y, pulseSize);
+            
+            // Draw apple stem
+            stroke(50, 100, 0, apple.alpha);
+            lineWidth(2);
+            line(apple.x, apple.y - pulseSize/2, apple.x + pulseSize/4, apple.y - pulseSize);
+            
+            context.shadowBlur = 0;
+        }
+    }
+}
+
+function updateSnakes(time, highEnergy, bassEnergy) {
+    for (let i = 0; i < snakes.length; i++) {
+        const snake = snakes[i];
+        
+        // Find target apple if needed
+        if (!snake.targetApple || snake.targetApple.eaten) {
+            let nearestApple = null;
+            let nearestDist = Infinity;
+            
+            for (const apple of apples) {
+                if (!apple.eaten && apple.alpha > 0.5) {
+                    const dx = apple.x - snake.segments[0].x;
+                    const dy = apple.y - snake.segments[0].y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestApple = apple;
+                    }
+                }
+            }
+            
+            snake.targetApple = nearestApple;
+        }
+        
+        // Update confusion state based on high frequencies
+        if (highEnergy > settings.confusionThreshold) {
+            snake.confusion = Math.min(1, snake.confusion + 0.05);
+        } else {
+            snake.confusion = Math.max(0, snake.confusion - 0.02);
+        }
+        
+        // Calculate target angle
+        let targetAngle = snake.angle;
+        
+        if (snake.targetApple) {
+            const dx = snake.targetApple.x - snake.segments[0].x;
+            const dy = snake.targetApple.y - snake.segments[0].y;
+            targetAngle = Math.atan2(dy, dx);
+        }
+        
+        // Apply confusion (random angle changes)
+        if (snake.confusion > 0) {
+            targetAngle += Math.sin(time * 0.01 * i) * Math.PI * snake.confusion * settings.confusionIntensity;
+        }
+        
+        // Gradually turn toward target angle
+        const angleDiff = targetAngle - snake.angle;
+        snake.angle += angleDiff * 0.1;
+        
+        // Move snake head
+        const speed = snake.speed * (1 + bassEnergy * 0.5);
+        const newX = snake.segments[0].x + Math.cos(snake.angle) * speed;
+        const newY = snake.segments[0].y + Math.sin(snake.angle) * speed;
+        
+        // Add new head segment
+        snake.segments.unshift({
+            x: newX,
+            y: newY
+        });
+        
+        // Remove tail segment
+        if (snake.segments.length > settings.snakeLength) {
+            snake.segments.pop();
+        }
+        
+        // Check for apple collision
+        if (snake.targetApple && !snake.targetApple.eaten) {
+            const dx = snake.segments[0].x - snake.targetApple.x;
+            const dy = snake.segments[0].y - snake.targetApple.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist < settings.appleSize) {
+                snake.targetApple.eaten = true;
+                // Make snake slightly longer when it eats
+                settings.snakeLength += 1;
+                if (settings.snakeLength > 30) settings.snakeLength = 30;
+            }
+        }
+        
+        // Wrap around screen edges
+        snake.segments.forEach(segment => {
+            if (segment.x < 0) segment.x = width;
+            if (segment.x > width) segment.x = 0;
+            if (segment.y < 0) segment.y = height;
+            if (segment.y > height) segment.y = 0;
+        });
+        
+        // Draw snake
+        if (settings.glow) {
+            context.shadowBlur = 10;
+            context.shadowColor = snake.color;
+        }
+        
+        stroke(snake.color);
+        lineWidth(settings.snakeThickness * (1 + bassEnergy * 0.3));
+        
+        // Draw snake body
+        context.beginPath();
+        context.moveTo(snake.segments[0].x, snake.segments[0].y);
+        
+        for (let j = 1; j < snake.segments.length; j++) {
+            context.lineTo(snake.segments[j].x, snake.segments[j].y);
+        }
+        
+        context.stroke();
+        
+        // Draw snake head
+        fill(snake.color);
+        circle(snake.segments[0].x, snake.segments[0].y, settings.snakeThickness/1.5 * (1 + bassEnergy * 0.3));
+        
+        context.shadowBlur = 0;
+    }
+}

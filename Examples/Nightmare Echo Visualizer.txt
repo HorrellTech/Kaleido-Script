@@ -1,0 +1,247 @@
+// Nightmare Echo Visualizer
+// Distorted echoes and spectral entities responding to sound
+
+function setup() {
+  log("Nightmare Echo initialized");
+  loadAudio("Music/your_audio_file.wav");
+  playAudio();
+}
+
+function draw(time) {
+  // Create dark background with subtle trails
+  background(10, 5, 15, 0.2);
+  
+  // Get audio data
+  const bass = window.audiohz ? audiohz(100) : 0.5;
+  const mid = window.audiohz ? audiohz(1000) : 0.3;
+  const high = window.audiohz ? audiohz(5000) : 0.2;
+  
+  // Draw spectral distortions
+  drawDistortionField(time, bass);
+  
+  // Draw ghostly faces that appear and dissolve
+  drawSpectralFaces(time, mid);
+  
+  // Draw audio waveform as jagged, broken lines
+  drawBrokenWaveform(time, high, bass);
+  
+  // Create unsettling vignette effect
+  drawVignette(bass);
+}
+
+function drawDistortionField(time, bass) {
+  // Create chaotic field of distortion lines
+  const lineCount = Math.floor(10 + bass * 15);
+  
+  for (let i = 0; i < lineCount; i++) {
+    const y = height * (i / lineCount + Math.sin(time * 0.001 + i) * 0.1);
+    const amplitude = 30 + bass * 100;
+    const frequency = 0.01 + bass * 0.01;
+    
+    context.strokeStyle = `rgba(50, 30, 70, ${0.3 + bass * 0.4})`;
+    context.lineWidth = 1 + bass * 3;
+    
+    context.beginPath();
+    context.moveTo(0, y);
+    
+    // Create distorted line
+    for (let x = 0; x < width; x += 10) {
+      const distortion = Math.sin(x * frequency + time * 0.001 + i) * amplitude;
+      const glitchOffset = Math.random() < 0.05 ? (Math.random() - 0.5) * 50 : 0;
+      context.lineTo(x, y + distortion + glitchOffset);
+    }
+    
+    context.stroke();
+  }
+}
+
+function drawSpectralFaces(time, mid) {
+  // Number of faces depends on audio
+  const faceCount = Math.floor(2 + mid * 5);
+  
+  for (let i = 0; i < faceCount; i++) {
+    // Position and timing
+    const seed = i * 1000 + Math.floor(time * 0.0002);
+    const x = width * 0.5 + Math.sin(time * 0.0005 + i * 0.7) * width * 0.4;
+    const y = height * 0.5 + Math.cos(time * 0.0003 + i * 0.9) * height * 0.4;
+    
+    // Determine if face should be visible
+    const cycleTime = time * 0.001 + i * 10;
+    const visibility = (Math.sin(cycleTime) + 1) * 0.5;
+    const opacity = visibility * 0.7 * mid;
+    
+    if (opacity < 0.05) continue;
+    
+    // Face size
+    const size = 50 + mid * 100;
+    
+    // Draw face oval
+    context.fillStyle = `rgba(30, 20, 40, ${opacity * 0.8})`;
+    context.beginPath();
+    context.ellipse(x, y, size * 0.6, size, 0, 0, Math.PI * 2);
+    context.fill();
+    
+    // Eye sockets
+    const eyeWidth = size * 0.25;
+    const eyeHeight = size * 0.15;
+    const eyeY = y - size * 0.1;
+    const eyeDistance = size * 0.2;
+    
+    context.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+    
+    // Left eye socket
+    context.beginPath();
+    context.ellipse(
+      x - eyeDistance,
+      eyeY,
+      eyeWidth,
+      eyeHeight,
+      0, 0, Math.PI * 2
+    );
+    context.fill();
+    
+    // Right eye socket
+    context.beginPath();
+    context.ellipse(
+      x + eyeDistance,
+      eyeY,
+      eyeWidth,
+      eyeHeight,
+      0, 0, Math.PI * 2
+    );
+    context.fill();
+    
+    // Occasionally show glowing pupils
+    if (Math.random() < 0.4) {
+      const pupilSize = eyeHeight * 0.5;
+      context.fillStyle = `rgba(200, 150, 50, ${opacity})`;
+      
+      // Left pupil
+      context.beginPath();
+      context.arc(
+        x - eyeDistance, 
+        eyeY, 
+        pupilSize, 
+        0, Math.PI * 2
+      );
+      context.fill();
+      
+      // Right pupil
+      context.beginPath();
+      context.arc(
+        x + eyeDistance, 
+        eyeY, 
+        pupilSize, 
+        0, Math.PI * 2
+      );
+      context.fill();
+    }
+    
+    // Mouth (sometimes distorted)
+    const mouthWidth = size * 0.4;
+    const mouthHeight = size * 0.1 + Math.sin(time * 0.003) * size * 0.1;
+    const mouthY = y + size * 0.3;
+    
+    context.fillStyle = `rgba(10, 0, 0, ${opacity})`;
+    context.beginPath();
+    context.ellipse(
+      x, 
+      mouthY,
+      mouthWidth,
+      Math.abs(mouthHeight),
+      0, 0, Math.PI * 2
+    );
+    context.fill();
+    
+    // Sometimes add teeth
+    if (Math.random() < 0.3 && mouthHeight > 0) {
+      context.fillStyle = `rgba(100, 90, 80, ${opacity * 0.9})`;
+      const teethCount = 4 + Math.floor(Math.random() * 3);
+      
+      for (let t = 0; t < teethCount; t++) {
+        const tx = x - mouthWidth * 0.8 + (t + 0.5) * ((mouthWidth * 1.6) / teethCount);
+        const ty = mouthY - mouthHeight * 0.5;
+        const tWidth = mouthWidth / teethCount * 0.7;
+        const tHeight = mouthHeight * 1.2;
+        
+        context.beginPath();
+        context.moveTo(tx - tWidth/2, ty);
+        context.lineTo(tx, ty + tHeight);
+        context.lineTo(tx + tWidth/2, ty);
+        context.fill();
+      }
+    }
+  }
+}
+
+function drawBrokenWaveform(time, high, bass) {
+  // Draw audio waveform as jagged, broken lines
+  const segments = 20;
+  const segmentWidth = width / segments;
+  
+  context.strokeStyle = `rgba(140, 50, 70, ${0.5 + high * 0.5})`;
+  context.lineWidth = 2 + bass * 4;
+  
+  for (let i = 0; i < segments; i++) {
+    // Skip some segments randomly for broken effect
+    if (Math.random() < 0.3) continue;
+    
+    const x1 = i * segmentWidth;
+    const x2 = (i + 1) * segmentWidth;
+    
+    // Create height based on audio and time
+    const freq = 100 + (i * 200);
+    const level = window.audiohz ? audiohz(freq) : Math.sin(time * 0.001 + i);
+    const centerY = height * 0.6;
+    const y1 = centerY - level * height * 0.3;
+    
+    // Generate a corrupted y2 value
+    const glitchAmount = high > 0.7 ? 100 : 30;
+    const y2 = centerY - level * height * 0.3 + (Math.random() - 0.5) * glitchAmount;
+    
+    context.beginPath();
+    context.moveTo(x1, y1);
+    context.lineTo(x2, y2);
+    context.stroke();
+    
+    // Occasionally add vertical glitch lines
+    if (Math.random() < 0.1 + high * 0.2) {
+      const glitchX = x1 + Math.random() * segmentWidth;
+      const glitchHeight = 20 + Math.random() * 100;
+      
+      context.strokeStyle = `rgba(200, 50, 50, ${0.7})`;
+      context.beginPath();
+      context.moveTo(glitchX, centerY - glitchHeight);
+      context.lineTo(glitchX, centerY + glitchHeight);
+      context.stroke();
+    }
+  }
+}
+
+function drawVignette(bass) {
+  // Create dark vignette around the edges
+  const gradient = context.createRadialGradient(
+    width/2, height/2, height * 0.3,
+    width/2, height/2, height
+  );
+  
+  gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+  gradient.addColorStop(1, `rgba(0, 0, 0, ${0.7 + bass * 0.3})`);
+  
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+  
+  // Add pulsing inner shadow on bass hits
+  if (bass > 0.7) {
+    const pulseGradient = context.createRadialGradient(
+      width/2, height/2, 0,
+      width/2, height/2, height * bass
+    );
+    
+    pulseGradient.addColorStop(0, "rgba(50, 0, 0, 0.3)");
+    pulseGradient.addColorStop(1, "rgba(50, 0, 0, 0)");
+    
+    context.fillStyle = pulseGradient;
+    context.fillRect(0, 0, width, height);
+  }
+}

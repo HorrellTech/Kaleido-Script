@@ -1,0 +1,235 @@
+const settings = {
+    // Core settings
+    background: [10, 5, 15],       // Deep background color
+    ringCount: 6,                  // Number of concentric rings
+    symmetry: 6,                  // Number of symmetry points
+    trailFade: 0.8,                // Motion blur persistence
+    
+    // Audio frequencies to monitor
+    bassFreq: 60,                  // Bass frequency for core pulsing
+    midFreq: 800,                  // Mid frequencies for rotation speed
+    highFreq: 4000,                // High frequencies for detail intensity
+    
+    // Visual settings
+    baseHue: 260,                  // Base hue for the mandala (0-360)
+    glowStrength: 10,              // Base glow strength
+    detailLevel: 5                // Complexity of patterns (1-5)
+}
+
+let time = 0;
+
+function setup() {
+  background(255, 0, 0);
+    // Setup would load your audio track
+    loadAudio("Music/Be My Moon (1).wav");
+    playAudio();
+}
+
+function draw(t) {
+  	time = t * 0.05;
+    // Clear canvas
+    //clear();
+    
+    // Get frequency data from audio
+    const bass = audiohz(settings.bassFreq) * 1.6;  // Amplified bass response
+    const mid = audiohz(settings.midFreq);
+    const high = audiohz(settings.highFreq);
+    
+    // Calculate total audio intensity (useful for overall effects)
+    const intensity = (bass + mid + high) / 3;
+    
+    // Set background
+    fill(settings.background[0], settings.background[1], settings.background[2], 0.4);
+    rect(0, 0, width, height);
+    
+    // Apply motion blur for trails
+    motionBlurStart(settings.trailFade, "lighten");
+  
+  visualNebular(0, 0, width, height, 5, 100, 240, 20, 2000, true);
+  
+  	visualConstellation(0, 0, width, height, 30, 100, 20, 2000, true);
+  
+  	visualSnake(0, 0, width, height, 8, 5, 20, 2000, true);
+  
+  	//visualFishPond(0, 0, width, height, 20, [20, 80, 120], [194, 178, 128], true);
+    
+    // Center of screen
+    const centerX = width / 2;
+    const centerY = height / 2;
+    
+    // Draw mandala pattern
+    //drawMandala(centerX, centerY, time, bass, mid, high);
+  
+ 		fill(255, 255, 200, 0.5);	
+  
+   	visualParticle(0, 0, width, height, 30, 20, 2000, true);
+  
+  	fill(200, 0, 0, .7);
+  	visualCircular(width/2, height/2, 100, 200, 64, 20, 2000, time*0.001, true);
+    
+    // End motion trails
+    //motionBlurEnd();
+}
+
+function drawMandala(centerX, centerY, time, bass, mid, high) {
+    // Base radius for the mandala
+    const maxRadius = Math.min(width, height) * 0.45;
+    
+    // Calculate rotation based on mid frequencies
+    const baseRotation = time * (0.1 + mid * 0.5);
+    
+    // Draw each ring of the mandala
+    for (let ring = 0; ring < settings.ringCount; ring++) {
+        // Ring-specific properties
+        const ringRatio = ring / settings.ringCount;
+        const ringRadius = maxRadius * (0.2 + ringRatio * 0.8);
+        
+        // Ring rotation - each ring rotates differently
+        const ringRotation = baseRotation * (ring % 2 === 0 ? 1 : -1.5);
+        
+        // Color cycles through hues based on ring position and time
+        const hue = (settings.baseHue + ringRatio * 60 + time * 10) % 360;
+        const sat = 70 + high * 30;
+        const lum = 20 + bass * 50;
+        
+        // Convert HSL to RGB (simplified conversion)
+        const h = hue / 60;
+        const c = (1 - Math.abs(2 * lum / 100 - 1)) * sat / 100;
+        const x = c * (1 - Math.abs(h % 2 - 1));
+        const m = lum / 100 - c / 2;
+        
+        let r, g, b;
+        if (h >= 0 && h < 1) { r = c; g = x; b = 0; }
+        else if (h >= 1 && h < 2) { r = x; g = c; b = 0; }
+        else if (h >= 2 && h < 3) { r = 0; g = c; b = x; }
+        else if (h >= 3 && h < 4) { r = 0; g = x; b = c; }
+        else if (h >= 4 && h < 5) { r = x; g = 0; b = c; }
+        else { r = c; g = 0; b = x; }
+        
+        r = Math.floor((r + m) * 255);
+        g = Math.floor((g + m) * 255);
+        b = Math.floor((b + m) * 255);
+        
+        // Apply glow effect that intensifies with audio
+        glowStart(`rgb(${r}, ${g}, ${b})`, settings.glowStrength * (0.5 + bass));
+        
+        // Draw the symmetric elements around this ring
+        for (let i = 0; i < settings.symmetry; i++) {
+            // Calculate angle for this element
+            const angle = ringRotation + (i / settings.symmetry) * Math.PI * 2;
+            
+            // Draw the mandala elements
+            drawMandalaElement(
+                centerX, centerY, 
+                ringRadius, angle, 
+                ringRatio, ring, 
+                bass, mid, high,
+                [r, g, b]
+            );
+        }
+        
+        glowEnd();
+    }
+    
+    // Draw center core that pulses with bass
+    const coreSize = maxRadius * 0.15 * (1 + bass * 0.8);
+    glowStart("#FFFFFF", settings.glowStrength * 2 * bass);
+    fill(255, 255, 255, bass * 0.7);
+    circle(centerX, centerY, coreSize);
+    glowEnd();
+}
+
+function drawMandalaElement(centerX, centerY, radius, angle, ringRatio, ringIndex, bass, mid, high, color) {
+    // Calculate position of this element
+    const x = centerX + Math.cos(angle) * radius;
+    const y = centerY + Math.sin(angle) * radius;
+    
+    // Base size affected by audio
+    const elementSize = 5 + ringRatio * 10 + bass * 15;
+    
+    // Shape complexity increases with detail level and high frequencies
+    const complexity = settings.detailLevel + Math.floor(high * 3);
+    
+    // Set color with varying opacity based on position and frequencies
+    const opacity = 0.5 + ringRatio * 0.3 + mid * 0.2;
+    stroke(color[0], color[1], color[2], opacity);
+    fill(color[0], color[1], color[2], opacity * 0.7);
+    
+    // Line thickness varies with bass
+    lineWidth(1 + bass * 3);
+    
+    // Draw different shapes based on ring position
+    switch (ringIndex % 4) {
+        case 0: // Petal shapes
+            // Draw petal shape
+            const petalLength = elementSize * (1 + mid * 0.7);
+            const petalWidth = elementSize * 0.4 * (1 + high * 0.5);
+            
+            // Calculate petal points with some audio-reactive distortion
+            for (let p = 0; p < complexity; p++) {
+                const petalAngle = angle + (p / complexity) * Math.PI;
+                const dist = petalLength * (0.4 + 0.6 * Math.sin(p + time * 2));
+                const width = petalWidth * (0.5 + 0.5 * Math.cos(petalAngle * 2 + time));
+                
+                const px = x + Math.cos(petalAngle) * dist;
+                const py = y + Math.sin(petalAngle) * dist;
+                
+                circle(px, py, width * (bass * 0.5 + 0.5));
+                
+                // Connect with lines if multiple points
+                if (p > 0 && high > 0.3) {
+                    const prevAngle = angle + ((p-1) / complexity) * Math.PI;
+                    const prevDist = petalLength * (0.4 + 0.6 * Math.sin(p-1 + time * 2));
+                    const prevX = x + Math.cos(prevAngle) * prevDist;
+                    const prevY = y + Math.sin(prevAngle) * prevDist;
+                    
+                    line(prevX, prevY, px, py);
+                }
+            }
+            break;
+            
+        case 1: // Geometric symbols
+            circle(x, y, elementSize, (ringIndex + ringRatio) % 2 === 0);
+            
+            // Add details when bass is strong
+            if (bass > 0.4) {
+                // Inner details
+                for (let d = 1; d <= complexity && d <= 3; d++) {
+                    const innerSize = elementSize * (1 - d * 0.25);
+                    circle(x, y, innerSize, d % 2 === 0);
+                }
+            }
+            break;
+            
+        case 2: // Spikes or rays
+            // Draw rays that extend outward
+            const rayCount = 3 + Math.floor(complexity * 0.7);
+            const rayLength = elementSize * (1 + bass * 0.8);
+            
+            for (let r = 0; r < rayCount; r++) {
+                const rayAngle = angle + (r / rayCount) * Math.PI * 2;
+                const rayX = x + Math.cos(rayAngle) * rayLength;
+                const rayY = y + Math.sin(rayAngle) * rayLength;
+                
+                line(x, y, rayX, rayY);
+                
+                // Add point at end of ray if high frequencies present
+                if (high > 0.3) {
+                    circle(rayX, rayY, 2 + high * 4);
+                }
+            }
+            break;
+            
+        case 3: // Pulse rings
+            // Rings that expand with the beat
+            const pulseSize = elementSize * (0.5 + mid * 0.8);
+            circle(x, y, pulseSize, true);
+            
+            // Inner ring that appears with strong bass
+            if (bass > 0.5) {
+                const innerPulse = pulseSize * 0.6;
+                circle(x, y, innerPulse, true);
+            }
+            break;
+    }
+}

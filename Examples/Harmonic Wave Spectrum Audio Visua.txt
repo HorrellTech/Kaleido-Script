@@ -1,0 +1,409 @@
+// Harmonic Wave Spectrum Audio Visualizer
+// Features:
+// - Multiple frequency-responsive wave layers
+// - Dynamic wave thickness based on audio intensity
+// - Customizable colors, glow, and trail effects
+// - Smooth motion with frequency-based modulation
+
+// SETTINGS - Adjust these to customize the visualization
+const settings = {
+  // Wave configuration
+  waveCount: 50,                  // Number of wave layers
+  waveSegments: 50,             // Points per wave (higher = smoother, slower)
+  waveAmplitude: 0.6,            // Base wave height (0-1)
+  waveFrequency: 5.5,            // Base wave frequency multiplier
+  waveTurbulence: 0.9,           // Randomness in wave shape (0-1)
+  
+  // Animation settings
+  baseSpeed: 0.1,                // Base animation speed
+  frequencyResponse: 5.8,        // How much frequencies affect wave motion
+  amplitudeResponse: 0.2,        // How much frequencies affect wave height
+  thicknessResponse: 3.6,        // How much frequencies affect line thickness
+  
+  // Visual settings
+  baseThickness: .4,              // Base line thickness
+  glowAmount: 10,                 // Amount of glow effect (0 = no glow)
+  glowQuality: 'high',           // 'low', 'medium', 'high'
+  colorMode: 'spectrum',         // 'spectrum', 'solid', 'gradient'
+  trailAmount: 20.85,             // Trail effect (1 = no trails, lower = longer trails)
+  backgroundFade: 0.15,          // Background fade speed per frame (lower = longer trails)
+  
+  // Color settings
+  baseSaturation: 100,            // Base saturation for colors (0-100)
+  baseBrightness: 50,            // Base brightness for colors (0-100)
+  hueSpread: 3,                 // Hue difference between wave layers
+  baseHue: 200,                  // Starting hue value
+  
+  // Response configuration for each wave (frequencies in Hz)
+  waveFrequencies: [
+    { low: 60, mid: 250, high: 500 },    // Bass wave
+    { low: 120, mid: 500, high: 1000 },  // Low-mid wave
+    { low: 500, mid: 1000, high: 2000 }, // Mid wave
+    { low: 1000, mid: 2000, high: 4000 },// High-mid wave
+    { low: 2000, mid: 4000, high: 8000 } // High wave
+  ]
+};
+
+// State variables
+let waves = [];
+let offscreenCanvas, offscreenContext;
+let glowCanvas, glowContext;
+let frameCount = 0;
+let soundState = {
+  bassLevel: 0,
+  midLevel: 0,
+  highLevel: 0,
+  overallLevel: 0
+};
+
+// Initial setup
+function setup() {
+  log("Harmonic Wave Spectrum visualization initializing");
+  
+  // Try to load audio if available
+  if (window.audioProcessor) {
+    try {
+      loadAudio("Music/Wild Card.wav");
+      playAudio();
+      log("Audio loaded and playing");
+    } catch (e) {
+      log("No audio specified or error loading audio", "info");
+    }
+  }
+  
+  // Create offscreen canvases for effects
+  offscreenCanvas = document.createElement('canvas');
+  offscreenCanvas.width = width;
+  offscreenCanvas.height = height;
+  offscreenContext = offscreenCanvas.getContext('2d');
+  
+  // Create another canvas for the glow effect
+  glowCanvas = document.createElement('canvas');
+  glowCanvas.width = width;
+  glowCanvas.height = height;
+  glowContext = glowCanvas.getContext('2d');
+  
+  // Initialize wave data structures
+  initializeWaves();
+  
+  // Set initial black background
+  background(0, 0, 0);
+}
+
+// Initialize wave structures
+function initializeWaves() {
+  waves = [];
+  
+  // Create each wave layer
+  for (let i = 0; i < settings.waveCount; i++) {
+    // Calculate wave's vertical position (distribute across canvas)
+    const heightFactor = 0.5 + ((i / (settings.waveCount - 1)) - 0.5) * 0.7;
+    
+    // Calculate hue for this wave
+    const hue = (settings.baseHue + i * settings.hueSpread) % 360;
+    
+    // Create wave points
+    const points = [];
+    for (let j = 0; j <= settings.waveSegments; j++) {
+      const x = (j / settings.waveSegments) * width;
+      const baseY = height * heightFactor;
+      
+      // Add some initial randomness to each point
+      const seed = Math.random() * 1000 + i * 500;
+      const initialOffset = Math.sin(j * 0.1 + seed) * height * 0.05;
+      
+      points.push({
+        x: x,
+        y: baseY + initialOffset,
+        baseY: baseY,
+        phase: j * 0.1 + i * 2.5, // Different starting phase for each point
+        velocity: 0,
+        lastWaveHeight: 0
+      });
+    }
+    
+    // Create wave object
+    waves.push({
+      points: points,
+      color: { h: hue, s: settings.baseSaturation, l: settings.baseBrightness },
+      heightFactor: heightFactor,
+      freqResponse: settings.waveFrequencies[i] || { low: 200, mid: 1000, high: 4000 },
+      thickness: settings.baseThickness
+    });
+  }
+}
+
+// Main draw loop
+function draw(time) {
+  // Get audio frequency data
+  updateAudioLevels();
+  
+  // Apply background fading for trails
+  applyBackgroundFade();
+  
+  // Clear the glow canvas
+  glowContext.clearRect(0, 0, width, height);
+  
+  // Process each wave
+  for (let i = 0; i < waves.length; i++) {
+    const wave = waves[i];
+    
+    // Calculate wave response based on its frequency range
+    const lowFreq = wave.freqResponse.low;
+    const midFreq = wave.freqResponse.mid;
+    const highFreq = wave.freqResponse.high;
+    
+    const waveResponseLow = window.audiohz ? audiohz(lowFreq) : 0.5 + 0.2 * Math.sin(time/1000 + i);
+    const waveResponseMid = window.audiohz ? audiohz(midFreq) : 0.5 + 0.2 * Math.sin(time/800 + i * 2);
+    const waveResponseHigh = window.audiohz ? audiohz(highFreq) : 0.5 + 0.2 * Math.sin(time/600 + i * 3);
+    
+    // Calculate wave parameters based on audio
+    const speed = settings.baseSpeed * (1 + waveResponseMid * settings.frequencyResponse);
+    const amplitude = settings.waveAmplitude * (1 + waveResponseLow * settings.amplitudeResponse);
+    const frequency = settings.waveFrequency * (1 + waveResponseHigh * 0.5);
+    const thickness = settings.baseThickness * (1 + waveResponseMid * settings.thicknessResponse);
+    
+    // Update wave points
+    updateWavePoints(wave, time, speed, amplitude, frequency, waveResponseLow, waveResponseMid, waveResponseHigh);
+    
+    // Set wave color based on settings
+    const waveColor = calculateWaveColor(wave, i, waveResponseMid, waveResponseHigh);
+    
+    // Draw the wave to the glow canvas (for glow effect)
+    drawWave(glowContext, wave, waveColor, thickness * 1.5);
+    
+    // Draw the wave to the main canvas
+    drawWave(context, wave, waveColor, thickness);
+  }
+  
+  // Apply glow effect if enabled
+  if (settings.glowAmount > 0) {
+    applyGlowEffect();
+  }
+  
+  // Update frame counter
+  frameCount++;
+}
+
+// Update audio analysis data
+function updateAudioLevels() {
+  // Get audio levels for different frequency ranges
+  soundState.bassLevel = window.audiohz ? 
+    (audiohz(60) * 0.5 + audiohz(120) * 0.5) : 
+    0.5 + 0.2 * Math.sin(frameCount * 0.05);
+  
+  soundState.midLevel = window.audiohz ? 
+    (audiohz(500) * 0.3 + audiohz(1000) * 0.4 + audiohz(2000) * 0.3) : 
+    0.5 + 0.2 * Math.sin(frameCount * 0.04 + 1);
+  
+  soundState.highLevel = window.audiohz ? 
+    (audiohz(4000) * 0.5 + audiohz(8000) * 0.5) : 
+    0.5 + 0.2 * Math.sin(frameCount * 0.03 + 2);
+  
+  // Calculate overall level for global effects
+  soundState.overallLevel = (
+    soundState.bassLevel * 0.5 + 
+    soundState.midLevel * 0.3 + 
+    soundState.highLevel * 0.2
+  );
+}
+
+// Create background fade for trails
+function applyBackgroundFade() {
+  const fadeAmount = settings.backgroundFade;
+  
+  // Create a semi-transparent black rectangle for fade effect
+  context.fillStyle = `rgba(0, 0, 0, ${fadeAmount})`;
+  context.fillRect(0, 0, width, height);
+}
+
+// Update wave positions based on time and audio
+function updateWavePoints(wave, time, speed, amplitude, frequency, lowResponse, midResponse, highResponse) {
+  const points = wave.points;
+  
+  // Update each point in the wave
+  for (let i = 0; i < points.length; i++) {
+    const point = points[i];
+    const x = point.x;
+    
+    // Calculate position-specific frequency response
+    // Different parts of the wave respond to different frequencies
+    const positionFactor = i / points.length;
+    
+    // Low frequencies affect the beginning of the wave more
+    // High frequencies affect the end of the wave more
+    const localLowResponse = lowResponse * Math.max(0, 1 - positionFactor * 2);
+    const localHighResponse = highResponse * Math.min(1, positionFactor * 2);
+    const localMidResponse = midResponse;
+    
+    // Combined response for this point location
+    const localResponse = localLowResponse * 0.5 + localMidResponse * 0.3 + localHighResponse * 0.2;
+    
+    // Wave phase that depends on position, time and frequency
+    const wavePhase = 
+      point.phase + 
+      time * 0.001 * speed + 
+      i * 0.02 * frequency;
+    
+    // Wave height calculation with multiple sine waves for complexity
+    let waveHeight = 
+      Math.sin(wavePhase) * 
+      Math.sin(wavePhase * 0.5) * 
+      amplitude * height * 0.2;
+    
+    // Add turbulence based on audio response
+    const turbulence = 
+      Math.sin(wavePhase * 2.5) * 
+      settings.waveTurbulence * 
+      height * 0.05 * localResponse;
+    
+    waveHeight += turbulence;
+    
+    // Apply audio-responsive amplitude modulation
+    waveHeight *= (1 + localResponse * 0.5);
+    
+    // Apply velocity-based physics for smoother animation
+    // Calculate target position
+    const targetY = point.baseY + waveHeight;
+    
+    // Apply spring physics to create smoother motion
+    const springForce = (targetY - point.y) * 0.2;
+    point.velocity = point.velocity * 0.8 + springForce;
+    
+    // Limit velocity to avoid extreme motion
+    const maxVel = 15;
+    if (point.velocity > maxVel) point.velocity = maxVel;
+    if (point.velocity < -maxVel) point.velocity = -maxVel;
+    
+    // Update position
+    point.y += point.velocity;
+    
+    // Save the wave height for coloring
+    point.lastWaveHeight = waveHeight;
+  }
+}
+
+// Calculate wave color based on settings and audio
+function calculateWaveColor(wave, index, midResponse, highResponse) {
+  let h, s, l;
+  
+  if (settings.colorMode === 'spectrum') {
+    // Color cycles with the audio
+    h = (wave.color.h + frameCount * 0.1 * midResponse) % 360;
+    s = wave.color.s + midResponse * 20;
+    l = wave.color.l + highResponse * 10;
+  } 
+  else if (settings.colorMode === 'gradient') {
+    // Base color from wave with intensity based on audio
+    h = wave.color.h;
+    s = wave.color.s + midResponse * 20;
+    l = wave.color.l + highResponse * 10;
+  }
+  else {
+    // Solid color mode
+    h = wave.color.h;
+    s = wave.color.s;
+    l = wave.color.l;
+  }
+  
+  // Ensure values are in valid ranges
+  s = Math.min(100, Math.max(0, s));
+  l = Math.min(100, Math.max(0, l));
+  
+  return `hsl(${h}, ${s}%, ${l}%)`;
+}
+
+// Draw a single wave to the specified context
+function drawWave(ctx, wave, color, thickness) {
+  const points = wave.points;
+  if (points.length < 2) return;
+  
+  // Begin the wave path
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  
+  // Create a smooth curve through all points
+  for (let i = 1; i < points.length - 2; i++) {
+    // Use quadratic curves for smoother waves
+    const xc = (points[i].x + points[i + 1].x) / 2;
+    const yc = (points[i].y + points[i + 1].y) / 2;
+    ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+  }
+  
+  // Handle last two points
+  if (points.length > 2) {
+    const lastIndex = points.length - 1;
+    ctx.quadraticCurveTo(
+      points[lastIndex-1].x, 
+      points[lastIndex-1].y, 
+      points[lastIndex].x, 
+      points[lastIndex].y
+    );
+  }
+  
+  // Set line style
+  ctx.lineWidth = thickness;
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  
+  // Draw the wave
+  ctx.stroke();
+}
+
+// Apply glow effect to the waves
+function applyGlowEffect() {
+  // Apply blur to the glow canvas based on quality settings
+  let blurAmount;
+  switch (settings.glowQuality) {
+    case 'low':
+      blurAmount = settings.glowAmount * 2;
+      glowContext.filter = `blur(${blurAmount}px)`;
+      glowContext.globalAlpha = 0.7;
+      glowContext.drawImage(glowCanvas, 0, 0);
+      break;
+      
+    case 'medium':
+      // Two-pass blur for better quality
+      blurAmount = settings.glowAmount;
+      
+      // Horizontal blur
+      glowContext.filter = `blur(${blurAmount}px)`;
+      glowContext.globalAlpha = 0.8;
+      glowContext.drawImage(glowCanvas, 0, 0);
+      
+      // Vertical blur (second pass)
+      glowContext.filter = `blur(${blurAmount * 0.7}px)`;
+      glowContext.globalAlpha = 0.6;
+      glowContext.drawImage(glowCanvas, 0, 0);
+      break;
+      
+    case 'high':
+    default:
+      // Multi-pass blur for highest quality glow
+      // First pass - large blur for the outer glow
+      glowContext.filter = `blur(${settings.glowAmount * 2}px)`;
+      glowContext.globalAlpha = 0.4;
+      glowContext.drawImage(glowCanvas, 0, 0);
+      
+      // Second pass - medium blur for the middle glow
+      glowContext.filter = `blur(${settings.glowAmount}px)`;
+      glowContext.globalAlpha = 0.6;
+      glowContext.drawImage(glowCanvas, 0, 0);
+      
+      // Third pass - small blur for the inner glow
+      glowContext.filter = `blur(${settings.glowAmount * 0.5}px)`;
+      glowContext.globalAlpha = 0.8;
+      glowContext.drawImage(glowCanvas, 0, 0);
+      break;
+  }
+  
+  // Reset filter and alpha
+  glowContext.filter = 'none';
+  glowContext.globalAlpha = 1.0;
+  
+  // Composite the glow onto the main canvas using screen blend mode
+  context.globalCompositeOperation = 'screen';
+  context.drawImage(glowCanvas, 0, 0);
+  context.globalCompositeOperation = 'source-over';
+}

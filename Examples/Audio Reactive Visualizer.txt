@@ -1,0 +1,149 @@
+// Audio Reactive Visualizer
+// A customizable audio visualizer with frequency bars and a dynamic star shape
+
+// Settings - adjust these to change the visualization
+var settings = {
+    // Bar visualizer settings
+    barCount: 64,           // Number of frequency bars
+    barSpacing: 2,          // Spacing between bars
+    barMinHeight: 5,        // Minimum height of bars
+    barMaxHeight: 150,      // Maximum height of bars
+    barColor: "cyan",       // Base color of the bars
+    
+    // Center star settings
+    pointCount: 12,         // Number of points in the star
+    minRadius: 50,          // Minimum radius of the star
+    maxRadius: 150,         // Maximum radius when audio peaks
+    starColor: "magenta",   // Base color of the star
+    rotation: 0.5,          // Rotation speed (0-1)
+    
+    // General settings
+    backgroundColor: "12",   // Background brightness (0-50)
+    sensitivity: 0.8,       // Audio sensitivity (0-1)
+    smoothing: 0.7,         // Smoothing factor (0-1)
+    glow: true,            // Enable glow effect
+    mirror: true           // Mirror the frequency bars
+};
+
+// Initialize audio and setup canvas
+function setup() {
+    // Set up initial background
+    background(settings.backgroundColor, settings.backgroundColor, settings.backgroundColor);
+    
+    // Load and play audio file (replace with your audio file)
+    loadAudio("your_audio_file.mp3");
+    playAudio();
+    
+    // Enable glow if setting is true
+    if (settings.glow) {
+        context.shadowBlur = 15;
+        context.shadowColor = settings.barColor;
+    }
+    
+    log("Audio visualizer initialized");
+}
+
+// Main animation loop
+function draw(time) {
+    // Clear background with fade effect
+    background(
+        settings.backgroundColor, 
+        settings.backgroundColor, 
+        settings.backgroundColor, 
+        0.2
+    );
+    
+    // Draw frequency bars
+    drawFrequencyBars();
+    
+    // Draw center star
+    drawStar(time);
+}
+
+// Draw frequency bars at the bottom of the screen
+function drawFrequencyBars() {
+    const barWidth = width / (settings.barCount * (settings.mirror ? 2 : 1));
+    const bottomY = height - 50;
+    
+    for (let i = 0; i < settings.barCount; i++) {
+        // Get frequency for this bar (exponential scale for better bass response)
+        const freq = Math.round(20 * Math.pow(2, i * 10 / settings.barCount));
+        let amplitude = audiohz(freq) * settings.sensitivity;
+        
+        // Apply smoothing
+        amplitude = amplitude * (1 - settings.smoothing) + 
+                   (prevAmplitudes[i] || 0) * settings.smoothing;
+        prevAmplitudes[i] = amplitude;
+        
+        // Calculate bar height
+        const barHeight = settings.barMinHeight + 
+                         amplitude * settings.barMaxHeight;
+        
+        // Draw bar
+        context.fillStyle = settings.barColor;
+        context.fillRect(
+            i * (barWidth + settings.barSpacing) + width/4,
+            bottomY - barHeight,
+            barWidth,
+            barHeight
+        );
+        
+        // Draw mirrored bar if enabled
+        if (settings.mirror) {
+            context.fillRect(
+                width - (i * (barWidth + settings.barSpacing) + width/4),
+                bottomY - barHeight,
+                barWidth,
+                barHeight
+            );
+        }
+    }
+}
+
+// Draw the reactive star shape in the center
+function drawStar(time) {
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const rotation = time * 0.001 * settings.rotation;
+    
+    context.beginPath();
+    context.strokeStyle = settings.starColor;
+    
+    for (let i = 0; i < settings.pointCount; i++) {
+        // Calculate angle for this point
+        const angle = (i / settings.pointCount) * Math.PI * 2 + rotation;
+        
+        // Get frequency for this point
+        const freq = 20 + (i / settings.pointCount) * 2000;
+        const amplitude = audiohz(freq) * settings.sensitivity;
+        
+        // Calculate radius with audio reactivity
+        const radius = settings.minRadius + 
+                      amplitude * (settings.maxRadius - settings.minRadius);
+        
+        // Calculate point position
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        
+        // Draw line to point
+        if (i === 0) {
+            context.moveTo(x, y);
+        } else {
+            context.lineTo(x, y);
+        }
+    }
+    
+    // Close the shape
+    context.closePath();
+    context.lineWidth = 2;
+    context.stroke();
+    
+    // Add glow if enabled
+    if (settings.glow) {
+        context.shadowBlur = 20;
+        context.shadowColor = settings.starColor;
+    }
+}
+
+// Store previous amplitudes for smoothing
+const prevAmplitudes = [];

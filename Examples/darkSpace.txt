@@ -1,0 +1,356 @@
+const settings = {
+    // Core settings
+    background: [8, 10, 15],        // Deep space background
+    glowIntensity: 15,              // Base glow amount
+    stormIntensity: 0.9,            // Motion blur persistence
+    
+    // Audio response thresholds
+    bassFreq: 80,                   // Bass frequency to monitor
+    midFreq: 600,                   // Mid frequency to monitor
+    highFreq: 3000,                 // High frequency to monitor
+    
+    // Visual elements
+    cloudCount: 8,                  // Number of nebula clouds
+    lightningBolts: 6,              // Maximum lightning bolts per frame
+    geometryPoints: 8,              // Points in the geometric structure
+    starCount: 300                  // Background stars
+}
+
+function setup() {
+    loadAudio("Music/Be My Moon (1).wav");
+    playAudio();
+}
+
+function draw(time) {
+    // Clear canvas
+    clear();
+    
+    // Get audio data
+    const bassAmp = audiohz(settings.bassFreq) * 1.5;  // Amplify bass
+    const midAmp = audiohz(settings.midFreq);
+    const highAmp = audiohz(settings.highFreq);
+    
+    // Set background
+    fill(settings.background[0], settings.background[1], settings.background[2]);
+    rect(0, 0, width, height);
+    
+    // Start motion blur for trails
+    motionBlurStart(settings.stormIntensity, "source-over");
+    
+    // Draw stars in the background
+    drawStars(time, highAmp);
+    
+    // Draw the swirling cosmic clouds
+    drawClouds(time, bassAmp, midAmp);
+    
+    // Draw the central anomaly/rupture
+    drawGeometricAnomaly(time, bassAmp, midAmp, highAmp);
+    
+    // Draw lightning based on bass drops
+    drawLightning(time, bassAmp, midAmp);
+    
+    // End motion blur
+    motionBlurEnd();
+}
+
+function drawStars(time, highAmp) {
+    // Background stars that twinkle with high frequencies
+    for (let i = 0; i < settings.starCount; i++) {
+        // Use deterministic positions but with enough variation
+        const angle = (i / settings.starCount) * Math.PI * 16;
+        const baseRadius = (0.2 + 0.8 * ((i % 83) / 83)) * Math.min(width, height) * 0.6;
+        
+        const x = width/2 + Math.cos(angle) * baseRadius;
+        const y = height/2 + Math.sin(angle) * baseRadius;
+        
+        // Stars twinkle based on high frequencies and their own rhythm
+        const flicker = Math.sin(time * 3 + i * 0.3) * 0.5 + 0.5;
+        const brightness = flicker * 0.5 + highAmp * 0.5;
+        
+        // Skip some stars when audio is low
+        if (brightness < 0.1 && Math.random() > 0.7) continue;
+        
+        // Star size
+        const size = 1 + brightness * 2;
+        
+        // Star color - occasionally colored stars
+        let r = 200 + brightness * 55;
+        let g = 200 + brightness * 55;
+        let b = 200 + brightness * 55;
+        
+        // Some stars have color
+        if (i % 20 === 0) {
+            r = 200 + brightness * 55;
+            g = 100 + brightness * 25;
+            b = 100 + brightness * 25;
+        } else if (i % 20 === 10) {
+            r = 100 + brightness * 25;
+            g = 100 + brightness * 25;
+            b = 200 + brightness * 55;
+        }
+        
+        // Draw the star with glow
+        glowStart(`rgb(${r}, ${g}, ${b})`, brightness * 5);
+        fill(r, g, b, brightness * 0.9);
+        circle(x, y, size);
+        glowEnd();
+    }
+}
+
+function drawClouds(time, bassAmp, midAmp) {
+    // Swirling cosmic clouds/nebulae
+    for (let i = 0; i < settings.cloudCount; i++) {
+        const angle = (i / settings.cloudCount) * Math.PI * 2;
+        const cloudRadius = 150 + i * 30 + Math.sin(time * 0.5 + i) * 50;
+        
+        const centerX = width/2 + Math.cos(angle) * cloudRadius * 0.2;
+        const centerY = height/2 + Math.sin(angle) * cloudRadius * 0.2;
+        
+        // Cloud shape and color are affected by audio
+        const cloudIntensity = 0.3 + bassAmp * 0.7;
+        const cloudSize = cloudRadius * cloudIntensity;
+        
+        // Cloud color depends on position and audio
+        let cloudHue, cloudSaturation, cloudBrightness;
+        
+        if (i % 3 === 0) {
+            // Purple/blue clouds
+            cloudHue = 260 + Math.sin(time * 0.2 + i) * 30;
+            cloudSaturation = 70 + midAmp * 30;
+            cloudBrightness = 20 + bassAmp * 40;
+        } else if (i % 3 === 1) {
+            // Red/orange clouds
+            cloudHue = 10 + Math.sin(time * 0.3 + i) * 20;
+            cloudSaturation = 80 + midAmp * 20;
+            cloudBrightness = 30 + bassAmp * 30;
+        } else {
+            // Cyan/teal clouds
+            cloudHue = 180 + Math.sin(time * 0.25 + i) * 20;
+            cloudSaturation = 60 + midAmp * 40;
+            cloudBrightness = 25 + bassAmp * 35;
+        }
+        
+        // Convert HSB to RGB (simplified)
+        const c = cloudSaturation / 100;
+        const x = c * (1 - Math.abs((cloudHue / 60) % 2 - 1));
+        const m = cloudBrightness / 100 - c / 2;
+        
+        let r, g, b;
+        if (cloudHue < 60) {
+            r = c; g = x; b = 0;
+        } else if (cloudHue < 120) {
+            r = x; g = c; b = 0;
+        } else if (cloudHue < 180) {
+            r = 0; g = c; b = x;
+        } else if (cloudHue < 240) {
+            r = 0; g = x; b = c;
+        } else if (cloudHue < 300) {
+            r = x; g = 0; b = c;
+        } else {
+            r = c; g = 0; b = x;
+        }
+        
+        r = Math.floor((r + m) * 255);
+        g = Math.floor((g + m) * 255);
+        b = Math.floor((b + m) * 255);
+        
+        // Draw cloud particles
+        glowStart(`rgb(${r}, ${g}, ${b})`, settings.glowIntensity * cloudIntensity * 0.7);
+        
+        // Multiple particles make up a cloud
+        const particleCount = 12 + Math.floor(bassAmp * 8);
+        for (let p = 0; p < particleCount; p++) {
+            const particleAngle = (p / particleCount) * Math.PI * 2 + time * (0.1 + i * 0.05);
+            const particleDist = cloudSize * (0.2 + 0.8 * Math.random());
+            
+            const px = centerX + Math.cos(particleAngle) * particleDist;
+            const py = centerY + Math.sin(particleAngle) * particleDist;
+            
+            // Noise displacement
+            const noiseX = Math.sin(time * 0.7 + p * 0.5) * cloudSize * 0.2;
+            const noiseY = Math.cos(time * 0.6 + p * 0.5) * cloudSize * 0.2;
+            
+            const finalX = px + noiseX;
+            const finalY = py + noiseY;
+            
+            // Particle size affected by audio and distance from center
+            const distFactor = 1 - (Math.sqrt((finalX - centerX)**2 + (finalY - centerY)**2) / cloudSize);
+            const particleSize = (5 + midAmp * 15) * distFactor;
+            
+            fill(r, g, b, 0.1 + distFactor * 0.3);
+            circle(finalX, finalY, Math.abs(particleSize));
+        }
+        
+        glowEnd();
+    }
+}
+
+function drawGeometricAnomaly(time, bassAmp, midAmp, highAmp) {
+    // Geometric anomaly/structure at the center that reacts to all frequency bands
+    
+    // Calculate number of points based on audio peaks
+    const points = settings.geometryPoints + Math.floor(midAmp * 4);
+    const anomalyRadius = 100 + bassAmp * 100;
+    
+    // Anomaly fractures/expands with bass drops
+    const fractureFactor = bassAmp > 0.7 ? 1.5 + bassAmp : 1.0;
+    
+    // Draw the anomaly
+    glowStart("#FFFFFF", settings.glowIntensity * (0.5 + bassAmp * 1.5));
+    
+    // Outer structure
+    stroke(160 + bassAmp * 95, 160 + midAmp * 95, 200);
+    lineWidth(2 + bassAmp * 3);
+    
+    // Connect points to form the geometric shape
+    for (let i = 0; i < points; i++) {
+        const fromAngle = (i / points) * Math.PI * 2 + time * 0.2;
+        
+        // Calculate the distortion based on audio
+        const distortionX = Math.sin(time * 3 + i) * midAmp * 30;
+        const distortionY = Math.cos(time * 2.5 + i) * midAmp * 30;
+        
+        // Apply fracture when bass hits hard
+        const fractureDist = fractureFactor * anomalyRadius;
+        
+        const x1 = width/2 + Math.cos(fromAngle) * fractureDist + distortionX;
+        const y1 = height/2 + Math.sin(fromAngle) * fractureDist + distortionY;
+        
+        // Connect to multiple points for a web-like structure
+        for (let j = 1; j < points; j += 2) {
+            const toAngle = ((i + j) % points / points) * Math.PI * 2 + time * 0.2;
+            
+            const distortionX2 = Math.sin(time * 3 + j) * midAmp * 30;
+            const distortionY2 = Math.cos(time * 2.5 + j) * midAmp * 30;
+            
+            const x2 = width/2 + Math.cos(toAngle) * fractureDist + distortionX2;
+            const y2 = height/2 + Math.sin(toAngle) * fractureDist + distortionY2;
+            
+            // Only draw some connections based on audio intensity
+            if (highAmp > 0.1 || j % 3 === 0) {
+                // Line opacity based on audio
+                stroke(160 + bassAmp * 95, 160 + midAmp * 95, 200, 0.2 + highAmp * 0.8);
+                line(x1, y1, x2, y2);
+            }
+        }
+    }
+    
+    // Inner core - pulsates with mid frequencies
+    const coreSize = 30 + midAmp * 50;
+    fill(200 + bassAmp * 55, 150 + midAmp * 75, 255, 0.7);
+    circle(width/2, height/2, coreSize);
+    
+    // When bass is intense, add inner fractures
+    if (bassAmp > 0.6) {
+        stroke(255, 255, 255, bassAmp * 0.8);
+        lineWidth(1);
+        
+        for (let f = 0; f < 8; f++) {
+            const fracAngle = (f / 8) * Math.PI * 2 + time * 3;
+            const fracLength = coreSize * (0.5 + bassAmp * 0.5);
+            
+            line(
+                width/2, height/2,
+                width/2 + Math.cos(fracAngle) * fracLength,
+                height/2 + Math.sin(fracAngle) * fracLength
+            );
+        }
+    }
+    
+    glowEnd();
+}
+
+function drawLightning(time, bassAmp, midAmp) {
+    // Energy bolts/lightning that triggers on bass drops
+    if (bassAmp < 0.5) return; // Only show lightning on strong bass
+    
+    // Number of lightning bolts based on bass intensity
+    const boltCount = Math.ceil(settings.lightningBolts * bassAmp);
+    
+    for (let b = 0; b < boltCount; b++) {
+        // Lightning originates from anomaly center
+        let x = width/2;
+        let y = height/2;
+        
+        // Direction is semi-random but influenced by time
+        const boltAngle = (b / boltCount) * Math.PI * 2 + 
+                         Math.sin(time * 2 + b) * 0.5;
+        
+        // Lightning color based on position
+        let boltColor;
+        if (b % 3 === 0) {
+            boltColor = "#77AAFF"; // Blue lightning
+        } else if (b % 3 === 1) {
+            boltColor = "#FF77AA"; // Pink lightning
+        } else {
+            boltColor = "#AADDFF"; // Cyan lightning
+        }
+        
+        // Start the glow effect
+        glowStart(boltColor, settings.glowIntensity * bassAmp);
+        
+        // Lightning bolt segment count 
+        const segments = 12 + Math.floor(bassAmp * 10);
+        
+        // Generate a zigzag path for lightning
+        let prevX = x;
+        let prevY = y;
+        
+        // Bolt length affected by bass
+        const boltLength = 150 + bassAmp * 250;
+        
+        // Draw each segment
+        for (let s = 1; s <= segments; s++) {
+            // Calculate the main direction
+            const segmentLength = boltLength / segments;
+            const segmentProgress = s / segments;
+            
+            // Add more chaos near the end
+            const randomAngle = boltAngle + 
+                             (Math.random() - 0.5) * 1.5 * segmentProgress;
+            
+            // Calculate next position
+            x = prevX + Math.cos(randomAngle) * segmentLength;
+            y = prevY + Math.sin(randomAngle) * segmentLength;
+            
+            // Thickness decreases toward the end
+            lineWidth(3 + (1 - segmentProgress) * 5 * bassAmp);
+            
+            // Opacity varies by segment and audio
+            const opacity = (1 - segmentProgress * 0.7) * bassAmp;
+            stroke(
+                parseInt(boltColor.substr(1, 2), 16), 
+                parseInt(boltColor.substr(3, 2), 16), 
+                parseInt(boltColor.substr(5, 2), 16), 
+                opacity
+            );
+            
+            // Draw the segment
+            line(prevX, prevY, x, y);
+            
+            // Random branches with lower probability near the end
+            if (Math.random() < 0.3 * (1 - segmentProgress) && bassAmp > 0.7) {
+                const branchX = x;
+                const branchY = y;
+                const branchAngle = randomAngle + (Math.random() - 0.5) * 2;
+                
+                // Branch length proportional to remaining main bolt length
+                const branchLength = segmentLength * (1 - segmentProgress) * 5;
+                
+                // Draw the branch
+                const branchEndX = branchX + Math.cos(branchAngle) * branchLength;
+                const branchEndY = branchY + Math.sin(branchAngle) * branchLength;
+                
+                lineWidth(1 + (1 - segmentProgress) * 3 * bassAmp);
+                line(branchX, branchY, branchEndX, branchEndY);
+            }
+            
+            // Update previous point
+            prevX = x;
+            prevY = y;
+        }
+        
+        // End the glow effect
+        glowEnd();
+    }
+}

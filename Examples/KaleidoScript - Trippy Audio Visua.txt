@@ -1,0 +1,292 @@
+// KaleidoScript - Trippy Audio Visualizer
+// Created by GitHub Copilot
+
+// SETTINGS - Adjust these to customize the visualization
+const settings = {
+  // General settings
+  audioFile: "Music/Wild Card.wav",
+  bgColor: { r: 10, g: 5, b: 20 },     // Background color
+  fgColor: { r: 220, g: 180, b: 255 }, // Foreground/accent color
+  
+  // Kaleidoscope settings
+  symmetry: 12,          // Number of reflected segments (higher = more complex)
+  rotationSpeed: 0.2,   // Base rotation speed of the kaleidoscope
+  pulseIntensity: 1.2,  // How much audio affects the visuals (higher = more reactive)
+  colorCycle: 0.3,      // Speed of color cycling (0 = no cycling)
+  
+  // Particle settings
+  particleCount: 8,    // Number of particles in the visualization
+  particleSize: 5,      // Base size of particles
+  particleSpeed: 0.8,   // Speed of particle movement
+  useTrails: true,      // Whether particles leave trails (high CPU usage)
+  trailLength: 1,     // Length of trails (0-1)
+  
+  // Center image settings
+  centerSize: 200,      // Size of center image/circle
+  centerPulse: 1.5,     // How much bass makes the center pulse
+  imageUrl: null        // Set to an image path, or null for default circle
+};
+
+// Initialize particles array
+let particles = [];
+
+// Setup function runs once at the beginning
+function setup() {
+  log("Audio visualizer starting up");
+  
+  // Try to load audio if specified in code
+  if (window.audioProcessor) {
+    try {
+      // You can replace with your audio file name
+      loadAudio(settings.audioFile);
+      playAudio();
+      log("Audio loaded and playing");
+    } catch (e) {
+      log("No audio specified or error loading audio. Add your own audio file!", "warning");
+    }
+  }
+  
+  // Initialize particles
+  createParticles();
+  
+  // Load center image if URL is provided
+  if (settings.imageUrl) {
+    try {
+      centerImage = loadImage(settings.imageUrl);
+      log("Center image loaded successfully");
+    } catch (e) {
+      log("Error loading image, will use default circle", "warning");
+    }
+  }
+  
+  // Set background
+  background(settings.bgColor.r, settings.bgColor.g, settings.bgColor.b);
+}
+
+// Create particles with random positions and properties
+function createParticles() {
+  for (let i = 0; i < settings.particleCount; i++) {
+    // Random position within a ring around the center
+    const distance = Math.random() * width * 0.3 + width * 0.1;
+    const angle = Math.random() * Math.PI * 2;
+    const x = width/2 + Math.cos(angle) * distance;
+    const y = height/2 + Math.sin(angle) * distance;
+    
+    // Random velocity
+    const speed = (Math.random() * 0.5 + 0.5) * settings.particleSpeed;
+    const direction = Math.random() * Math.PI * 2;
+    const vx = Math.cos(direction) * speed;
+    const vy = Math.sin(direction) * speed;
+    
+    // Random color
+    const hue = Math.random() * 360;
+    
+    particles.push({
+      x, y, vx, vy,
+      size: (Math.random() * 0.5 + 0.5) * settings.particleSize,
+      hue,
+      // Create trails array if enabled
+      trail: settings.useTrails ? [] : null
+    });
+  }
+}
+
+// Draw function runs on every frame
+function draw(time) {
+  // Get audio frequency data for different ranges
+  const bassLevel = window.audiohz ? audiohz(100) : 0.5;
+  const midLevel = window.audiohz ? audiohz(1000) : 0.5;
+  const highLevel = window.audiohz ? audiohz(5000) : 0.5;
+  
+  // Use bassPulse for rhythmic effects
+  const bassPulse = bassLevel * settings.pulseIntensity;
+  
+  // Create a semi-transparent background for trail effect
+  const alpha = settings.useTrails ? 0.1 + settings.trailLength * 0.2 : 1;
+  fill(settings.bgColor.r, settings.bgColor.g, settings.bgColor.b, alpha);
+  rect(0, 0, width, height);
+  
+  // Save the canvas state before kaleidoscope transforms
+  context.save();
+  
+  // Set up kaleidoscope transform
+  context.translate(width/2, height/2);
+  context.rotate(time * settings.rotationSpeed);
+  
+  // Calculate kaleidoscope scaling based on audio
+  const scale = 1 + midLevel * 0.2;
+  context.scale(scale, scale);
+  
+  // Draw particles with kaleidoscope effect
+  drawKaleidoscopicParticles(time, bassLevel, midLevel, highLevel);
+  
+  // Restore canvas state
+  context.restore();
+  
+  // Draw the center image/circle that pulses with bass
+  //drawCenterElement(bassLevel);
+}
+
+// Function to draw particles with kaleidoscope effect
+function drawKaleidoscopicParticles(time, bassLevel, midLevel, highLevel) {
+  // Update and draw each particle
+  particles.forEach(particle => {
+    // Update particle position
+    particle.x += particle.vx;
+    particle.y += particle.vy;
+    
+    // Bounce off boundaries with some elasticity
+    const margin = 50;
+    if (particle.x < margin || particle.x > width - margin) {
+      particle.vx *= -0.95;
+      particle.x = Math.max(margin, Math.min(width - margin, particle.x));
+    }
+    if (particle.y < margin || particle.y > height - margin) {
+      particle.vy *= -0.95;
+      particle.y = Math.max(margin, Math.min(height - margin, particle.y));
+    }
+    
+    // Apply subtle force toward center
+    const dx = width/2 - particle.x;
+    const dy = height/2 - particle.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > 100) {
+      const force = 0.01 + highLevel * 0.05;
+      particle.vx += (dx / dist) * force;
+      particle.vy += (dy / dist) * force;
+    }
+    
+    // Apply velocity damping
+    particle.vx *= 0.99;
+    particle.vy *= 0.99;
+    
+    // Apply audio-reactive force
+    particle.vx += (Math.random() - 0.5) * midLevel * 0.5;
+    particle.vy += (Math.random() - 0.5) * midLevel * 0.5;
+    
+    // Update trail if enabled
+    if (settings.useTrails) {
+      // Add current position to trail
+      particle.trail.push({
+        x: particle.x - width/2,
+        y: particle.y - height/2
+      });
+      
+      // Limit trail length based on settings
+      const maxTrailLength = 20 * settings.trailLength;
+      if (particle.trail.length > maxTrailLength) {
+        particle.trail.shift();
+      }
+    }
+    
+    // Calculate color based on time and audio
+    const hueShift = time * 20 * settings.colorCycle;
+    const saturation = 80 + midLevel * 20;
+    const brightness = 50 + highLevel * 50;
+    
+    // Draw particle with kaleidoscope symmetry
+    for (let i = 0; i < settings.symmetry; i++) {
+      const angle = (i / settings.symmetry) * Math.PI * 2;
+      context.save();
+      context.rotate(angle);
+      
+      // Draw trail if enabled
+      if (settings.useTrails && particle.trail.length > 1) {
+        context.beginPath();
+        context.moveTo(particle.trail[0].x, particle.trail[0].y);
+        
+        for (let j = 1; j < particle.trail.length; j++) {
+          context.lineTo(particle.trail[j].x, particle.trail[j].y);
+        }
+        
+        // Make trail color shift based on position in trail
+        for (let j = 0; j < particle.trail.length - 1; j++) {
+          const progress = j / particle.trail.length;
+          const trailHue = (particle.hue + hueShift) % 360;
+          const opacity = progress * 0.7;
+          
+          // Set gradient color for trail
+          context.strokeStyle = `hsla(${trailHue}, ${saturation}%, ${brightness}%, ${opacity})`;
+          context.lineWidth = particle.size * (0.2 + progress * 0.8) * (1 + bassLevel);
+          context.stroke();
+        }
+      }
+      
+      // Draw particle
+      const particleSize = particle.size * (1 + bassLevel * 0.5);
+      const x = particle.x - width/2;
+      const y = particle.y - height/2;
+      
+      context.fillStyle = `hsl(${(particle.hue + hueShift) % 360}, ${saturation}%, ${brightness}%)`;
+      context.beginPath();
+      context.arc(x, y, particleSize, 0, Math.PI * 2);
+      context.fill();
+      
+      context.restore();
+    }
+  });
+}
+
+// Function to draw the center image or circle
+function drawCenterElement(bassLevel) {
+  // Calculate pulsing size based on bass
+  const pulseSize = settings.centerSize * (1 + bassLevel * settings.centerPulse);
+  const centerX = width / 2;
+  const centerY = height / 2;
+  
+  // Center highlight glow
+  context.save();
+  const glowSize = pulseSize * 1.2;
+  const gradient = context.createRadialGradient(
+    centerX, centerY, pulseSize * 0.1,
+    centerX, centerY, glowSize
+  );
+  
+  // Create glow effect with transparency
+  gradient.addColorStop(0, `rgba(${settings.fgColor.r}, ${settings.fgColor.g}, ${settings.fgColor.b}, 0.6)`);
+  gradient.addColorStop(1, `rgba(${settings.fgColor.r}, ${settings.fgColor.g}, ${settings.fgColor.b}, 0)`);
+  
+  // Apply glow
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.arc(centerX, centerY, glowSize, 0, Math.PI * 2);
+  context.fill();
+  
+  // Draw image if defined, otherwise draw circle
+  if (window.centerImage && centerImage) {
+    // Draw the loaded image at the center, pulsing with bass
+    const imgSize = pulseSize * 2; // Double size since drawImage uses width/height not radius
+    
+    // Calculate position to center the image
+    const imgX = centerX - imgSize / 2;
+    const imgY = centerY - imgSize / 2;
+    
+    // Draw the image
+    context.drawImage(centerImage, imgX, imgY, imgSize, imgSize);
+  } else {
+    // Default circle if no image is loaded
+    context.beginPath();
+    
+    // Create gradient for circle
+    const circleGradient = context.createRadialGradient(
+      centerX, centerY, 0,
+      centerX, centerY, pulseSize
+    );
+    
+    // Make gradient colors respond to bass
+    const intensity = 0.7 + bassLevel * 0.3;
+    circleGradient.addColorStop(0, `rgba(${settings.fgColor.r * intensity}, ${settings.fgColor.g * intensity}, ${settings.fgColor.b * intensity}, 1)`);
+    circleGradient.addColorStop(1, `rgba(${settings.fgColor.r * 0.7}, ${settings.fgColor.g * 0.7}, ${settings.fgColor.b * 0.7}, 0.4)`);
+    
+    context.fillStyle = circleGradient;
+    context.arc(centerX, centerY, pulseSize, 0, Math.PI * 2);
+    context.fill();
+    
+    // Add subtle ring
+    context.strokeStyle = `rgba(${settings.fgColor.r}, ${settings.fgColor.g}, ${settings.fgColor.b}, 0.8)`;
+    context.lineWidth = 2 + bassLevel * 3;
+    context.stroke();
+  }
+  
+  context.restore();
+}

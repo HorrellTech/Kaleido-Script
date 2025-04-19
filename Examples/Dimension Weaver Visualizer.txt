@@ -1,0 +1,1110 @@
+// Dimension Weaver Visualizer
+// A geometric pattern weaver that creates interdimensional tapestries
+
+// SETTINGS - Adjust these to customize the visualization
+const settings = {
+  // Core pattern settings
+  gridSize: 16,                // Base grid resolution 
+  maxLayers: 5,                // Number of overlapping pattern layers
+  weaveComplexity: 0.7,        // Pattern complexity (0-1)
+  dimensionShift: true,        // Enable dimensional shifting effect
+  
+  // Visual style
+  colorScheme: 'cosmic',       // 'cosmic', 'neon', 'pastel', 'monochrome'
+  lineThickness: 1.8,          // Base thickness of pattern lines
+  nodeSize: 4,                 // Size of connection nodes
+  symmetry: 'radial',          // 'radial', 'bilateral', 'spiral', 'none'
+  
+  // Effects
+  glowStrength: 0.6,           // Strength of glow effect (0-1)
+  trailEffect: 0.8,            // Length of motion trails (0-1, higher = longer)
+  depthEffect: true,           // Enable 3D-like depth shifting
+  
+  // Animation
+  flowSpeed: 0.5,              // Base animation speed
+  pulseEnabled: true,          // Enable pulsing effects
+  pulseSpeed: 0.4,             // Speed of pulse waves
+  transformSpeed: 0.3,         // Speed of pattern transformation
+  
+  // Audio reactivity
+  bassImpact: 2.0,             // Impact of bass on patterns
+  midImpact: 1.5,              // Impact of mids on patterns
+  highImpact: 1.0,             // Impact of highs on patterns
+  reactivityMode: 'organic',   // 'organic', 'sharp', 'flowing'
+  
+  // Advanced pattern features
+  tessellationEnabled: true,   // Enable complex tessellation patterns
+  waveInterference: true,      // Create wave interference patterns
+  quantumNoise: 0.3            // Add quantum-like unpredictability (0-1)
+};
+
+// State variables for the visualization
+let patternLayers = [];
+let nodeGrid = [];
+let weaverPoints = [];
+let dimensionPortals = [];
+let audioLevels = { bass: 0, mid: 0, high: 0, overall: 0 };
+let lastAudioLevels = { bass: 0, mid: 0, high: 0, overall: 0 };
+let baseColors = [];
+let accentColors = [];
+let portalColors = [];
+let offscreenCanvas, offscreenContext;
+let glowCanvas, glowContext;
+let frameCount = 0;
+let lastTransformTime = 0;
+let transformProgress = 0;
+let currentScale = 1;
+let targetScale = 1;
+let currentRotation = 0;
+let targetRotation = 0;
+let dimensionShiftActive = false;
+let dimensionShiftProgress = 0;
+let lastDimensionShift = 0;
+
+// Setup function runs once at the beginning
+function setup() {
+  log("Dimension Weaver visualization initializing");
+  
+  // Try to load audio if available
+  if (window.audioProcessor) {
+    try {
+      loadAudio("Music/Wild Card.wav");
+      playAudio();
+      log("Audio loaded and playing");
+    } catch (e) {
+      log("No audio specified, visualization will use default patterns", "info");
+    }
+  }
+  
+  // Create offscreen canvases for effects
+  createOffscreenBuffers();
+  
+  // Initialize color palettes based on selected scheme
+  initializeColors();
+  
+  // Initialize grid nodes
+  initializeNodeGrid();
+  
+  // Initialize pattern layers
+  initializePatternLayers();
+  
+  // Create initial dimensional portals
+  createDimensionalPortals(3);
+  
+  // Set initial black background
+  background(0, 0, 0);
+}
+
+// Create offscreen buffers for visual effects
+function createOffscreenBuffers() {
+  offscreenCanvas = document.createElement('canvas');
+  offscreenCanvas.width = width;
+  offscreenCanvas.height = height;
+  offscreenContext = offscreenCanvas.getContext('2d');
+  
+  glowCanvas = document.createElement('canvas');
+  glowCanvas.width = width;
+  glowCanvas.height = height;
+  glowContext = glowCanvas.getContext('2d');
+}
+
+// Initialize color palettes based on the selected scheme
+function initializeColors() {
+  switch (settings.colorScheme) {
+    case 'cosmic':
+      baseColors = [
+        { h: 260, s: 70, l: 50 }, // Purple
+        { h: 220, s: 85, l: 60 }, // Blue
+        { h: 290, s: 80, l: 45 }, // Deep purple
+        { h: 320, s: 75, l: 55 }  // Magenta
+      ];
+      accentColors = [
+        { h: 180, s: 90, l: 65 }, // Cyan
+        { h: 60, s: 95, l: 60 },  // Yellow
+        { h: 30, s: 90, l: 60 }   // Orange
+      ];
+      portalColors = [
+        { h: 200, s: 90, l: 70 }, // Bright blue
+        { h: 300, s: 90, l: 65 }, // Pink
+        { h: 45, s: 95, l: 65 }   // Bright gold
+      ];
+      break;
+    
+    case 'neon':
+      baseColors = [
+        { h: 300, s: 100, l: 60 }, // Neon pink
+        { h: 190, s: 100, l: 55 }, // Neon blue
+        { h: 120, s: 100, l: 50 }, // Neon green
+        { h: 275, s: 100, l: 60 }  // Neon purple
+      ];
+      accentColors = [
+        { h: 60, s: 100, l: 60 },  // Neon yellow
+        { h: 30, s: 100, l: 55 },  // Neon orange
+        { h: 330, s: 100, l: 65 }  // Hot pink
+      ];
+      portalColors = [
+        { h: 180, s: 100, l: 70 }, // Neon cyan
+        { h: 0, s: 100, l: 65 },   // Neon red
+        { h: 90, s: 100, l: 65 }   // Neon lime
+      ];
+      break;
+      
+    case 'pastel':
+      baseColors = [
+        { h: 280, s: 60, l: 75 },  // Pastel purple
+        { h: 200, s: 65, l: 80 },  // Pastel blue
+        { h: 150, s: 55, l: 75 },  // Pastel green
+        { h: 320, s: 50, l: 80 }   // Pastel pink
+      ];
+      accentColors = [
+        { h: 40, s: 70, l: 80 },   // Pastel orange
+        { h: 60, s: 70, l: 85 },   // Pastel yellow
+        { h: 340, s: 60, l: 80 }   // Pastel rose
+      ];
+      portalColors = [
+        { h: 170, s: 65, l: 75 },  // Pastel turquoise
+        { h: 270, s: 65, l: 85 },  // Pastel lavender
+        { h: 20, s: 75, l: 80 }    // Pastel peach
+      ];
+      break;
+      
+    case 'monochrome':
+      baseColors = [
+        { h: 220, s: 10, l: 70 },  // Light bluish gray
+        { h: 220, s: 15, l: 50 },  // Medium blue-gray
+        { h: 220, s: 20, l: 30 },  // Dark blue-gray
+        { h: 220, s: 5, l: 60 }    // Slightly blue gray
+      ];
+      accentColors = [
+        { h: 220, s: 80, l: 60 },  // Bright blue accent
+        { h: 220, s: 90, l: 70 },  // Lighter blue accent
+        { h: 220, s: 70, l: 50 }   // Deeper blue accent
+      ];
+      portalColors = [
+        { h: 220, s: 100, l: 75 }, // Brightest blue
+        { h: 200, s: 90, l: 65 },  // Slightly cyan
+        { h: 240, s: 90, l: 70 }   // Slightly purple
+      ];
+      break;
+      
+    default:
+      // Cosmic scheme as default
+      baseColors = [
+        { h: 260, s: 70, l: 50 },
+        { h: 220, s: 85, l: 60 },
+        { h: 290, s: 80, l: 45 },
+        { h: 320, s: 75, l: 55 }
+      ];
+      accentColors = [
+        { h: 180, s: 90, l: 65 },
+        { h: 60, s: 95, l: 60 },
+        { h: 30, s: 90, l: 60 }
+      ];
+      portalColors = [
+        { h: 200, s: 90, l: 70 },
+        { h: 300, s: 90, l: 65 },
+        { h: 45, s: 95, l: 65 }
+      ];
+  }
+}
+
+// Initialize grid of nodes
+function initializeNodeGrid() {
+  nodeGrid = [];
+  
+  // Calculate cell size
+  const cellSize = Math.min(width, height) / settings.gridSize;
+  
+  // Create grid with some variation
+  for (let y = 0; y <= settings.gridSize; y++) {
+    const row = [];
+    for (let x = 0; x <= settings.gridSize; x++) {
+      // Base position
+      const baseX = x * cellSize;
+      const baseY = y * cellSize;
+      
+      // Add some randomness to grid positions
+      const randomFactor = settings.weaveComplexity * cellSize * 0.3;
+      const offsetX = (Math.random() - 0.5) * randomFactor;
+      const offsetY = (Math.random() - 0.5) * randomFactor;
+      
+      // Create node
+      row.push({
+        x: baseX + offsetX,
+        y: baseY + offsetY,
+        baseX: baseX,
+        baseY: baseY,
+        connections: [],
+        energy: Math.random(),
+        phase: Math.random() * Math.PI * 2,
+        amplitude: 0.5 + Math.random() * 0.5,
+        frequency: 0.5 + Math.random() * 1.5
+      });
+    }
+    nodeGrid.push(row);
+  }
+  
+  // Create connections between nodes based on pattern complexity
+  const connectionChance = 0.3 + settings.weaveComplexity * 0.5;
+  
+  // Connect adjacent nodes
+  for (let y = 0; y < nodeGrid.length; y++) {
+    for (let x = 0; x < nodeGrid[y].length; x++) {
+      const node = nodeGrid[y][x];
+      
+      // Right connection
+      if (x < nodeGrid[y].length - 1 && Math.random() < connectionChance) {
+        node.connections.push({ toX: x + 1, toY: y, strength: Math.random() });
+      }
+      
+      // Down connection
+      if (y < nodeGrid.length - 1 && Math.random() < connectionChance) {
+        node.connections.push({ toX: x, toY: y + 1, strength: Math.random() });
+      }
+      
+      // Diagonal connection
+      if (x < nodeGrid[y].length - 1 && y < nodeGrid.length - 1 && Math.random() < connectionChance * 0.7) {
+        node.connections.push({ toX: x + 1, toY: y + 1, strength: Math.random() * 0.8 });
+      }
+      
+      // Cross diagonal
+      if (x > 0 && y < nodeGrid.length - 1 && Math.random() < connectionChance * 0.5) {
+        node.connections.push({ toX: x - 1, toY: y + 1, strength: Math.random() * 0.8 });
+      }
+      
+      // Long connections (for complexity)
+      if (Math.random() < connectionChance * settings.weaveComplexity * 0.3) {
+        const range = Math.floor(settings.weaveComplexity * 3) + 1;
+        const longX = Math.min(nodeGrid[y].length - 1, x + Math.floor(Math.random() * range) + 1);
+        const longY = Math.min(nodeGrid.length - 1, y + Math.floor(Math.random() * range) + 1);
+        node.connections.push({ toX: longX, toY: longY, strength: Math.random() * 0.6 });
+      }
+    }
+  }
+}
+
+// Initialize pattern layers
+function initializePatternLayers() {
+  patternLayers = [];
+  
+  // Create multiple pattern layers
+  for (let i = 0; i < settings.maxLayers; i++) {
+    // Calculate depth for this layer (0 = front, 1 = back)
+    const depth = i / (settings.maxLayers - 1);
+    
+    // Create layer
+    patternLayers.push({
+      depth: depth,
+      opacity: 1 - depth * 0.5,  // Deeper layers are more transparent
+      rotation: Math.random() * Math.PI * 2,
+      scale: 0.7 + Math.random() * 0.6,
+      transform: {
+        translateX: (Math.random() - 0.5) * width * 0.2,
+        translateY: (Math.random() - 0.5) * height * 0.2,
+        rotation: Math.random() * Math.PI * 0.2,
+        scale: 0.9 + Math.random() * 0.2
+      },
+      color: {...baseColors[i % baseColors.length]},
+      speed: 0.5 + Math.random() * 0.5,
+      nodes: []
+    });
+    
+    // Create weaver points for this layer
+    createWeaverPoints(patternLayers[i], 5 + Math.floor(Math.random() * 8));
+  }
+}
+
+// Create weaver points for a pattern layer
+function createWeaverPoints(layer, count) {
+  layer.nodes = [];
+  
+  // Create points in a pattern based on symmetry setting
+  switch (settings.symmetry) {
+    case 'radial':
+      // Create points in a circle
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2;
+        const distance = (0.3 + Math.random() * 0.3) * Math.min(width, height) * 0.4;
+        
+        layer.nodes.push({
+          x: width / 2 + Math.cos(angle) * distance,
+          y: height / 2 + Math.sin(angle) * distance,
+          angle: angle,
+          speed: (0.5 + Math.random() * 0.5) * settings.flowSpeed,
+          phase: Math.random() * Math.PI * 2,
+          connections: []
+        });
+      }
+      break;
+      
+    case 'bilateral':
+      // Create points with bilateral symmetry
+      for (let i = 0; i < count / 2; i++) {
+        const x = width * (0.2 + Math.random() * 0.6);
+        const y = height * (0.2 + Math.random() * 0.6);
+        
+        // Left side
+        layer.nodes.push({
+          x: x,
+          y: y,
+          angle: Math.random() * Math.PI * 2,
+          speed: (0.5 + Math.random() * 0.5) * settings.flowSpeed,
+          phase: Math.random() * Math.PI * 2,
+          connections: []
+        });
+        
+        // Right side (mirrored)
+        layer.nodes.push({
+          x: width - x,
+          y: y,
+          angle: Math.random() * Math.PI * 2,
+          speed: (0.5 + Math.random() * 0.5) * settings.flowSpeed,
+          phase: Math.random() * Math.PI * 2,
+          connections: []
+        });
+      }
+      break;
+      
+    case 'spiral':
+      // Create points in a spiral pattern
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 4;
+        const distance = (i / count) * Math.min(width, height) * 0.4;
+        
+        layer.nodes.push({
+          x: width / 2 + Math.cos(angle) * distance,
+          y: height / 2 + Math.sin(angle) * distance,
+          angle: angle,
+          speed: (0.5 + Math.random() * 0.5) * settings.flowSpeed,
+          phase: Math.random() * Math.PI * 2,
+          connections: []
+        });
+      }
+      break;
+      
+    case 'none':
+    default:
+      // Random points
+      for (let i = 0; i < count; i++) {
+        layer.nodes.push({
+          x: width * (0.1 + Math.random() * 0.8),
+          y: height * (0.1 + Math.random() * 0.8),
+          angle: Math.random() * Math.PI * 2,
+          speed: (0.5 + Math.random() * 0.5) * settings.flowSpeed,
+          phase: Math.random() * Math.PI * 2,
+          connections: []
+        });
+      }
+  }
+  
+  // Create connections between points
+  for (let i = 0; i < layer.nodes.length; i++) {
+    const node = layer.nodes[i];
+    
+    // Connect to other nodes
+    for (let j = i + 1; j < layer.nodes.length; j++) {
+      if (Math.random() < 0.3 + settings.weaveComplexity * 0.4) {
+        node.connections.push({
+          to: j,
+          strength: 0.5 + Math.random() * 0.5,
+          active: true
+        });
+      }
+    }
+    
+    // Ensure at least one connection
+    if (node.connections.length === 0 && i < layer.nodes.length - 1) {
+      node.connections.push({
+        to: i + 1,
+        strength: 0.7 + Math.random() * 0.3,
+        active: true
+      });
+    }
+  }
+}
+
+// Create dimensional portals
+function createDimensionalPortals(count) {
+  dimensionPortals = [];
+  
+  for (let i = 0; i < count; i++) {
+    // Calculate position - bias toward center and edges
+    let x, y;
+    
+    if (Math.random() < 0.7) {
+      // Place near center
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * Math.min(width, height) * 0.3;
+      x = width / 2 + Math.cos(angle) * distance;
+      y = height / 2 + Math.sin(angle) * distance;
+    } else {
+      // Place near edges
+      if (Math.random() < 0.5) {
+        // Along X edges
+        x = Math.random() < 0.5 ? width * 0.1 : width * 0.9;
+        y = height * (0.2 + Math.random() * 0.6);
+      } else {
+        // Along Y edges
+        x = width * (0.2 + Math.random() * 0.6);
+        y = Math.random() < 0.5 ? height * 0.1 : height * 0.9;
+      }
+    }
+    
+    // Create portal
+    dimensionPortals.push({
+      x: x,
+      y: y,
+      size: 50 + Math.random() * 100,
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.01,
+      pulsePhase: Math.random() * Math.PI * 2,
+      pulseSpeed: 0.02 + Math.random() * 0.03,
+      color: {...portalColors[i % portalColors.length]},
+      energy: 0.5 + Math.random() * 0.5,
+      ringCount: 3 + Math.floor(Math.random() * 3)
+    });
+  }
+}
+
+// Main draw function, called on every frame
+function draw(time) {
+  // Update audio levels
+  updateAudioLevels();
+  
+  // Apply background fade for trails
+  applyBackgroundFade();
+  
+  // Clear offscreen canvases
+  offscreenContext.clearRect(0, 0, width, height);
+  glowContext.clearRect(0, 0, width, height);
+  
+  // Check for pattern transformation
+  updatePatternTransformation(time);
+  
+  // Update dimensional shift if active
+  updateDimensionalShift(time);
+  
+  // Draw dimensional portals
+  drawDimensionalPortals(time);
+  
+  // Draw pattern layers from back to front
+  drawPatternLayers(time);
+  
+  // Apply glow effect
+  applyGlowEffect();
+  
+  // Draw final composite to screen
+  context.drawImage(offscreenCanvas, 0, 0);
+  
+  // Increment frame counter
+  frameCount++;
+}
+
+// Update audio levels and detect changes
+function updateAudioLevels() {
+  // Store previous values
+  lastAudioLevels = {...audioLevels};
+  
+  if (window.audiohz) {
+    // Sample multiple frequencies in each range
+    let bassSum = 0;
+    for (let freq = 60; freq <= 250; freq += 30) {
+      bassSum += audiohz(freq);
+    }
+    
+    let midSum = 0;
+    for (let freq = 400; freq <= 2000; freq += 200) {
+      midSum += audiohz(freq);
+    }
+    
+    let highSum = 0;
+    for (let freq = 3000; freq <= 8000; freq += 500) {
+      highSum += audiohz(freq);
+    }
+    
+    // Calculate averages
+    const bassRaw = bassSum / 7;
+    const midRaw = midSum / 9;
+    const highRaw = highSum / 11;
+    
+    // Apply smoothing based on reactivity mode
+    let smoothingFactor = 0.7;
+    if (settings.reactivityMode === 'sharp') {
+      smoothingFactor = 0.4;
+    } else if (settings.reactivityMode === 'flowing') {
+      smoothingFactor = 0.85;
+    }
+    
+    audioLevels.bass = audioLevels.bass * smoothingFactor + bassRaw * (1 - smoothingFactor);
+    audioLevels.mid = audioLevels.mid * smoothingFactor + midRaw * (1 - smoothingFactor);
+    audioLevels.high = audioLevels.high * smoothingFactor + highRaw * (1 - smoothingFactor);
+    
+  } else {
+    // Simulate audio if not available
+    const t = frameCount * 0.01;
+    audioLevels.bass = 0.3 + 0.3 * Math.sin(t * 0.5);
+    audioLevels.mid = 0.3 + 0.3 * Math.sin(t * 0.8 + 1);
+    audioLevels.high = 0.3 + 0.3 * Math.sin(t * 1.2 + 2);
+  }
+  
+  // Calculate overall audio level
+  audioLevels.overall = 
+    audioLevels.bass * settings.bassImpact * 0.5 + 
+    audioLevels.mid * settings.midImpact * 0.3 + 
+    audioLevels.high * settings.highImpact * 0.2;
+  
+  // Check for significant bass boost to trigger dimension shift
+  if (settings.dimensionShift && 
+      audioLevels.bass > lastAudioLevels.bass + 0.2 && 
+      audioLevels.bass > 0.7 && 
+      frameCount - lastDimensionShift > 120) {
+    triggerDimensionShift();
+  }
+}
+
+// Apply background fade for trails
+function applyBackgroundFade() {
+  // Calculate fade amount based on trail setting
+  const fadeAlpha = 1 - settings.trailEffect;
+  
+  // Apply fade with semi-transparent black rectangle
+  context.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
+  context.fillRect(0, 0, width, height);
+}
+
+// Check if pattern should transform
+function updatePatternTransformation(time) {
+  const transformInterval = 10000; // ms
+  
+  // Check if it's time for a transformation
+  if (time - lastTransformTime > transformInterval) {
+    // Start transformation
+    transformProgress = 0;
+    lastTransformTime = time;
+    
+    // Set target values
+    targetScale = 0.8 + Math.random() * 0.4;
+    targetRotation = currentRotation + (Math.random() - 0.5) * Math.PI * 0.5;
+    
+    // Occasionally recreate pattern layers
+    if (Math.random() < 0.3) {
+      initializePatternLayers();
+    }
+    
+    // Occasionally recreate dimensional portals
+    if (Math.random() < 0.2) {
+      createDimensionalPortals(2 + Math.floor(Math.random() * 3));
+    }
+  }
+  
+  // Update transformation progress
+  if (transformProgress < 1) {
+    const progressStep = settings.transformSpeed * 0.01;
+    transformProgress = Math.min(1, transformProgress + progressStep);
+    
+    // Ease transition
+    const eased = easeInOutCubic(transformProgress);
+    currentScale = lerp(currentScale, targetScale, eased);
+    currentRotation = lerp(currentRotation, targetRotation, eased);
+  }
+}
+
+// Update dimensional shift effect
+function updateDimensionalShift(time) {
+  if (dimensionShiftActive) {
+    // Progress the shift
+    dimensionShiftProgress += 0.01;
+    
+    // End shift once complete
+    if (dimensionShiftProgress >= 1) {
+      dimensionShiftActive = false;
+      dimensionShiftProgress = 0;
+    }
+  }
+}
+
+// Trigger a dimension shift effect
+function triggerDimensionShift() {
+  if (dimensionShiftActive) return; // Already shifting
+  
+  dimensionShiftActive = true;
+  dimensionShiftProgress = 0;
+  lastDimensionShift = frameCount;
+  
+  // Rearrange grid nodes
+  for (let y = 0; y < nodeGrid.length; y++) {
+    for (let x = 0; x < nodeGrid[y].length; x++) {
+      const node = nodeGrid[y][x];
+      const jitterAmount = Math.min(width, height) * 0.05;
+      node.x = node.baseX + (Math.random() - 0.5) * jitterAmount;
+      node.y = node.baseY + (Math.random() - 0.5) * jitterAmount;
+    }
+  }
+  
+  // Change portal energies
+  for (const portal of dimensionPortals) {
+    portal.energy = 0.7 + Math.random() * 0.3;
+    portal.rotationSpeed = (Math.random() - 0.5) * 0.02;
+  }
+  
+  // Recolor some patterns
+  for (const layer of patternLayers) {
+    if (Math.random() < 0.5) {
+      layer.color = {...baseColors[Math.floor(Math.random() * baseColors.length)]};
+    }
+  }
+}
+
+// Draw dimensional portals
+function drawDimensionalPortals(time) {
+  for (const portal of dimensionPortals) {
+    // Calculate audio-reactive size and energy
+    const pulseAmount = Math.sin(portal.pulsePhase + time * portal.pulseSpeed * settings.pulseSpeed);
+    const audioBoost = audioLevels.bass * 0.3 + audioLevels.mid * 0.2;
+    const size = Math.max(1, portal.size * (1 + pulseAmount * 0.2 + audioBoost * 0.3)); // Ensure positive size
+    const energy = portal.energy * (1 + audioLevels.mid * 0.3);
+    
+    // Update phase
+    portal.pulsePhase += 0.01;
+    portal.rotation += portal.rotationSpeed * (1 + audioLevels.high * 0.5);
+    
+    // Draw portal rings
+    for (let i = 0; i < portal.ringCount; i++) {
+      // Calculate ring properties with safety check
+      const ringSize = Math.max(0.1, size * (0.3 + (i / portal.ringCount) * 0.7)); // Ensure positive radius
+      const ringWidth = Math.max(0.5, size * 0.03 * (1 + audioLevels.high * 0.5)); // Ensure positive width
+      const ringOpacity = (1 - i / portal.ringCount) * energy;
+      
+      // Calculate color with shifting hue
+      const hueShift = Math.sin(time * 0.001 + i * 0.5) * 20;
+      const color = {...portal.color};
+      color.h = (color.h + hueShift) % 360;
+      
+      // Boost brightness with audio
+      color.l = Math.min(95, color.l + audioLevels.overall * 20);
+      
+      // Draw to main canvas
+      offscreenContext.strokeStyle = `hsla(${color.h}, ${color.s}%, ${color.l}%, ${ringOpacity})`;
+      offscreenContext.lineWidth = ringWidth;
+      
+      offscreenContext.beginPath();
+      offscreenContext.arc(portal.x, portal.y, ringSize, 0, Math.PI * 2);
+      offscreenContext.stroke();
+      
+      // Draw to glow canvas
+      glowContext.strokeStyle = `hsla(${color.h}, ${color.s}%, ${color.l}%, ${ringOpacity * 1.5})`;
+      glowContext.lineWidth = ringWidth * 2.5;
+      
+      glowContext.beginPath();
+      glowContext.arc(portal.x, portal.y, ringSize, 0, Math.PI * 2);
+      glowContext.stroke();
+    }
+    
+    // Draw portal center with safety check
+    const centerSize = Math.max(0.1, size * 0.2); // Ensure positive radius
+    const gradient = offscreenContext.createRadialGradient(
+      portal.x, portal.y, 0,
+      portal.x, portal.y, centerSize
+    );
+    
+    const color = portal.color;
+    gradient.addColorStop(0, `hsla(${color.h}, ${color.s}%, ${Math.min(100, color.l + 20)}%, ${energy})`);
+    gradient.addColorStop(1, `hsla(${color.h}, ${color.s}%, ${color.l}%, 0)`);
+    
+    offscreenContext.fillStyle = gradient;
+    offscreenContext.beginPath();
+    offscreenContext.arc(portal.x, portal.y, centerSize, 0, Math.PI * 2);
+    offscreenContext.fill();
+    
+    // Draw portal rays
+    const rayCount = 6 + Math.floor(audioLevels.high * 6);
+    const maxRayLength = size * (0.5 + audioLevels.mid * 0.5);
+    
+    offscreenContext.lineWidth = 1;
+    for (let i = 0; i < rayCount; i++) {
+      const rayAngle = portal.rotation + (i / rayCount) * Math.PI * 2;
+      const rayLength = maxRayLength * (0.3 + Math.random() * 0.7);
+      
+      const x1 = portal.x + Math.cos(rayAngle) * size * 0.3;
+      const y1 = portal.y + Math.sin(rayAngle) * size * 0.3;
+      const x2 = portal.x + Math.cos(rayAngle) * (size * 0.3 + rayLength);
+      const y2 = portal.y + Math.sin(rayAngle) * (size * 0.3 + rayLength);
+      
+      const rayOpacity = 0.5 * energy * Math.random();
+      offscreenContext.strokeStyle = `hsla(${color.h}, ${color.s}%, ${color.l}%, ${rayOpacity})`;
+      
+      offscreenContext.beginPath();
+      offscreenContext.moveTo(x1, y1);
+      offscreenContext.lineTo(x2, y2);
+      offscreenContext.stroke();
+      
+      // Draw to glow canvas
+      glowContext.strokeStyle = `hsla(${color.h}, ${color.s}%, ${color.l}%, ${rayOpacity * 1.5})`;
+      glowContext.lineWidth = 2;
+      glowContext.beginPath();
+      glowContext.moveTo(x1, y1);
+      glowContext.lineTo(x2, y2);
+      glowContext.stroke();
+    }
+  }
+}
+
+// Draw pattern layers
+function drawPatternLayers(time) {
+  // Sort layers by depth for proper rendering (back to front)
+  const sortedLayers = [...patternLayers].sort((a, b) => b.depth - a.depth);
+  
+  // Draw each layer
+  for (const layer of sortedLayers) {
+    // Calculate layer opacity with audio reactivity
+    const baseOpacity = layer.opacity;
+    const opacity = baseOpacity * (0.7 + audioLevels.overall * 0.3);
+    
+    // Save context for layer transformations
+    offscreenContext.save();
+    glowContext.save();
+    
+    // Apply layer transformations
+    const centerX = width / 2;
+    const centerY = height / 2;
+    
+    offscreenContext.translate(centerX, centerY);
+    offscreenContext.rotate(layer.rotation + currentRotation);
+    offscreenContext.scale(layer.scale * currentScale, layer.scale * currentScale);
+    offscreenContext.translate(-centerX, -centerY);
+    
+    glowContext.translate(centerX, centerY);
+    glowContext.rotate(layer.rotation + currentRotation);
+    glowContext.scale(layer.scale * currentScale, layer.scale * currentScale);
+    glowContext.translate(-centerX, -centerY);
+    
+    // Apply additional transformations
+    offscreenContext.translate(layer.transform.translateX, layer.transform.translateY);
+    glowContext.translate(layer.transform.translateX, layer.transform.translateY);
+    
+    // Update and draw weaver points
+    updateWeaverPoints(layer, time);
+    
+    // Draw connections between points
+    drawWeaverConnections(layer, opacity);
+    
+    // Draw weaverPoints
+    drawWeaverNodes(layer, opacity);
+    
+    // Draw tessellation patterns if enabled
+    if (settings.tessellationEnabled) {
+      drawTessellationPatterns(layer, time, opacity);
+    }
+    
+    // Restore context
+    offscreenContext.restore();
+    glowContext.restore();
+  }
+}
+
+// Update weaver points positions
+function updateWeaverPoints(layer, time) {
+  // Movement speed affected by music
+  const speedMultiplier = settings.flowSpeed * (0.5 + audioLevels.mid * 0.5);
+  
+  // Update each point
+  for (const node of layer.nodes) {
+    // Calculate movement
+    const nodeSpeed = node.speed * speedMultiplier;
+    const timeScale = time * 0.001;
+    
+    // Apply wave interference if enabled
+    if (settings.waveInterference) {
+      const wave1 = Math.sin(timeScale * 0.5 + node.phase) * 2;
+      const wave2 = Math.cos(timeScale * 0.3 + node.phase * 2) * 2;
+      
+      node.x += Math.cos(node.angle) * nodeSpeed * wave1;
+      node.y += Math.sin(node.angle) * nodeSpeed * wave2;
+    } else {
+      // Regular movement
+      node.x += Math.cos(node.angle) * nodeSpeed;
+      node.y += Math.sin(node.angle) * nodeSpeed;
+    }
+    
+    // Randomly change angle occasionally
+    if (Math.random() < 0.01) {
+      node.angle += (Math.random() - 0.5) * Math.PI * 0.5;
+    }
+    
+    // Contain points within bounds with some margin
+    const margin = 50;
+    if (node.x < margin || node.x > width - margin || 
+        node.y < margin || node.y > height - margin) {
+      // Point back toward center
+      node.angle = Math.atan2(height/2 - node.y, width/2 - node.x);
+    }
+    
+    // Apply quantum noise if enabled
+    if (settings.quantumNoise > 0 && Math.random() < settings.quantumNoise * 0.02) {
+      node.x += (Math.random() - 0.5) * 20;
+      node.y += (Math.random() - 0.5) * 20;
+    }
+    
+    // Update phase
+    node.phase += 0.01 * (1 + audioLevels.high * 0.5);
+  }
+}
+
+// Draw connections between weaver points
+function drawWeaverConnections(layer, opacity) {
+  // Calculate line width based on audio
+  const baseWidth = settings.lineThickness;
+  const lineWidth = baseWidth * (0.7 + audioLevels.mid * 0.5);
+  
+  offscreenContext.lineWidth = lineWidth;
+  glowContext.lineWidth = lineWidth * 2;
+  
+  // Get layer color with audio reactivity
+  const baseColor = layer.color;
+  const hueShift = audioLevels.high * 30;
+  const satBoost = Math.min(100 - baseColor.s, audioLevels.mid * 20);
+  const lightBoost = Math.min(100 - baseColor.l, audioLevels.overall * 25);
+  
+  const color = {
+    h: (baseColor.h + hueShift) % 360,
+    s: baseColor.s + satBoost,
+    l: baseColor.l + lightBoost
+  };
+  
+  // Draw each connection
+  for (const node of layer.nodes) {
+    for (const conn of node.connections) {
+      // Skip inactive connections
+      if (!conn.active) continue;
+      
+      const target = layer.nodes[conn.to];
+      if (!target) continue;
+      
+      // Calculate connection opacity based on strength and audio
+      const connOpacity = opacity * conn.strength * (0.5 + audioLevels.mid * 0.5);
+      
+      // Draw line on main canvas
+      offscreenContext.strokeStyle = `hsla(${color.h}, ${color.s}%, ${color.l}%, ${connOpacity})`;
+      offscreenContext.beginPath();
+      offscreenContext.moveTo(node.x, node.y);
+      
+      // Create curve if enabled
+      if (settings.reactivityMode === 'flowing') {
+        // Curved connections
+        const midX = (node.x + target.x) / 2;
+        const midY = (node.y + target.y) / 2;
+        
+        // Add some vertical or horizontal displacement based on audio
+        const displacement = 30 * audioLevels.mid;
+        const offsetX = (Math.random() - 0.5) * displacement;
+        const offsetY = (Math.random() - 0.5) * displacement;
+        
+        offscreenContext.quadraticCurveTo(midX + offsetX, midY + offsetY, target.x, target.y);
+      } else {
+        // Straight connections
+        offscreenContext.lineTo(target.x, target.y);
+      }
+      
+      offscreenContext.stroke();
+      
+      // Draw glow effect
+      glowContext.strokeStyle = `hsla(${color.h}, ${color.s}%, ${Math.min(100, color.l + 15)}%, ${connOpacity * 0.7})`;
+      glowContext.beginPath();
+      glowContext.moveTo(node.x, node.y);
+      
+      if (settings.reactivityMode === 'flowing') {
+        const midX = (node.x + target.x) / 2;
+        const midY = (node.y + target.y) / 2;
+        const displacement = 30 * audioLevels.mid;
+        const offsetX = (Math.random() - 0.5) * displacement;
+        const offsetY = (Math.random() - 0.5) * displacement;
+        
+        glowContext.quadraticCurveTo(midX + offsetX, midY + offsetY, target.x, target.y);
+      } else {
+        glowContext.lineTo(target.x, target.y);
+      }
+      
+      glowContext.stroke();
+    }
+  }
+}
+
+// Draw weaver nodes
+function drawWeaverNodes(layer, opacity) {
+  const baseNodeSize = settings.nodeSize;
+  
+  // For each node
+  for (const node of layer.nodes) {
+    // Calculate audio-reactive size
+    const pulseEffect = settings.pulseEnabled ? 
+      Math.sin(node.phase * 2) * audioLevels.bass * 5 : 0;
+      
+    const nodeSize = Math.max(0.1, baseNodeSize * (1 + pulseEffect + audioLevels.overall * 0.5)); // Ensure positive radius
+    
+    // Get node color (slightly different from line color)
+    const baseColor = layer.color;
+    const hueShift = 20 * Math.sin(node.phase);
+    const lightBoost = Math.min(100 - baseColor.l, 15 + audioLevels.bass * 20);
+    
+    const color = {
+      h: (baseColor.h + hueShift) % 360,
+      s: Math.min(100, baseColor.s + 10),
+      l: Math.min(95, baseColor.l + lightBoost)
+    };
+    
+    // Draw node on main canvas
+    offscreenContext.fillStyle = `hsla(${color.h}, ${color.s}%, ${color.l}%, ${opacity})`;
+    offscreenContext.beginPath();
+    offscreenContext.arc(node.x, node.y, nodeSize, 0, Math.PI * 2);
+    offscreenContext.fill();
+    
+    // Draw glow effect
+    const glowSize = nodeSize * 1.5;
+    glowContext.fillStyle = `hsla(${color.h}, ${color.s}%, ${Math.min(100, color.l + 15)}%, ${opacity * 0.7})`;
+    glowContext.beginPath();
+    glowContext.arc(node.x, node.y, glowSize, 0, Math.PI * 2);
+    glowContext.fill();
+  }
+}
+
+// Draw tessellation patterns
+function drawTessellationPatterns(layer, time, opacity) {
+  // Skip if disabled or dimensionShiftActive (for performance)
+  if (!settings.tessellationEnabled || dimensionShiftActive) return;
+  
+  // Calculate time-based values
+  const timeScale = time * 0.0005;
+  const audioResponsiveOpacity = opacity * 0.3 * audioLevels.mid;
+  
+  // Only draw at certain intervals for performance
+  if (frameCount % 3 !== 0) return;
+  
+  // Use accent color for tessellation
+  const accentColor = accentColors[Math.floor(Math.random() * accentColors.length)];
+  const hue = (accentColor.h + 30 * Math.sin(timeScale)) % 360;
+  
+  // Draw tessellation lines
+  offscreenContext.strokeStyle = `hsla(${hue}, ${accentColor.s}%, ${accentColor.l}%, ${audioResponsiveOpacity})`;
+  offscreenContext.lineWidth = 0.5;
+  
+  // Create geometric patterns based on node positions
+  for (let i = 0; i < layer.nodes.length; i++) {
+    const node1 = layer.nodes[i];
+    
+    // Skip sometimes for varied density
+    if (Math.random() > 0.7) continue;
+    
+    for (let j = i + 1; j < layer.nodes.length; j++) {
+      const node2 = layer.nodes[j];
+      
+      // Calculate distance
+      const dx = node2.x - node1.x;
+      const dy = node2.y - node1.y;
+      const distance = Math.sqrt(dx*dx + dy*dy);
+      
+      // Skip if too far
+      if (distance > 200) continue;
+      
+      // Draw only occasionally based on audio and distance
+      const drawChance = 0.1 + audioLevels.high * 0.2 - distance * 0.0005;
+      if (Math.random() > drawChance) continue;
+      
+      // Draw tessellation line
+      offscreenContext.beginPath();
+      
+      if (Math.random() < 0.5) {
+        // Straight line
+        offscreenContext.moveTo(node1.x, node1.y);
+        offscreenContext.lineTo(node2.x, node2.y);
+      } else {
+        // Arc
+        const midX = (node1.x + node2.x) / 2;
+        const midY = (node1.y + node2.y) / 2;
+        const bulge = (Math.random() - 0.5) * 50 * audioLevels.mid;
+        
+        offscreenContext.moveTo(node1.x, node1.y);
+        offscreenContext.quadraticCurveTo(midX + bulge, midY + bulge, node2.x, node2.y);
+      }
+      
+      offscreenContext.stroke();
+    }
+  }
+}
+
+// Apply glow effect
+function applyGlowEffect() {
+  // Skip if disabled
+  if (settings.glowStrength <= 0) return;
+  
+  // Calculate glow amount based on audio
+  const glowAmount = settings.glowStrength * (0.5 + audioLevels.overall * 0.5);
+  
+  // Apply multi-pass blur for better quality
+  glowContext.filter = `blur(${8 * glowAmount}px)`;
+  glowContext.globalAlpha = 0.5;
+  glowContext.drawImage(glowCanvas, 0, 0);
+  
+  glowContext.filter = `blur(${4 * glowAmount}px)`;
+  glowContext.globalAlpha = 0.4;
+  glowContext.drawImage(glowCanvas, 0, 0);
+  
+  // Reset filter
+  glowContext.filter = 'none';
+  glowContext.globalAlpha = 1.0;
+  
+  // Apply glow to main canvas with screen blend mode
+  offscreenContext.globalCompositeOperation = 'screen';
+  offscreenContext.drawImage(glowCanvas, 0, 0);
+  offscreenContext.globalCompositeOperation = 'source-over';
+  
+  // Apply dimension shift effects if active
+  if (dimensionShiftActive) {
+    applyDimensionShiftEffects();
+  }
+}
+
+// Apply special effects during dimension shifts
+function applyDimensionShiftEffects() {
+  // Calculate effect intensity based on progress
+  const shiftIntensity = Math.sin(dimensionShiftProgress * Math.PI);
+  
+  // Apply chromatic aberration
+  const aberrationAmount = 10 * shiftIntensity;
+  
+  // Red channel shift
+  offscreenContext.globalCompositeOperation = 'screen';
+  offscreenContext.globalAlpha = 0.5;
+  offscreenContext.drawImage(offscreenCanvas, -aberrationAmount, 0);
+  
+  // Blue channel shift
+  offscreenContext.globalCompositeOperation = 'screen';
+  offscreenContext.globalAlpha = 0.5;
+  offscreenContext.drawImage(offscreenCanvas, aberrationAmount, 0);
+  
+  // Reset
+  offscreenContext.globalCompositeOperation = 'source-over';
+  offscreenContext.globalAlpha = 1.0;
+  
+  // Add ripple effect with safety check
+  const rippleSize = Math.max(1, Math.min(width, height) * 0.8 * (1 - shiftIntensity)); // Ensure positive radius
+  const rippleWidth = 2 + 5 * shiftIntensity;
+  const rippleOpacity = 0.7 * shiftIntensity;
+  
+  // Only draw if ripple size is positive
+  if (rippleSize > 0) {
+    offscreenContext.strokeStyle = `rgba(255, 255, 255, ${rippleOpacity})`;
+    offscreenContext.lineWidth = rippleWidth;
+    offscreenContext.beginPath();
+    offscreenContext.arc(width/2, height/2, rippleSize, 0, Math.PI * 2);
+    offscreenContext.stroke();
+  }
+}
+
+// Utility functions
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}

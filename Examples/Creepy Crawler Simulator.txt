@@ -1,0 +1,288 @@
+// Creepy Crawler Simulator
+// Spiders that react to audio frequencies
+
+// Settings
+const settings = {
+  spiderCount: 12,         // Number of spiders
+  minSize: 10,             // Minimum spider size
+  maxSize: 40,             // Maximum spider size
+  legCount: 8,             // Number of legs per spider
+  crawlSpeed: 0.7,         // Base crawl speed
+  jitterAmount: 0.3,       // How much they shake/jitter
+  turnSpeed: 0.4,          // How quickly they change direction
+  bloodThirsty: true       // Enable hunting behavior
+};
+
+// State variables
+let spiders = [];
+let lastBeatTime = 0;
+
+function setup() {
+  log("Creepy Crawler initialized");
+  
+  // Create initial spiders
+  for (let i = 0; i < settings.spiderCount; i++) {
+    createSpider();
+  }
+  
+  // Try to load audio
+  loadAudio("Music/your_audio_file.wav");
+  playAudio();
+}
+
+function draw(time) {
+  // Semi-transparent background for motion trails
+  background(10, 5, 15, 0.3);
+  
+  // Get audio frequencies
+  const bass = window.audiohz ? audiohz(80) : 0.5;  // Deep bass
+  const subBass = window.audiohz ? audiohz(40) : 0.4; // Sub bass
+  const mid = window.audiohz ? audiohz(1000) : 0.3;
+  const high = window.audiohz ? audiohz(5000) : 0.2;
+  
+  // Calculate combined audio intensity
+  const audioIntensity = bass * 0.5 + subBass * 0.5;
+  
+  // Check for beat (for pulsing effects)
+  if (bass > 0.7 && time - lastBeatTime > 300) {
+    lastBeatTime = time;
+    
+    // Create new spider on strong beat
+    if (spiders.length < settings.spiderCount * 1.5 && Math.random() < 0.3) {
+      createSpider();
+    }
+  }
+  
+  // Update and draw all spiders
+  for (let i = 0; i < spiders.length; i++) {
+    const spider = spiders[i];
+    
+    // Speed affected by sub-bass and bass
+    const speed = spider.baseSpeed * settings.crawlSpeed * (0.5 + subBass * 1.5);
+    
+    // Direction changes affected by mid frequencies
+    const turnAmount = (Math.random() - 0.5) * settings.turnSpeed * (0.5 + mid * 1.0);
+    spider.angle += turnAmount;
+    
+    // Move spider
+    spider.x += Math.cos(spider.angle) * speed;
+    spider.y += Math.sin(spider.angle) * speed;
+    
+    // Jitter affected by high frequencies
+    const jitter = high * settings.jitterAmount;
+    spider.x += (Math.random() - 0.5) * jitter * spider.size;
+    spider.y += (Math.random() - 0.5) * jitter * spider.size;
+    
+    // Wrap around edges
+    if (spider.x < -50) spider.x = width + 50;
+    if (spider.x > width + 50) spider.x = -50;
+    if (spider.y < -50) spider.y = height + 50;
+    if (spider.y > height + 50) spider.y = -50;
+    
+    // Draw the spider
+    drawSpider(spider, bass, high);
+    
+    // Hunting behavior - find nearest spider to chase
+    if (settings.bloodThirsty && Math.random() < 0.02) {
+      let closestDist = Infinity;
+      let closestIndex = -1;
+      
+      // Find closest spider that's smaller
+      for (let j = 0; j < spiders.length; j++) {
+        if (i === j || spiders[j].size >= spider.size) continue;
+        
+        const dx = spiders[j].x - spider.x;
+        const dy = spiders[j].y - spider.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestIndex = j;
+        }
+      }
+      
+      // If found a smaller spider nearby, turn towards it
+      if (closestIndex >= 0 && closestDist < 200) {
+        const targetAngle = Math.atan2(
+          spiders[closestIndex].y - spider.y,
+          spiders[closestIndex].x - spider.x
+        );
+        
+        // Gradually turn towards prey
+        const angleDiff = targetAngle - spider.angle;
+        spider.angle += Math.sign(angleDiff) * 0.1;
+        
+        // If very close, eat the smaller spider
+        if (closestDist < spider.size) {
+          // Grow slightly
+          spider.size = Math.min(settings.maxSize * 1.2, spider.size * 1.1);
+          
+          // Remove eaten spider with gruesome effect
+          createDeathEffect(spiders[closestIndex]);
+          spiders.splice(closestIndex, 1);
+          if (closestIndex < i) i--; // Adjust current index if needed
+        }
+      }
+    }
+  }
+}
+
+function createSpider() {
+  // Create a spider at a random position
+  const spider = {
+    x: Math.random() * width,
+    y: Math.random() * height,
+    size: settings.minSize + Math.random() * (settings.maxSize - settings.minSize),
+    angle: Math.random() * Math.PI * 2,
+    legPhases: [],
+    baseSpeed: 0.5 + Math.random() * 1.5,
+    color: {
+      r: 20 + Math.random() * 30,
+      g: 0 + Math.random() * 20,
+      b: 0 + Math.random() * 20
+    },
+    legLength: null, // Will be set based on size
+    legWidth: null   // Will be set based on size
+  };
+  
+  // Generate random leg phases for natural movement
+  for (let i = 0; i < settings.legCount; i++) {
+    spider.legPhases.push(Math.random() * Math.PI * 2);
+  }
+  
+  // Set leg length and width based on size
+  spider.legLength = spider.size * 2;
+  spider.legWidth = Math.max(1, spider.size * 0.15);
+  
+  spiders.push(spider);
+}
+
+function drawSpider(spider, bass, high) {
+  // Don't draw if off-screen
+  if (spider.x < -100 || spider.x > width + 100 || 
+      spider.y < -100 || spider.y > height + 100) {
+    return;
+  }
+  
+  context.save();
+  context.translate(spider.x, spider.y);
+  context.rotate(spider.angle);
+  
+  // Draw legs
+  const legCount = settings.legCount;
+  const baseAngleStep = Math.PI * 2 / legCount;
+  
+  for (let i = 0; i < legCount; i++) {
+    const isLeftSide = i < legCount / 2;
+    const legIndex = isLeftSide ? i : i - legCount / 2;
+    
+    // Calculate base angle for this leg
+    const baseAngle = isLeftSide ? 
+      -Math.PI/2 + legIndex * baseAngleStep : 
+      Math.PI/2 + legIndex * baseAngleStep;
+    
+    // Add animation to leg angle - affected by bass and high frequencies
+    const animSpeed = 0.1 * (0.8 + bass * 0.4);
+    const animAmount = 0.3 + high * 0.3;
+    spider.legPhases[i] += animSpeed;
+    const animAngle = Math.sin(spider.legPhases[i]) * animAmount;
+    
+    // Final leg angle
+    const legAngle = baseAngle + animAngle;
+    
+    // Calculate leg segment lengths
+    const innerLength = spider.legLength * 0.4;
+    const outerLength = spider.legLength * 0.6;
+    
+    // Calculate joint positions
+    const jointX = Math.cos(legAngle) * innerLength;
+    const jointY = Math.sin(legAngle) * innerLength;
+    
+    // Calculate outer segment angle - make it bend at the joint
+    const outerAngle = legAngle + (isLeftSide ? -0.8 : 0.8) + animAngle * 0.5;
+    
+    // Calculate end position
+    const endX = jointX + Math.cos(outerAngle) * outerLength;
+    const endY = jointY + Math.sin(outerAngle) * outerLength;
+    
+    // Draw the leg
+    context.strokeStyle = `rgba(${spider.color.r}, ${spider.color.g}, ${spider.color.b}, 0.8)`;
+    context.lineWidth = spider.legWidth;
+    context.lineCap = 'round';
+    
+    context.beginPath();
+    context.moveTo(0, 0);
+    context.lineTo(jointX, jointY);
+    context.lineTo(endX, endY);
+    context.stroke();
+  }
+  
+  // Draw body segments (thorax and abdomen)
+  const thoraxSize = spider.size * 0.6;
+  const abdomenSize = spider.size;
+  
+  // Thorax (front segment)
+  context.fillStyle = `rgb(${spider.color.r}, ${spider.color.g}, ${spider.color.b})`;
+  context.beginPath();
+  context.arc(0, 0, thoraxSize, 0, Math.PI * 2);
+  context.fill();
+  
+  // Abdomen (rear segment)
+  context.fillStyle = `rgb(${spider.color.r + 10}, ${spider.color.g}, ${spider.color.b + 5})`;
+  context.beginPath();
+  context.arc(-thoraxSize - abdomenSize/2, 0, abdomenSize, 0, Math.PI * 2);
+  context.fill();
+  
+  // Draw eyes (extra creepy)
+  const eyeSize = spider.size * 0.15;
+  const eyeDistance = spider.size * 0.2;
+  
+  context.fillStyle = "rgba(255, 255, 255, 0.9)";
+  
+  // Draw 4 eyes
+  for (let i = 0; i < 4; i++) {
+    const row = Math.floor(i / 2);
+    const col = i % 2;
+    const eyeX = eyeDistance * (col === 0 ? -0.5 : 0.5);
+    const eyeY = eyeDistance * (row === 0 ? -0.5 : 0.5);
+    
+    context.beginPath();
+    context.arc(eyeX, eyeY, eyeSize, 0, Math.PI * 2);
+    context.fill();
+    
+    // Draw pupils
+    context.fillStyle = "rgba(0, 0, 0, 0.9)";
+    context.beginPath();
+    context.arc(
+      eyeX + eyeSize * 0.3, 
+      eyeY - eyeSize * 0.1, 
+      eyeSize * 0.5, 0, Math.PI * 2
+    );
+    context.fill();
+    
+    context.fillStyle = "rgba(255, 255, 255, 0.9)";
+  }
+  
+  context.restore();
+}
+
+function createDeathEffect(spider) {
+  // Simple "death effect" - splash of darker fluid
+  context.fillStyle = "rgba(80, 0, 0, 0.6)";
+  context.beginPath();
+  context.arc(spider.x, spider.y, spider.size * 1.5, 0, Math.PI * 2);
+  context.fill();
+  
+  // Add some small splatter
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = spider.size * (0.8 + Math.random() * 1.2);
+    const splatterX = spider.x + Math.cos(angle) * dist;
+    const splatterY = spider.y + Math.sin(angle) * dist;
+    const splatterSize = spider.size * (0.2 + Math.random() * 0.4);
+    
+    context.beginPath();
+    context.arc(splatterX, splatterY, splatterSize, 0, Math.PI * 2);
+    context.fill();
+  }
+}

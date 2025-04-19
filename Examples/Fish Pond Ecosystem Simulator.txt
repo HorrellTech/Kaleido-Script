@@ -1,0 +1,599 @@
+// Fish Pond Ecosystem Simulator
+// Fish eat each other, grow, and avoid being caught by a fisherman
+
+// Global variables
+let fishes = [];
+let fisherman = null;
+let fishingLine = null;
+let ripples = [];
+let nextFishId = 0;
+let ctx = this.context;
+let t = 0;
+
+// Settings
+const settings = {
+  initialFish: 20,        // Starting number of fish
+  pondColor: [20, 80, 120],  // Water color
+  shoreColor: [194, 178, 128], // Sand color
+  maxFishSize: 30,        // Maximum fish size
+  startSizeRange: [3, 8], // Initial fish size range
+  respawnTime: 3,         // Seconds before respawning
+  growFactor: 1.2,        // Growth multiplier when eating
+  fishingFrequency: 2,    // Seconds between casting
+  fishingDuration: 4      // Seconds fishing line stays in water
+};
+
+// Setup function
+function setup() {
+  // Create the fisherman
+  fisherman = {
+    x: width * 0.9,
+    y: height * 0.3,
+    size: 30,
+    lastCastTime: 0,
+    isCasting: false,
+    catchChance: 0.6     // Probability of catching a fish when close
+  };
+  
+  // Create initial fish
+  for (let i = 0; i < settings.initialFish; i++) {
+    fishes.push(createFish(false));
+  }
+}
+
+// Main draw function
+function draw(time) {
+  t = time;
+  // Draw pond background
+  background(settings.pondColor[0], settings.pondColor[1], settings.pondColor[2]);
+  
+  // Draw shore/land on right side
+  fill(settings.shoreColor[0], settings.shoreColor[1], settings.shoreColor[2]);
+  ctx.beginPath();
+  ctx.moveTo(width * 0.8, 0);
+  ctx.bezierCurveTo(
+    width * 0.7, height * 0.3,
+    width * 0.75, height * 0.6,
+    width * 0.8, height
+  );
+  ctx.lineTo(width, height);
+  ctx.lineTo(width, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Update ripples
+  updateRipples(time);
+  
+  // Update fisherman actions
+  updateFisherman(time);
+  
+  // Update all fish
+  updateFish(time);
+  
+  stroke(64, 96, 255, 0.5);
+  fill(64, 96, 255, 0.5);
+  visualCircular(width/2, height/2, 100, 200, 64, 20, 2000, time*0.001, true);
+  
+  visualBar(0, height, width, 100, 164, 2, 2, 0, true, true);
+  stroke(255, 255, 255, 1);
+  fill(255, 255, 255, 1);
+  
+  // Draw fisherman
+  drawFisherman();
+}
+
+// Create a new fish
+function createFish(isRespawn = false) {
+  // Determine fish size (either starting size or small for respawn)
+  const minSize = settings.startSizeRange[0];
+  const maxSize = settings.startSizeRange[1];
+  const size = minSize + Math.random() * (maxSize - minSize);
+  
+  // For respawning fish, start tiny and grow to size
+  const actualSize = isRespawn ? 0.01 : size;
+  
+  // Generate random fish color
+  const fishColor = [
+    Math.floor(Math.random() * 255),
+    Math.floor(Math.random() * 255),
+    Math.floor(Math.random() * 255)
+  ];
+  
+  // Create the fish object
+  return {
+    id: nextFishId++,
+    x: Math.random() * width * 0.7,  // Keep away from shore
+    y: Math.random() * height,
+    size: actualSize,
+    targetSize: size,  // Size to grow to (for respawning animation)
+    angle: Math.random() * Math.PI * 2,
+    speed: 1 + Math.random() * 2,
+    turnSpeed: 0.02 + Math.random() * 0.06,
+    color: fishColor,
+    targetX: null,
+    targetY: null,
+    targetTime: 0,
+    caught: false,
+    tailAngle: 0,
+    tailSpeed: 5 + Math.random() * 5,
+    // Add small respawn delay for dead fish
+    respawnTime: isRespawn ? t + settings.respawnTime * Math.random() : 0,
+    // Is this fish actively respawning?
+    respawning: isRespawn
+  };
+}
+
+// Update all fish
+function updateFish(time) {
+  for (let i = fishes.length - 1; i >= 0; i--) {
+    const fish = fishes[i];
+    
+    // Handle respawning fish
+    if (fish.respawning) {
+      // Check if it's time to start growing
+      if (time >= fish.respawnTime) {
+        // Grow gradually to target size
+        fish.size = fish.size * 0.9 + fish.targetSize * 0.1;
+        
+        // When close enough to target size, finish respawning
+        if (fish.size > fish.targetSize * 0.95) {
+          fish.size = fish.targetSize;
+          fish.respawning = false;
+        }
+      }
+    }
+    
+    // Skip further updates for fish still waiting to respawn
+    if (fish.respawnTime > time) continue;
+    
+    // Update fish behavior
+    updateFishBehavior(fish, time);
+    
+    // Move the fish if not caught
+    if (!fish.caught) {
+      moveFish(fish);
+      
+      // Check for eating other fish
+      for (let j = fishes.length - 1; j >= 0; j--) {
+        if (i !== j && canEat(fish, fishes[j])) {
+          eatFish(fish, fishes[j], i, j);
+          break; // Stop after eating one fish
+        }
+      }
+    }
+    else {
+      // If caught, move to fishing line hook
+      if (fishingLine) {
+        fish.x = fishingLine.hookX;
+        fish.y = fishingLine.hookY;
+      }
+    }
+    
+    // Draw the fish
+    drawFish(fish);
+  }
+}
+
+// Check if fish1 can eat fish2
+function canEat(fish1, fish2) {
+  // Can't eat if either fish is caught or respawning
+  if (fish1.caught || fish2.caught || fish1.respawning || fish2.respawning) return false;
+  
+  // Fish must be significantly bigger to eat another fish
+  if (fish1.size > fish2.size * 1.5) {
+    const dx = fish1.x - fish2.x;
+    const dy = fish1.y - fish2.y;
+    const distance = Math.sqrt(dx*dx + dy*dy);
+    // Fish needs to be close enough to eat
+    return distance < fish1.size;
+  }
+  return false;
+}
+
+// Fish1 eats fish2
+function eatFish(fish1, fish2, index1, index2) {
+  // Grow the fish that ate (with maximum size limit)
+  fish1.size = Math.min(settings.maxFishSize, fish1.size * settings.growFactor);
+  
+  // Create ripple effect where fish was eaten
+  createRipple(fish2.x, fish2.y, 10, fish2.color);
+  
+  // Add a respawning fish
+  fishes.push(createFish(true));
+  
+  // Remove the eaten fish
+  fishes.splice(index2, 1);
+}
+
+// Update fish behavior
+function updateFishBehavior(fish, time) {
+  // Find new target occasionally or if reached current target
+  if (fish.targetTime < time || 
+      (fish.targetX !== null && 
+       distanceBetween(fish.x, fish.y, fish.targetX, fish.targetY) < fish.size)) {
+    
+    // Choose a behavior
+    const behavior = Math.random();
+    
+    if (behavior < 0.7) {
+      // Random swimming
+      fish.targetX = Math.random() * width * 0.7; // Stay away from shore
+      fish.targetY = Math.random() * height;
+    } 
+    else if (behavior < 0.85 && fishes.length > 1) {
+      // Chase smaller fish
+      const targets = fishes.filter(other => 
+        other !== fish && other.size < fish.size * 0.7 && !other.respawning);
+      
+      if (targets.length > 0) {
+        const target = targets[Math.floor(Math.random() * targets.length)];
+        fish.targetX = target.x;
+        fish.targetY = target.y;
+      }
+    } 
+    else {
+      // Avoid bigger fish
+      const threats = fishes.filter(other => 
+        other !== fish && other.size > fish.size * 1.5 && !other.respawning);
+      
+      if (threats.length > 0) {
+        const threat = threats[Math.floor(Math.random() * threats.length)];
+        // Swim away from threat
+        const dx = fish.x - threat.x;
+        const dy = fish.y - threat.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        fish.targetX = fish.x + (dx/dist) * 100;
+        fish.targetY = fish.y + (dy/dist) * 100;
+      }
+    }
+    
+    // Set new target time
+    fish.targetTime = time + 1 + Math.random() * 2;
+  }
+  
+  // Avoid fishing hook
+  avoidFishingHook(fish);
+  
+  // Avoid shore (right side)
+  if (fish.x > width * 0.75) {
+    fish.targetX = width * 0.7;
+  }
+}
+
+// Move fish toward its target
+function moveFish(fish) {
+  // Update tail animation
+  fish.tailAngle = Math.sin(Date.now() / 200 * fish.tailSpeed) * 0.3;
+  
+  // If fish has a target, swim toward it
+  if (fish.targetX !== null && fish.targetY !== null) {
+    const dx = fish.targetX - fish.x;
+    const dy = fish.targetY - fish.y;
+    const targetAngle = Math.atan2(dy, dx);
+    
+    // Gradually turn toward target
+    let angleChange = targetAngle - fish.angle;
+    
+    // Normalize angle change to -PI to PI
+    while (angleChange > Math.PI) angleChange -= Math.PI * 2;
+    while (angleChange < -Math.PI) angleChange += Math.PI * 2;
+    
+    // Limit turning speed
+    angleChange = Math.max(-fish.turnSpeed, Math.min(fish.turnSpeed, angleChange));
+    fish.angle += angleChange;
+  }
+  
+  // Move forward
+  fish.x += Math.cos(fish.angle) * fish.speed;
+  fish.y += Math.sin(fish.angle) * fish.speed;
+  
+  // Wrap around screen edges
+  if (fish.x < -fish.size) fish.x = width + fish.size;
+  if (fish.x > width + fish.size) fish.x = -fish.size;
+  if (fish.y < -fish.size) fish.y = height + fish.size;
+  if (fish.y > height + fish.size) fish.y = -fish.size;
+}
+
+// Draw fish
+function drawFish(fish) {
+  // Don't draw zero-size fish (just starting respawn)
+  if (fish.size < 0.1) return;
+  
+  // Save context state
+  ctx.save();
+  
+  // Move to fish position and rotate
+  ctx.translate(fish.x, fish.y);
+  ctx.rotate(fish.angle);
+  
+  // Get fish size (adjust for respawning animation)
+  const s = fish.size;
+  
+  // Draw fish body
+  ctx.fillStyle = `rgb(${fish.color[0]}, ${fish.color[1]}, ${fish.color[2]})`;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, s, s/2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw tail
+  ctx.save();
+  ctx.rotate(fish.tailAngle);
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.8, 0);
+  ctx.lineTo(-s * 1.5, -s * 0.6);
+  ctx.lineTo(-s * 1.5, s * 0.6);
+  ctx.closePath();
+  ctx.fillStyle = `rgba(${fish.color[0]}, ${fish.color[1]}, ${fish.color[2]}, 0.8)`;
+  ctx.fill();
+  ctx.restore();
+  
+  // Draw eye
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(s * 0.3, -s * 0.15, s * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = "black";
+  ctx.beginPath();
+  ctx.arc(s * 0.35, -s * 0.15, s * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Restore context
+  ctx.restore();
+}
+
+// Check if fish is near fishing hook and decide whether to bite
+function avoidFishingHook(fish) {
+  if (!fishingLine) return;
+  
+  const distToHook = distanceBetween(fish.x, fish.y, fishingLine.hookX, fishingLine.hookY);
+  
+  // Skip if already caught or hook is too far
+  if (fish.caught || distToHook > 50) return;
+  
+  // Small fish might bite hook (bigger chance for smaller fish)
+  if (fish.size < 15) {
+    const biteChance = 0.002 / (fish.size / 10);
+    
+    if (Math.random() < biteChance) {
+      // Fish caught!
+      fish.caught = true;
+      fishingLine.hasCatch = true;
+      createRipple(fishingLine.hookX, fishingLine.hookY, 15);
+    }
+  }
+  
+  // Medium and large fish avoid the hook
+  if (fish.size > 10 && distToHook < 30) {
+    // Swim away from hook
+    const dx = fish.x - fishingLine.hookX;
+    const dy = fish.y - fishingLine.hookY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    fish.targetX = fish.x + (dx/dist) * 50;
+    fish.targetY = fish.y + (dy/dist) * 50;
+  }
+}
+
+// Create a ripple effect
+function createRipple(x, y, size, color = [255, 255, 255]) {
+  ripples.push({
+    x: x,
+    y: y,
+    color: color,
+    maxSize: size * 3,
+    size: size,
+    alpha: 0.7,
+    growth: size * 0.7
+  });
+}
+
+// Update ripple effects
+function updateRipples() {
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    const ripple = ripples[i];
+    
+    // Grow ripple
+    ripple.size += ripple.growth;
+    ripple.alpha -= 0.02;
+    
+    // Draw ripple
+    ctx.strokeStyle = `rgba(${ripple.color[0]}, ${ripple.color[1]}, ${ripple.color[2]}, ${ripple.alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ripple.x, ripple.y, ripple.size, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Remove faded ripples
+    if (ripple.alpha <= 0 || ripple.size >= ripple.maxSize) {
+      ripples.splice(i, 1);
+    }
+  }
+}
+
+// Update fisherman actions
+function updateFisherman(time) {
+  // Cast fishing line occasionally
+  if (!fishingLine && time - fisherman.lastCastTime > settings.fishingFrequency) {
+    castFishingLine(time);
+  }
+  
+  // Update existing fishing line
+  if (fishingLine) {
+    // Check if line has been in water long enough
+    if (time - fishingLine.castTime > settings.fishingDuration || fishingLine.hasCatch) {
+      // Reel in the line
+      reelInFishingLine(time);
+    }
+    
+    // Draw fishing line
+    drawFishingLine();
+  }
+}
+
+// Cast a fishing line
+function castFishingLine(time) {
+  // Choose a random spot to cast
+  const castX = width * 0.3 + Math.random() * (width * 0.4);
+  const castY = height * 0.2 + Math.random() * (height * 0.6);
+  
+  fishingLine = {
+    castTime: time,
+    reelTime: null,
+    hookX: castX,
+    hookY: castY,
+    hasCatch: false
+  };
+  
+  // Create ripple at cast location
+  createRipple(castX, castY, 20);
+  
+  // Update last cast time
+  fisherman.lastCastTime = time;
+}
+
+// Reel in the fishing line
+function reelInFishingLine() {
+  // If we caught a fish, deal with it
+  if (fishingLine.hasCatch) {
+    for (let i = 0; i < fishes.length; i++) {
+      if (fishes[i].caught) {
+        // Check if fish is small or large
+        if (fishes[i].size < 15) {
+          // Throw small fish back - it gets a second chance
+          fishes[i].caught = false;
+          createRipple(fishingLine.hookX, fishingLine.hookY, 15);
+        } else {
+          // Keep big fish - it's replaced by a new baby fish
+          createRipple(fishingLine.hookX, fishingLine.hookY, fishes[i].size);
+          // Create a new fish to replace it
+          fishes.push(createFish(true));
+          // Remove caught fish
+          fishes.splice(i, 1);
+        }
+        break;
+      }
+    }
+  }
+  
+  // Remove fishing line
+  fishingLine = null;
+}
+
+// Draw fishing line
+function drawFishingLine() {
+  if (!fishingLine) return;
+  
+  // Draw line from fisherman to hook
+  ctx.strokeStyle = 'rgba(150, 150, 150, 0.8)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(fisherman.x, fisherman.y);
+  ctx.lineTo(fishingLine.hookX, fishingLine.hookY);
+  ctx.stroke();
+  
+  // Draw hook
+  ctx.fillStyle = 'rgba(50, 50, 50, 0.8)';
+  ctx.beginPath();
+  ctx.arc(fishingLine.hookX, fishingLine.hookY, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Draw the fisherman
+function drawFisherman() {
+  const x = fisherman.x;
+  const y = fisherman.y;
+  const size = fisherman.size;
+  
+  // Draw body
+  ctx.fillStyle = '#8B4513';
+  ctx.fillRect(x - size/4, y - size/2, size/2, size);
+  
+  // Draw head
+  ctx.fillStyle = '#FFE0BD';
+  ctx.beginPath();
+  ctx.arc(x, y - size/2, size/3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw fishing rod
+  ctx.strokeStyle = '#8B4513';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x, y - size/4);
+  ctx.lineTo(x - size, y - size);
+  ctx.stroke();
+}
+
+/**
+ * Begins a custom shape drawing sequence
+ * Use with vertex() calls and endShape() to create complex shapes
+ * 
+ * @param {String} mode - (Optional) Drawing mode: "CLOSE" to automatically close the shape
+ */
+function beginShape(mode) {
+  // Access global context
+  //const ctx = this.context || window.ctx;
+  
+  // Start a new path
+  ctx.beginPath();
+  
+  // Store the mode for later use in endShape
+  this._shapeMode = mode;
+  
+  // Track if we've added any vertices yet
+  this._shapeStarted = false;
+}
+
+/**
+ * Adds a vertex to the shape currently being built
+ * 
+ * @param {Number} x - X coordinate of the vertex
+ * @param {Number} y - Y coordinate of the vertex
+ */
+function vertex(x, y) {
+  //const ctx = this.context || window.ctx;
+  
+  // If this is the first vertex, moveTo instead of lineTo
+  if (!this._shapeStarted) {
+    ctx.moveTo(x, y);
+    this._shapeStarted = true;
+    
+    // Store first vertex coordinates in case we need to close the shape
+    this._firstVertex = { x, y };
+  } else {
+    // Connect to this vertex with a line
+    ctx.lineTo(x, y);
+  }
+}
+
+/**
+ * Ends and draws the custom shape
+ * 
+ * @param {Boolean} filled - Whether to fill the shape (true) or just stroke it (false)
+ */
+function endShape(filled = true) {
+  //const ctx = this.context || window.ctx;
+  
+  // Close the shape if the mode was "CLOSE"
+  if (this._shapeMode === "CLOSE" && this._firstVertex) {
+    ctx.lineTo(this._firstVertex.x, this._firstVertex.y);
+  }
+  
+  // Draw the shape
+  if (filled) {
+    ctx.fill();
+  }
+  
+  ctx.stroke();
+  
+  // Reset shape variables
+  this._shapeMode = null;
+  this._shapeStarted = false;
+  this._firstVertex = null;
+}
+
+// Calculate distance between two points
+function distanceBetween(x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  return Math.sqrt(dx*dx + dy*dy);
+}

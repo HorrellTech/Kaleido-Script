@@ -1,0 +1,515 @@
+// Hypnotic Strings Audio Visualizer
+// Created by GitHub Copilot
+// Responsive strings that oscillate and twang based on audio frequencies
+
+// SETTINGS - Adjust these to customize the visualization
+const settings = {
+  // General settings
+  bgColor: { r: 5, g: 2, b: 15 },     // Dark background color
+  padding: 32,                        // Screen edge padding
+  
+  // String settings
+  stringCount: 7,                     // Number of string lines
+  stringBaseWidth: 3,                 // Base thickness of strings
+  stringSegments: 25,                 // Number of segments per string
+  stringTension: 0.85,                // How tight the strings are (0-1)
+  
+  // Motion settings
+  twangIntensity: 3.5,                // How much strings twang when activated
+  twangDecay: 0.94,                   // How quickly the twang decays (closer to 1 = longer)
+  wanderSpeed: 0.6,                   // How quickly the string anchors move
+  frequencySensitivity: 1.8,          // Sensitivity to frequency detection
+  sineWaveMagnitude: 8.0,             // How pronounced the sine wave oscillation is
+  sineWaveSpeed: 2.0,                 // Speed of sine wave oscillation
+  
+  // Visual effects
+  blurAmount: 10,                     // Amount of blur for trails
+  glowIntensity: 0.8,                 // Intensity of the glow effect
+  trailOpacity: 0.18,                 // Opacity of the trails (lower = less intense)
+  
+  // Color settings
+  useRainbow: true,                   // Whether to use rainbow gradient or individual colors
+  stringColors: [
+    { r: 255, g: 40, b: 100 },        // Pink
+    { r: 255, g: 100, b: 0 },         // Orange
+    { r: 255, g: 255, b: 0 },         // Yellow
+    { r: 0, g: 255, b: 70 },          // Green
+    { r: 0, g: 180, b: 255 },         // Cyan
+    { r: 80, g: 40, b: 255 },         // Blue
+    { r: 200, g: 0, b: 255 }          // Purple
+  ]
+};
+
+// Data structure for the strings
+let strings = [];
+
+// Offscreen canvas for the glow effect
+let offscreenCanvas, offscreenContext;
+
+// Setup function runs once at the beginning
+function setup() {
+  log("Hypnotic Strings visualizer starting up");
+  
+  // Create offscreen canvas for glow effects
+  offscreenCanvas = document.createElement('canvas');
+  offscreenCanvas.width = width;
+  offscreenCanvas.height = height;
+  offscreenContext = offscreenCanvas.getContext('2d');
+  
+  // Try to load audio
+  if (window.audioProcessor) {
+    try {
+      loadAudio("Music/Wild Card.wav");
+      playAudio();
+      log("Audio loaded and playing");
+    } catch (e) {
+      log("No audio specified or error loading audio", "warning");
+    }
+  }
+  
+  // Initialize the string objects
+  createStrings();
+  
+  // Set initial background
+  background(settings.bgColor.r, settings.bgColor.g, settings.bgColor.b);
+}
+
+// Create string objects with their properties
+function createStrings() {
+  for (let i = 0; i < settings.stringCount; i++) {
+    // Each string gets a dedicated frequency range
+    // Lower strings = lower frequencies, higher strings = higher frequencies
+    const baseFreq = 80 + Math.pow(i + 1, 1.5) * 90; // Exponential frequency distribution
+    
+    // Get color for this string
+    const color = settings.stringColors[i % settings.stringColors.length];
+    
+    // Create random start and end points
+    const startX = Math.random() * (width - settings.padding * 2) + settings.padding;
+    const startY = Math.random() * (height - settings.padding * 2) + settings.padding;
+    const endX = Math.random() * (width - settings.padding * 2) + settings.padding;
+    const endY = Math.random() * (height - settings.padding * 2) + settings.padding;
+    
+    // Generate control points along the string
+    const points = [];
+    for (let j = 0; j <= settings.stringSegments; j++) {
+      // Linear interpolation between start and end points
+      const t = j / settings.stringSegments;
+      const baseX = startX + (endX - startX) * t;
+      const baseY = startY + (endY - startY) * t;
+      
+      points.push({
+        baseX: baseX,
+        baseY: baseY,
+        x: baseX,
+        y: baseY,
+        prevX: baseX,
+        prevY: baseY,
+        vx: 0,
+        vy: 0,
+        phase: Math.random() * Math.PI * 2 // Random phase for sine wave
+      });
+    }
+    
+    // Add the string object to our collection
+    strings.push({
+      frequency: baseFreq,
+      points: points,
+      color: color,
+      
+      // Movement of anchor points
+      startPoint: {
+        x: startX, 
+        y: startY,
+        vx: (Math.random() - 0.5) * settings.wanderSpeed * 0.5,
+        vy: (Math.random() - 0.5) * settings.wanderSpeed * 0.5
+      },
+      endPoint: {
+        x: endX, 
+        y: endY,
+        vx: (Math.random() - 0.5) * settings.wanderSpeed * 0.5,
+        vy: (Math.random() - 0.5) * settings.wanderSpeed * 0.5
+      },
+      
+      // String animation properties
+      active: false,
+      energy: 0,
+      lastActive: 0
+    });
+  }
+}
+
+// Draw function runs on every frame
+function draw(time) {
+  // Apply a semi-transparent background for trail effect
+  fill(settings.bgColor.r, settings.bgColor.g, settings.bgColor.b, settings.trailOpacity);
+  rect(0, 0, width, height);
+  
+  // Clear the offscreen canvas for glow effects
+  offscreenContext.clearRect(0, 0, width, height);
+  
+  // Get overall audio level for global effects
+  const bassLevel = window.audiohz ? audiohz(100) : 0.5;
+  const midLevel = window.audiohz ? audiohz(1000) : 0.5;
+  const highLevel = window.audiohz ? audiohz(5000) : 0.5;
+  const overallLevel = (bassLevel * 3 + midLevel * 2 + highLevel) / 6;
+  
+  // Update and draw each string
+  strings.forEach((string, index) => {
+    // Get frequency response for this string's frequency
+    const freqResponse = window.audiohz ? 
+      audiohz(string.frequency) : 
+      0.2 + 0.15 * Math.sin(time/1000 + index * 0.7);
+    
+    // Amplify and threshold the frequency response
+    const amplifiedResponse = Math.pow(freqResponse, 1.5) * settings.frequencySensitivity;
+    
+    // Check if this frequency is active (above threshold)
+    const activationThreshold = 0.15;
+    const isActive = amplifiedResponse > activationThreshold;
+    
+    // Move string anchor points
+    updateStringAnchors(string, time, bassLevel);
+    
+    // Update string physics and position
+    updateStringPhysics(string, time, isActive, amplifiedResponse, bassLevel);
+    
+    // Apply sine wave oscillation
+    applySineWaveEffect(string, time, midLevel, highLevel);
+    
+    // Draw the string to the offscreen canvas for glow effect
+    drawString(offscreenContext, string, time, amplifiedResponse, index, overallLevel);
+    
+    // Now draw the string to the main canvas
+    drawString(context, string, time, amplifiedResponse, index, overallLevel);
+  });
+  
+  // Apply the glow effect
+  applyGlowEffect();
+}
+
+// Update the string anchor points (start and end)
+function updateStringAnchors(string, time, bassLevel) {
+  const padding = settings.padding;
+  const wanderFactor = 1 + bassLevel * 1.5; // Bass makes movement more erratic
+  
+  // Update start point
+  const start = string.startPoint;
+  start.x += start.vx * wanderFactor;
+  start.y += start.vy * wanderFactor;
+  
+  // Bounce off edges with some randomness
+  if (start.x < padding || start.x > width - padding) {
+    start.vx *= -1;
+    start.vx += (Math.random() - 0.5) * 0.1;
+    start.x = Math.max(padding, Math.min(width - padding, start.x));
+  }
+  if (start.y < padding || start.y > height - padding) {
+    start.vy *= -1;
+    start.vy += (Math.random() - 0.5) * 0.1;
+    start.y = Math.max(padding, Math.min(height - padding, start.y));
+  }
+  
+  // Update end point
+  const end = string.endPoint;
+  end.x += end.vx * wanderFactor;
+  end.y += end.vy * wanderFactor;
+  
+  // Bounce off edges with some randomness
+  if (end.x < padding || end.x > width - padding) {
+    end.vx *= -1;
+    end.vx += (Math.random() - 0.5) * 0.1;
+    end.x = Math.max(padding, Math.min(width - padding, end.x));
+  }
+  if (end.y < padding || end.y > height - padding) {
+    end.vy *= -1;
+    end.vy += (Math.random() - 0.5) * 0.1;
+    end.y = Math.max(padding, Math.min(height - padding, end.y));
+  }
+  
+  // Apply some damping to avoid too much speed
+  start.vx *= 0.99;
+  start.vy *= 0.99;
+  end.vx *= 0.99;
+  end.vy *= 0.99;
+  
+  // Add some random acceleration for organic movement
+  start.vx += (Math.random() - 0.5) * 0.01;
+  start.vy += (Math.random() - 0.5) * 0.01;
+  end.vx += (Math.random() - 0.5) * 0.01;
+  end.vy += (Math.random() - 0.5) * 0.01;
+  
+  // Update the base positions of the first and last points
+  string.points[0].baseX = start.x;
+  string.points[0].baseY = start.y;
+  string.points[string.points.length - 1].baseX = end.x;
+  string.points[string.points.length - 1].baseY = end.y;
+  
+  // Recalculate all base positions along the string
+  for (let i = 1; i < string.points.length - 1; i++) {
+    const t = i / (string.points.length - 1);
+    string.points[i].baseX = start.x + (end.x - start.x) * t;
+    string.points[i].baseY = start.y + (end.y - start.y) * t;
+  }
+}
+
+// Update the string physics based on activation and time
+function updateStringPhysics(string, time, isActive, responseLevel, bassLevel) {
+  // If the string becomes active and wasn't active recently, trigger a twang
+  const activationDelay = 300; // ms between activations
+  if (isActive && time - string.lastActive > activationDelay) {
+    string.energy = responseLevel * settings.twangIntensity;
+    string.lastActive = time;
+    string.active = true;
+  }
+  
+  // Apply energy decay over time
+  string.energy *= settings.twangDecay;
+  
+  // If energy is very low, consider the string inactive
+  if (string.energy < 0.01) {
+    string.active = false;
+    string.energy = 0;
+  }
+  
+  // Apply physics to the string points
+  const points = string.points;
+  const tension = settings.stringTension;
+  
+  // Fix the endpoints to the anchor positions
+  points[0].x = string.startPoint.x;
+  points[0].y = string.startPoint.y;
+  points[points.length - 1].x = string.endPoint.x;
+  points[points.length - 1].y = string.endPoint.y;
+  
+  // Save previous positions
+  for (let i = 0; i < points.length; i++) {
+    points[i].prevX = points[i].x;
+    points[i].prevY = points[i].y;
+  }
+  
+  // Apply string physics (Verlet integration)
+  for (let i = 1; i < points.length - 1; i++) {
+    const point = points[i];
+    
+    // Calculate forces from neighboring points
+    const leftDeltaX = points[i-1].x - point.x;
+    const leftDeltaY = points[i-1].y - point.y;
+    const rightDeltaX = points[i+1].x - point.x;
+    const rightDeltaY = points[i+1].y - point.y;
+    
+    // Calculate acceleration based on tension and neighboring points
+    const accX = (leftDeltaX + rightDeltaX) * tension;
+    const accY = (leftDeltaY + rightDeltaY) * tension;
+    
+    // Add a force towards the base position (the string's rest position)
+    const baseForce = 0.01;
+    const toBaseX = (point.baseX - point.x) * baseForce;
+    const toBaseY = (point.baseY - point.y) * baseForce;
+    
+    // Update velocity with damping
+    point.vx = point.vx * 0.95 + accX + toBaseX;
+    point.vy = point.vy * 0.95 + accY + toBaseY;
+    
+    // Update position
+    point.x += point.vx;
+    point.y += point.vy;
+  }
+  
+  // Apply a twang if the string is active
+  if (string.active) {
+    const centerIndex = Math.floor(points.length / 2);
+    const twangForce = string.energy * (1 + bassLevel * 0.5);
+    
+    // Create a bell curve of displacement across the string
+    for (let i = 1; i < points.length - 1; i++) {
+      // Calculate distance from center (normalized 0-1)
+      const distFromCenter = Math.abs(i - centerIndex) / centerIndex;
+      // Apply bell-shaped curve for nice twang
+      const displacement = twangForce * Math.sin((1 - distFromCenter) * Math.PI);
+      
+      // Add some randomness to the twang direction
+      const direction = Math.sin(time / 200 + i * 0.1) > 0 ? 1 : -1;
+      
+      // Apply the twang force as perpendicular to the string
+      const dx = points[i+1].x - points[i-1].x;
+      const dy = points[i+1].y - points[i-1].y;
+      const length = Math.sqrt(dx*dx + dy*dy);
+      
+      if (length > 0) {
+        // Calculate perpendicular direction
+        const perpX = -dy / length;
+        const perpY = dx / length;
+        
+        // Apply force
+        points[i].vx += perpX * displacement * direction * 0.2;
+        points[i].vy += perpY * displacement * direction * 0.2;
+      }
+    }
+  }
+}
+
+// Apply sine wave oscillation effect to the string
+function applySineWaveEffect(string, time, midLevel, highLevel) {
+  const points = string.points;
+  
+  // Calculate the baseline for the string (line from start to end)
+  const startX = points[0].x;
+  const startY = points[0].y;
+  const endX = points[points.length - 1].x;
+  const endY = points[points.length - 1].y;
+  
+  // Calculate string direction vector
+  const dirX = endX - startX;
+  const dirY = endY - startY;
+  const length = Math.sqrt(dirX*dirX + dirY*dirY);
+  
+  if (length > 0) {
+    // Normalize direction vector
+    const normDirX = dirX / length;
+    const normDirY = dirY / length;
+    
+    // Calculate perpendicular vector
+    const perpX = -normDirY;
+    const perpY = normDirX;
+    
+    // Apply sine wave effect along the string
+    for (let i = 1; i < points.length - 1; i++) {
+      const point = points[i];
+      const t = i / (points.length - 1); // Position along string (0-1)
+      
+      // Sine wave parameters affected by audio frequencies
+      const waveFrequency = 2 + midLevel * 5; // Number of waves
+      const waveAmplitude = settings.sineWaveMagnitude * (0.5 + highLevel * 1.0);
+      const waveSpeed = settings.sineWaveSpeed * (0.5 + midLevel * 1.5);
+      const wavePhase = point.phase + time * 0.001 * waveSpeed;
+      
+      // Calculate sine displacement
+      const sineDisplacement = Math.sin(t * Math.PI * waveFrequency + wavePhase) * waveAmplitude;
+      
+      // Apply displacement perpendicular to string direction
+      point.x += perpX * sineDisplacement * 0.1;
+      point.y += perpY * sineDisplacement * 0.1;
+    }
+  }
+}
+
+// Draw a string to the specified context
+function drawString(ctx, string, time, responseLevel, index, overallLevel) {
+  const { points, color } = string;
+  if (points.length < 2) return;
+  
+  // Determine string thickness based on energy and response level
+  const thickness = settings.stringBaseWidth * (1 + responseLevel * 0.5 + string.energy);
+  
+  // Create a brightness factor based on string activity
+  const brightness = 0.6 + (string.active ? 0.4 * string.energy : 0.2 * responseLevel);
+  
+  // If using rainbow mode, calculate color based on position and time
+  let r, g, b;
+  
+  if (settings.useRainbow) {
+    // Create a shifting hue based on index, time, and response
+    const hue = (index * 50 + time * 0.02 * (1 + responseLevel)) % 360;
+    const s = 0.8 + responseLevel * 0.2; // Saturation
+    const v = brightness; // Value/brightness
+    
+    // Convert HSV to RGB
+    const c = v * s;
+    const x = c * (1 - Math.abs((hue / 60) % 2 - 1));
+    const m = v - c;
+    
+    let r1, g1, b1;
+    if (hue < 60) { r1 = c; g1 = x; b1 = 0; }
+    else if (hue < 120) { r1 = x; g1 = c; b1 = 0; }
+    else if (hue < 180) { r1 = 0; g1 = c; b1 = x; }
+    else if (hue < 240) { r1 = 0; g1 = x; b1 = c; }
+    else if (hue < 300) { r1 = x; g1 = 0; b1 = c; }
+    else { r1 = c; g1 = 0; b1 = x; }
+    
+    r = Math.floor((r1 + m) * 255);
+    g = Math.floor((g1 + m) * 255);
+    b = Math.floor((b1 + m) * 255);
+  }
+  else {
+    // Use the predefined color with brightness adjustment
+    r = Math.min(255, color.r * brightness);
+    g = Math.min(255, color.g * brightness);
+    b = Math.min(255, color.b * brightness);
+  }
+  
+  // Set line style
+  ctx.lineWidth = thickness * (1 + overallLevel * 0.3);
+  ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  
+  // Begin the path for this string
+  ctx.beginPath();
+  
+  // Start from the first point
+  ctx.moveTo(points[0].x, points[0].y);
+  
+  // Create a smooth curve through the points
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i-1];
+    const curr = points[i];
+    
+    // Use quadratic curve for smoother appearance
+    if (i < points.length - 1) {
+      const next = points[i+1];
+      const cp1x = curr.x - (next.x - prev.x) * 0.2;
+      const cp1y = curr.y - (next.y - prev.y) * 0.2;
+      ctx.quadraticCurveTo(cp1x, cp1y, curr.x, curr.y);
+    } else {
+      ctx.lineTo(curr.x, curr.y);
+    }
+  }
+  
+  // Draw the path
+  ctx.stroke();
+  
+  // If the string is active, add some visual highlights
+  if (string.active && string.energy > 0.1) {
+    // Add some highlight dots where the string has max displacement
+    let maxDisplacement = 0;
+    let maxIndex = 0;
+    
+    // Find point with maximum displacement
+    for (let i = 1; i < points.length - 1; i++) {
+      const point = points[i];
+      const dx = point.x - point.baseX;
+      const dy = point.y - point.baseY;
+      const displacement = Math.sqrt(dx*dx + dy*dy);
+      
+      if (displacement > maxDisplacement) {
+        maxDisplacement = displacement;
+        maxIndex = i;
+      }
+    }
+    
+    // Draw highlight at max displacement point if displacement is significant
+    if (maxDisplacement > 2) {
+      const highlightSize = thickness * 3 * string.energy;
+      ctx.fillStyle = `rgba(${r + 50}, ${g + 50}, ${b + 50}, ${string.energy})`;
+      ctx.beginPath();
+      ctx.arc(points[maxIndex].x, points[maxIndex].y, highlightSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+// Apply a glow effect by blurring the offscreen canvas
+function applyGlowEffect() {
+  // Apply blur filter to the offscreen canvas
+  offscreenContext.filter = `blur(${settings.blurAmount}px)`;
+  offscreenContext.drawImage(offscreenCanvas, 0, 0);
+  offscreenContext.filter = 'none';
+  
+  // Draw the blurred canvas onto the main canvas with specified blend mode
+  context.globalCompositeOperation = 'lighter';
+  context.globalAlpha = settings.glowIntensity;
+  context.drawImage(offscreenCanvas, 0, 0);
+  context.globalAlpha = 1.0;
+  context.globalCompositeOperation = 'source-over';
+}

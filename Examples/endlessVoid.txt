@@ -1,0 +1,245 @@
+const settings = {
+    // Core settings
+    background: [5, 5, 8],       // Near-black background
+    glowIntensity: 18,           // How much elements glow
+    voidDepth: 0.92,             // Motion blur persistence (higher = more persistence)
+    
+    // Bass response
+    bassFreq: 60,                // Low frequency to monitor
+    midFreq: 500,                // Mid frequency to monitor
+    highFreq: 2000,              // High frequency to monitor
+    
+    // Visual elements
+    particleCount: 600,          // Number of void particles
+    tentacleCount: 6,            // Number of bass-reactive tentacles
+    eyeCount: 4                  // Number of watching void eyes
+}
+
+function setup() {
+    // This would be replaced with your actual audio file
+    loadAudio("Music/Be My Moon (1).wav");
+    playAudio();
+}
+
+function draw(time) {
+    // Clear with slight persistence for motion trails
+    clear();
+    
+    // Get audio amplitudes
+    const bassAmp = audiohz(settings.bassFreq) * 1.5;  // Amplify bass response
+    const midAmp = audiohz(settings.midFreq);
+    const highAmp = audiohz(settings.highFreq);
+    
+    // Set the dark background
+    fill(settings.background[0], settings.background[1], settings.background[2]);
+    rect(0, 0, width, height);
+    
+    // Create void effect with persistent motion blur
+    motionBlurStart(settings.voidDepth, "source-over");
+    
+    // Central bass-reactive core
+    drawVoidCore(time, bassAmp, midAmp);
+    
+    // Floating particles
+    drawVoidParticles(time, bassAmp, midAmp, highAmp);
+    
+    // Creepy tentacles from the void
+    drawVoidTentacles(time, bassAmp);
+    
+    // Watching eyes that appear with high frequencies
+    drawVoidEyes(time, highAmp, midAmp);
+  
+  	stroke(80 + bassAmp * 100, 20, 60, 0.5);
+  
+  	visualBar(0, height, width, 50, 32, 2, 5, 0, true, true);
+    
+    // End motion blur
+    //motionBlurEnd();
+}
+
+function drawVoidCore(time, bassAmp, midAmp) {
+    // The pulsating core
+    const coreSize = 50 + bassAmp * 100;
+    const pulseOffset = Math.sin(time * 2) * 10;
+    
+    // Outer glow ring
+    glowStart("#330011", settings.glowIntensity * bassAmp);
+    stroke(80 + bassAmp * 100, 20, 60);
+    lineWidth(2 + bassAmp * 4);
+    circle(width/2, height/2, coreSize + 20 + pulseOffset, true);
+    glowEnd();
+    
+    // Inner core
+    glowStart("#440022", settings.glowIntensity * bassAmp);
+    fill(40, 0, 30, 0.8);
+    circle(width/2, height/2, coreSize);
+    
+    // Core detail
+    if (bassAmp > 0.4) {
+        stroke(255, 20, 100, 0.7);
+        lineWidth(1);
+        for (let i = 0; i < 12; i++) {
+            const angle = (i / 12) * Math.PI * 2;
+            const length = coreSize * 0.8 * bassAmp;
+            line(
+                width/2, height/2,
+                width/2 + Math.cos(angle + time) * length,
+                height/2 + Math.sin(angle + time) * length
+            );
+        }
+    }
+    glowEnd();
+}
+
+function drawVoidParticles(time, bassAmp, midAmp, highAmp) {
+    // Calculate the void radius based on bass
+    const maxRadius = Math.min(width, height) * 0.8;
+    const voidRadius = maxRadius * (0.4 + bassAmp * 0.6);
+    
+    // Draw particles floating in the void
+    for (let i = 0; i < settings.particleCount; i++) {
+        // Position using parametric equations for organic movement
+        const particleTime = time * 0.1 + i * 0.01;
+        const angle = (i / settings.particleCount) * Math.PI * 20 + time * 0.2;
+        const dist = (0.2 + 0.8 * ((i % 100) / 100)) * voidRadius;
+        
+        // Apply some chaos based on audio
+        const chaosX = Math.cos(particleTime * 2) * midAmp * 100;
+        const chaosY = Math.sin(particleTime * 3) * midAmp * 100;
+        
+        const x = width/2 + Math.cos(angle + Math.sin(time * 0.2) * 2) * dist + chaosX;
+        const y = height/2 + Math.sin(angle + Math.cos(time * 0.3) * 2) * dist + chaosY;
+        
+        // Particle color and size based on frequency and position
+        const distFactor = dist / voidRadius;
+        const sizeFactor = 1 - distFactor;
+        
+        // Higher frequencies affect outer particles, bass affects inner
+        const particleReactivity = i % 3 === 0 ? bassAmp : 
+                                  i % 3 === 1 ? midAmp : highAmp;
+        
+        // Skip drawing some particles on low reactivity
+        if (particleReactivity < 0.05 && Math.random() > 0.7) continue;
+        
+        const size = 1 + sizeFactor * 3 + particleReactivity * 3;
+        
+        // Color based on audio frequency and position
+        glowStart(i % 5 === 0 ? "#FF2200" : "#660033", 
+                 settings.glowIntensity * particleReactivity * 0.7);
+        
+        if (i % 7 === 0 && bassAmp > 0.5) {
+            // Special particles that only appear on bass hits
+            fill(255, 0, 60, 0.8);
+            circle(x, y, size * 2.5);
+        } else {
+            // Normal particles
+            fill(120 + particleReactivity * 100, 20, 60, 0.7);
+            circle(x, y, size);
+        }
+        glowEnd();
+    }
+}
+
+function drawVoidTentacles(time, bassAmp) {
+    // Tentacles that emerge from the void on bass drops
+    for (let t = 0; t < settings.tentacleCount; t++) {
+        const tentacleAngle = (t / settings.tentacleCount) * Math.PI * 2 + time * 0.2;
+        const tentacleLength = 100 + bassAmp * 300 + Math.sin(time + t) * 50;
+        const segments = 12;
+        const wiggleAmount = 30 + bassAmp * 20;
+        
+        // Only show tentacles with strong bass
+        if (bassAmp < 0.3) continue;
+        
+        glowStart("#990000", settings.glowIntensity * bassAmp * 0.7);
+        
+        // Draw tentacle segments with decreasing thickness
+        let prevX = width/2;
+        let prevY = height/2;
+        
+        for (let s = 1; s <= segments; s++) {
+            const segmentRatio = s / segments;
+            // Wiggle more at the tip
+            const wiggle = Math.sin(time * 5 + t + s * 0.5) * wiggleAmount * segmentRatio;
+            const curveAngle = tentacleAngle + wiggle * 0.02;
+            
+            const segmentLength = tentacleLength * segmentRatio / segments;
+            const x = prevX + Math.cos(curveAngle) * segmentLength;
+            const y = prevY + Math.sin(curveAngle) * segmentLength;
+            
+            // Thickness reduces toward the tip
+            lineWidth((1 - segmentRatio) * 15 * bassAmp + 1);
+            stroke(200, 20, 60, (1 - segmentRatio) * 0.8);
+            line(prevX, prevY, x, y);
+            
+            prevX = x;
+            prevY = y;
+        }
+        glowEnd();
+    }
+}
+
+function drawVoidEyes(time, highAmp, midAmp) {
+    // Creepy eyes that appear in the void
+    for (let e = 0; e < settings.eyeCount; e++) {
+        // Eyes only appear when high frequencies are present
+        if (highAmp < 0.2 && Math.random() > 0.1) continue;
+        
+        // Position in a scattered pattern
+        const angle = (e / settings.eyeCount) * Math.PI * 2;
+        const dist = 100 + (e % 3) * 100 + Math.sin(time + e) * 50;
+        
+        const x = width/2 + Math.cos(angle + time * 0.1) * dist;
+        const y = height/2 + Math.sin(angle + time * 0.2) * dist;
+        
+        // Eyes get bigger with mid frequencies
+        const eyeSize = 10 + midAmp * 25;
+        
+        // Draw the eye
+        glowStart("#FFFFFF", settings.glowIntensity * highAmp);
+        
+        // Eye white/sclera
+        fill(20, 5, 30);
+        circle(x, y, eyeSize);
+        
+        // Iris - follows the center
+        const centerDX = width/2 - x;
+        const centerDY = height/2 - y;
+        const eyeAngle = Math.atan2(centerDY, centerDX);
+        
+        // Limit how far the iris can move
+        const maxMove = eyeSize * 0.2;
+        const irisX = x + Math.cos(eyeAngle) * maxMove;
+        const irisY = y + Math.sin(eyeAngle) * maxMove;
+        
+        // Draw the iris
+        fill(200, 100, 70);
+        circle(irisX, irisY, eyeSize * 0.7);
+        
+        // Pupil - black center that contracts with high frequencies
+        fill(10, 5, 5);
+        const pupilSize = eyeSize * 0.35 * (1 - highAmp * 0.7);
+        circle(irisX, irisY, pupilSize);
+        
+        // Specular highlight
+        fill(255, 255, 255, 0.7);
+        circle(irisX - pupilSize/3, irisY - pupilSize/3, pupilSize * 0.3);
+        
+        glowEnd();
+        
+        // Sometimes draw veins in the eyes
+        if (highAmp > 0.6 && e % 2 === 0) {
+            stroke(120, 20, 40, 0.5);
+            lineWidth(0.5);
+            for (let v = 0; v < 5; v++) {
+                const veinAngle = Math.random() * Math.PI * 2;
+                const veinLength = eyeSize * 0.7;
+                line(
+                    x, y,
+                    x + Math.cos(veinAngle) * veinLength,
+                    y + Math.sin(veinAngle) * veinLength
+                );
+            }
+        }
+    }
+}

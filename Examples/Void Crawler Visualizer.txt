@@ -1,0 +1,205 @@
+// Void Crawler Visualizer
+// Unsettling entities that lurk in the darkness
+
+function setup() {
+  log("Void Crawler initialized");
+  loadAudio("Music/your_audio_file.wav");
+  playAudio();
+}
+
+function draw(time) {
+  // Create dark, foggy background
+  background(5, 7, 10, 0.3); // Dark with trails
+  
+  // Get audio data
+  const bass = window.audiohz ? audiohz(100) : 0.5;
+  const mid = window.audiohz ? audiohz(1000) : 0.3;
+  const high = window.audiohz ? audiohz(5000) : 0.2;
+  
+  // Draw the dark fog
+  drawDarkFog(time, bass);
+  
+  // Draw glowing eyes watching from the darkness
+  drawWatchingEyes(time, mid);
+  
+  // Draw crawling tendrils
+  drawTendrils(time, bass, high);
+  
+  // Draw occasional flashes of disturbing symbols
+  if (Math.random() < 0.01 + bass * 0.05) {
+    drawSymbol(time);
+  }
+}
+
+function drawDarkFog(time, bass) {
+  // Create swirling fog effect
+  const fogCount = 5;
+  const opacity = 0.1 + bass * 0.1;
+  
+  for (let i = 0; i < fogCount; i++) {
+    const t = time * 0.0003 + i * 0.3;
+    const x = width/2 + Math.sin(t) * width * 0.4;
+    const y = height/2 + Math.cos(t * 0.7) * height * 0.3;
+    const size = 200 + bass * 200 + i * 50;
+    
+    context.fillStyle = `rgba(10, 5, 15, ${opacity})`;
+    context.beginPath();
+    context.arc(x, y, size, 0, Math.PI * 2);
+    context.fill();
+  }
+}
+
+function drawWatchingEyes(time, mid) {
+  // Number of eyes depends on audio
+  const eyeCount = 3 + Math.floor(mid * 10);
+  
+  for (let i = 0; i < eyeCount; i++) {
+    // Position eyes in a way that feels random but persistent
+    const seed = i * 1000 + Math.floor(time * 0.001) % 10000;
+    const x = pseudoRandom(seed) * width;
+    const y = pseudoRandom(seed + 1) * height;
+    
+    // Eye movement
+    const lookX = Math.sin(time * 0.001 + i) * 5;
+    const lookY = Math.cos(time * 0.0008 + i * 2) * 5;
+    
+    // Draw the eye
+    const size = 10 + mid * 20;
+    const glowSize = size * 2;
+    
+    // Eye glow
+    const gradient = context.createRadialGradient(x, y, 0, x, y, glowSize);
+    gradient.addColorStop(0, `rgba(255, 0, 0, ${0.1 + mid * 0.3})`);
+    gradient.addColorStop(1, "rgba(255, 0, 0, 0)");
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.arc(x, y, glowSize, 0, Math.PI * 2);
+    context.fill();
+    
+    // Eye white
+    context.fillStyle = "rgba(120, 0, 0, 0.7)";
+    context.beginPath();
+    context.arc(x, y, size, 0, Math.PI * 2);
+    context.fill();
+    
+    // Pupil
+    context.fillStyle = "rgba(0, 0, 0, 0.9)";
+    context.beginPath();
+    context.arc(x + lookX, y + lookY, size * 0.6, 0, Math.PI * 2);
+    context.fill();
+    
+    // Shine
+    context.fillStyle = "rgba(255, 255, 255, 0.7)";
+    context.beginPath();
+    context.arc(x + lookX - size * 0.2, y + lookY - size * 0.2, size * 0.15, 0, Math.PI * 2);
+    context.fill();
+    
+    // Blink occasionally
+    if (Math.random() < 0.003) {
+      context.strokeStyle = "rgba(100, 0, 0, 0.8)";
+      context.lineWidth = 2;
+      context.beginPath();
+      context.moveTo(x - size * 1.2, y);
+      context.lineTo(x + size * 1.2, y);
+      context.stroke();
+    }
+  }
+}
+
+function drawTendrils(time, bass, high) {
+  const tendrilCount = 5 + Math.floor(bass * 10);
+  
+  for (let i = 0; i < tendrilCount; i++) {
+    // Each tendril has a fixed seed for persistent behavior
+    const seed = i * 100;
+    const startX = pseudoRandom(seed) * width;
+    const startY = pseudoRandom(seed + 1) * height;
+    
+    // Draw tendril
+    context.strokeStyle = `rgba(40, 10, 30, ${0.4 + high * 0.5})`;
+    context.lineWidth = 2 + bass * 5;
+    
+    context.beginPath();
+    context.moveTo(startX, startY);
+    
+    // Create writhing, unsettling path
+    const segments = 10 + Math.floor(bass * 20);
+    let x = startX;
+    let y = startY;
+    
+    for (let j = 0; j < segments; j++) {
+      const t = time * 0.001 + i + j * 0.2;
+      const angle = Math.sin(t) * Math.PI * 2;
+      const length = 5 + bass * 10;
+      
+      x += Math.cos(angle) * length;
+      y += Math.sin(angle) * length;
+      
+      // Add some jitter for creepy effect
+      if (high > 0.5 && Math.random() < 0.3) {
+        x += (Math.random() - 0.5) * 20;
+        y += (Math.random() - 0.5) * 20;
+      }
+      
+      context.lineTo(x, y);
+    }
+    
+    context.stroke();
+    
+    // Add a subtle end point (like a claw or mouth)
+    if (bass > 0.6) {
+      context.fillStyle = "rgba(100, 0, 0, 0.6)";
+      context.beginPath();
+      context.arc(x, y, 5 + bass * 8, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+}
+
+function drawSymbol(time) {
+  // Draw a disturbing occult-like symbol that briefly flashes
+  const x = width * (0.3 + Math.random() * 0.4);
+  const y = height * (0.3 + Math.random() * 0.4);
+  const size = 50 + Math.random() * 100;
+  
+  // Symbol opacity fades quickly
+  const opacity = 0.3 + Math.random() * 0.3;
+  
+  context.strokeStyle = `rgba(100, 0, 0, ${opacity})`;
+  context.lineWidth = 2;
+  
+  // Draw a random creepy symbol
+  context.beginPath();
+  const points = Math.floor(4 + Math.random() * 5);
+  
+  for (let i = 0; i <= points; i++) {
+    const angle = (i / points) * Math.PI * 2;
+    const px = x + Math.cos(angle) * size;
+    const py = y + Math.sin(angle) * size;
+    
+    if (i === 0) {
+      context.moveTo(px, py);
+    } else {
+      context.lineTo(px, py);
+    }
+  }
+  context.closePath();
+  context.stroke();
+  
+  // Add inner details
+  context.beginPath();
+  context.arc(x, y, size * 0.5, 0, Math.PI * 2);
+  context.stroke();
+  
+  // Add disturbing eye in center
+  context.fillStyle = `rgba(150, 0, 0, ${opacity + 0.2})`;
+  context.beginPath();
+  context.arc(x, y, size * 0.2, 0, Math.PI * 2);
+  context.fill();
+}
+
+// Deterministic random for persistent elements
+function pseudoRandom(seed) {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}

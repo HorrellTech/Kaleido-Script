@@ -1,0 +1,608 @@
+// Deep Sea Luminescence Visualizer
+// Squids react to bass, jellyfish to mids, and bubbles to highs
+
+// Settings
+var settings = {
+  squidCount: 6,           // Number of squids
+  jellyfishCount: 8,       // Number of jellyfish
+  bubbleRate: 0.3,         // Bubble creation rate
+  glowStrength: 0.7,       // Bioluminescent glow intensity (0-1)
+  waterEffect: 0.6,        // Water movement effect strength (0-1)
+  colorScheme: "deep",     // "deep", "toxic", or "twilight"
+  depthWaves: true         // Show underwater light rays
+};
+
+// State variables
+let squids = [];
+let jellyfish = [];
+let bubbles = [];
+let waterTime = 0;
+let lastBubbleTime = 0;
+let colors = {};
+
+function setup() {
+  log("Deep Sea Luminescence initialized");
+  
+  // Set up color palette based on scheme
+  setupColors();
+  
+  // Create initial creatures
+  createSquids();
+  createJellyfish();
+  
+  // Load audio if available
+  loadAudio("Music/your_audio_file.wav");
+  playAudio();
+}
+
+function setupColors() {
+  switch(settings.colorScheme) {
+    case "toxic":
+      colors = {
+        background: { r: 5, g: 20, b: 15 },
+        water: { r: 10, g: 40, b: 30, a: 0.05 },
+        squid: { r: 20, g: 240, b: 120 },
+        jellyfish: { r: 220, g: 70, b: 200 },
+        bubbles: { r: 140, g: 255, b: 200, a: 0.5 }
+      };
+      break;
+    case "twilight":
+      colors = {
+        background: { r: 10, g: 5, b: 30 },
+        water: { r: 20, g: 10, b: 50, a: 0.05 },
+        squid: { r: 100, g: 120, b: 240 },
+        jellyfish: { r: 230, g: 100, b: 180 },
+        bubbles: { r: 180, g: 200, b: 255, a: 0.5 }
+      };
+      break;
+    default: // deep
+      colors = {
+        background: { r: 2, g: 5, b: 20 },
+        water: { r: 5, g: 10, b: 40, a: 0.05 },
+        squid: { r: 20, g: 150, b: 200 },
+        jellyfish: { r: 140, g: 50, b: 220 },
+        bubbles: { r: 120, g: 180, b: 255, a: 0.5 }
+      };
+  }
+}
+
+function draw(time) {
+  // Apply background with slight fade for motion trails
+  const bg = colors.background;
+  background(bg.r, bg.g, bg.b, 0.3);
+  
+  // Get audio data
+  const bass = window.audiohz ? audiohz(60) : 0.5;
+  const mid = window.audiohz ? audiohz(1000) : 0.3;
+  const high = window.audiohz ? audiohz(5000) : 0.2;
+  
+  // Update water effect time
+  waterTime += 0.01;
+  
+  // Draw depth light rays if enabled
+  if (settings.depthWaves) {
+    drawDepthRays(time, bass);
+  }
+  
+  // Update and draw all entities
+  updateAndDrawSquids(time, bass);
+  updateAndDrawJellyfish(time, mid);
+  updateAndDrawBubbles(time, high);
+  
+  // Create new bubbles based on high frequency and time
+  if (high > 0.4 && time - lastBubbleTime > 200) {
+    const bubbleCount = Math.floor(high * 5 * settings.bubbleRate);
+    for (let i = 0; i < bubbleCount; i++) {
+      createBubble();
+    }
+    lastBubbleTime = time;
+  }
+  
+  // Apply water overlay effect
+  drawWaterEffect(time, bass, mid, high);
+}
+
+function createSquids() {
+  squids = [];
+  
+  for (let i = 0; i < settings.squidCount; i++) {
+    // Squids appear mostly from the sides
+    const side = Math.random() < 0.5;
+    const x = side ? 
+      (Math.random() < 0.5 ? -50 : width + 50) : 
+      Math.random() * width;
+    const y = Math.random() * height * 0.8 + height * 0.1;
+    
+    squids.push({
+      x: x,
+      y: y,
+      size: 30 + Math.random() * 40,
+      angle: Math.random() * Math.PI * 2,
+      speed: 0.5 + Math.random() * 1.0,
+      tentaclePhase: Math.random() * Math.PI * 2,
+      tentacleSpeed: 0.05 + Math.random() * 0.05,
+      pulsePhase: Math.random() * Math.PI * 2,
+      ink: false,
+      inkLevel: 0,
+      inkX: 0,
+      inkY: 0,
+      glowIntensity: 0.7 + Math.random() * 0.3
+    });
+  }
+}
+
+function createJellyfish() {
+  jellyfish = [];
+  
+  for (let i = 0; i < settings.jellyfishCount; i++) {
+    // Jellyfish appear mostly from the top
+    const x = Math.random() * width;
+    const y = Math.random() < 0.8 ? 
+      -50 - Math.random() * 200 : 
+      Math.random() * height;
+    
+    jellyfish.push({
+      x: x,
+      y: y,
+      size: 20 + Math.random() * 30,
+      pulsePhase: Math.random() * Math.PI * 2,
+      pulseSpeed: 0.03 + Math.random() * 0.03,
+      tentaclePhase: Math.random() * Math.PI * 2,
+      direction: Math.PI / 2 + (Math.random() - 0.5) * 0.5, // Mostly downward
+      speed: 0.2 + Math.random() * 0.4,
+      opacity: 0.7 + Math.random() * 0.3,
+      glowIntensity: 0.6 + Math.random() * 0.4
+    });
+  }
+}
+
+function createBubble() {
+  // Create bubble at bottom of screen
+  const x = Math.random() * width;
+  const size = 3 + Math.random() * 10;
+  
+  bubbles.push({
+    x: x,
+    y: height + size,
+    size: size,
+    speed: 0.5 + Math.random() * 1.5,
+    wobblePhase: Math.random() * Math.PI * 2,
+    wobbleFreq: 0.05 + Math.random() * 0.05,
+    wobbleSize: 0.5 + Math.random() * 2
+  });
+  
+  // Remove oldest bubbles if we have too many
+  if (bubbles.length > 100) {
+    bubbles.shift();
+  }
+}
+
+function drawDepthRays(time, bass) {
+  // Draw light rays coming from above
+  const rayCount = 5 + Math.floor(bass * 5);
+  const baseOpacity = 0.03 + bass * 0.05;
+  
+  for (let i = 0; i < rayCount; i++) {
+    const x = width * (i / rayCount) + Math.sin(time * 0.0003 + i) * width * 0.05;
+    const topWidth = 30 + Math.random() * 100;
+    const bottomWidth = 100 + Math.random() * 200;
+    
+    // Create gradient for light ray
+    const gradient = context.createLinearGradient(x, 0, x, height);
+    gradient.addColorStop(0, `rgba(200, 220, 255, ${baseOpacity * 2})`);
+    gradient.addColorStop(1, `rgba(100, 150, 255, ${baseOpacity / 3})`);
+    
+    // Draw ray as a trapezoid
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.moveTo(x - topWidth/2, 0);
+    context.lineTo(x + topWidth/2, 0);
+    context.lineTo(x + bottomWidth/2, height);
+    context.lineTo(x - bottomWidth/2, height);
+    context.closePath();
+    context.fill();
+  }
+}
+
+function updateAndDrawSquids(time, bass) {
+  // Bass affects squid movement and ink spraying
+  const bassIntensity = 0.5 + bass * 1.5;
+  
+  // Process each squid
+  for (let i = 0; i < squids.length; i++) {
+    const squid = squids[i];
+    
+    // Update tentacle phase for animation
+    squid.tentaclePhase += squid.tentacleSpeed * bassIntensity;
+    squid.pulsePhase += 0.02 * bassIntensity;
+    
+    // Calculate propulsion based on pulse
+    const propulsion = Math.sin(squid.pulsePhase) * 0.5 + 0.5;
+    
+    // Update position based on angle and speed
+    squid.x += Math.cos(squid.angle) * squid.speed * propulsion * bassIntensity;
+    squid.y += Math.sin(squid.angle) * squid.speed * propulsion * bassIntensity;
+    
+    // Randomly change direction occasionally, more with high bass
+    if (Math.random() < 0.01 + bass * 0.03) {
+      squid.angle += (Math.random() - 0.5) * Math.PI * 0.5;
+    }
+    
+    // Wrap around edges
+    if (squid.x < -100) squid.x = width + 50;
+    if (squid.x > width + 100) squid.x = -50;
+    if (squid.y < -100) squid.y = height + 50;
+    if (squid.y > height + 100) squid.y = -50;
+    
+    // Handle ink ejection with bass trigger
+    if (bass > 0.8 && !squid.ink && Math.random() < 0.1) {
+      squid.ink = true;
+      squid.inkLevel = 1.0;
+      squid.inkX = squid.x - Math.cos(squid.angle) * squid.size;
+      squid.inkY = squid.y - Math.sin(squid.angle) * squid.size;
+      
+      // Change direction when ejecting ink
+      squid.angle += Math.PI + (Math.random() - 0.5);
+    }
+    
+    // Update ink level
+    if (squid.ink) {
+      squid.inkLevel -= 0.01;
+      if (squid.inkLevel <= 0) {
+        squid.ink = false;
+      }
+    }
+    
+    // Draw squid
+    drawSquid(squid, bass);
+  }
+}
+
+function drawSquid(squid, bass) {
+  const { x, y, size, angle, tentaclePhase, pulsePhase, glowIntensity } = squid;
+  
+  // Don't draw if off-screen
+  if (x < -100 || x > width + 100 || y < -100 || y > height + 100) return;
+  
+  context.save();
+  context.translate(x, y);
+  context.rotate(angle);
+  
+  // Draw tentacles first
+  const tentacleCount = 8;
+  const squidColor = colors.squid;
+  
+  // Calculate pulse for mantle expansion
+  const pulse = 0.7 + Math.sin(pulsePhase) * 0.3;
+  
+  // Draw tentacles
+  for (let i = 0; i < tentacleCount; i++) {
+    const tentacleAngle = (i / tentacleCount) * Math.PI - Math.PI/2;
+    const tentacleLength = size * (1.2 + 0.3 * Math.sin(tentaclePhase + i));
+    
+    // Get tentacle path
+    const points = [];
+    const segments = 10;
+    
+    for (let j = 0; j <= segments; j++) {
+      const segmentDist = j / segments;
+      const waveAmp = size * 0.2 * segmentDist;
+      const wavePhase = tentaclePhase + i + j * 0.2;
+      
+      const segX = -segmentDist * tentacleLength;
+      const segY = tentacleAngle + Math.sin(wavePhase) * waveAmp;
+      
+      points.push({ x: segX, y: segY });
+    }
+    
+    // Draw tentacle
+    context.strokeStyle = `rgba(${squidColor.r}, ${squidColor.g}, ${squidColor.b}, 0.7)`;
+    context.lineWidth = size * 0.06 * (1 - points[0].x/tentacleLength);
+    context.lineCap = 'round';
+    
+    context.beginPath();
+    context.moveTo(0, 0);
+    
+    for (let j = 0; j < points.length; j++) {
+      const pt = points[j];
+      context.lineTo(pt.x, pt.y);
+    }
+    
+    context.stroke();
+  }
+  
+  // Draw mantle (body)
+  const mantleWidth = size * pulse;
+  const mantleLength = size * pulse;
+  
+  // Create gradient for bioluminescent effect
+  const glowAmount = 0.4 + bass * 0.6;
+  const gradient = context.createRadialGradient(
+    0, 0, 0,
+    0, 0, mantleLength
+  );
+  
+  gradient.addColorStop(0, `rgba(${squidColor.r+50}, ${squidColor.g+50}, ${squidColor.b+50}, ${glowAmount * glowIntensity})`);
+  gradient.addColorStop(0.7, `rgba(${squidColor.r}, ${squidColor.g}, ${squidColor.b}, ${glowAmount * 0.7 * glowIntensity})`);
+  gradient.addColorStop(1, `rgba(${squidColor.r/2}, ${squidColor.g/2}, ${squidColor.b/2}, 0)`);
+  
+  // Draw mantle with gradient
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.ellipse(0, 0, mantleWidth, mantleLength, 0, 0, Math.PI * 2);
+  context.fill();
+  
+  // Draw fins at the sides
+  /*context.fillStyle = `rgba(${squidColor.r}, ${squidColor.g}, ${squidColor.b}, 0.6)`;
+  
+  // Left fin
+  const finSize = size * 0.4;
+  const finPhase = pulsePhase * 2;
+  const finWave = Math.sin(finPhase) * 0.3;
+  
+  context.beginPath();
+  context.moveTo(-mantleWidth * 0.7, -mantleLength * 0.3);
+  context.quadraticCurveTo(
+    -mantleWidth * 1.5, 0,
+    -mantleWidth * 0.7, mantleLength * 0.5 + finWave * finSize
+  );
+  context.lineTo(-mantleWidth * 0.7, -mantleLength * 0.3);
+  context.fill();
+  
+  // Right fin
+  context.beginPath();
+  context.moveTo(mantleWidth * 0.7, -mantleLength * 0.3);
+  context.quadraticCurveTo(
+    mantleWidth * 1.5, 0,
+    mantleWidth * 0.7, mantleLength * 0.5 - finWave * finSize
+  );
+  context.lineTo(mantleWidth * 0.7, -mantleLength * 0.3);
+  context.fill();*/
+  
+  // Draw eyes
+  /*const eyeSize = size * 0.1;
+  const eyeDistance = mantleWidth * 0.4;
+  
+  context.fillStyle = `rgba(0, 0, 0, 0.8)`;
+  context.beginPath();
+  context.arc(-eyeDistance, -mantleLength * 0.1, eyeSize, 0, Math.PI * 2);
+  context.arc(eyeDistance, -mantleLength * 0.1, eyeSize, 0, Math.PI * 2);
+  context.fill();*/
+  
+  context.restore();
+  
+  // Draw ink cloud if active
+  if (squid.ink && squid.inkLevel > 0) {
+    const inkSize = size * 2 * (1 - squid.inkLevel);
+    const inkOpacity = squid.inkLevel * 0.7;
+    
+    context.fillStyle = `rgba(20, 20, 40, ${inkOpacity})`;
+    context.beginPath();
+    
+    // Draw irregular ink cloud
+    const cloudPoints = 8;
+    for (let i = 0; i <= cloudPoints; i++) {
+      const cloudAngle = (i / cloudPoints) * Math.PI * 2;
+      const distortion = 0.7 + Math.sin(i * 5) * 0.3;
+      const cloudX = squid.inkX + Math.cos(cloudAngle) * inkSize * distortion;
+      const cloudY = squid.inkY + Math.sin(cloudAngle) * inkSize * distortion;
+      
+      if (i === 0) {
+        context.moveTo(cloudX, cloudY);
+      } else {
+        context.lineTo(cloudX, cloudY);
+      }
+    }
+    
+    context.closePath();
+    context.fill();
+  }
+}
+
+function updateAndDrawJellyfish(time, mid) {
+  // Mid frequencies control jellyfish pulsing and movement
+  const midIntensity = 0.5 + mid * 1.5;
+  
+  for (let i = 0; i < jellyfish.length; i++) {
+    const jelly = jellyfish[i];
+    
+    // Update pulse phase
+    jelly.pulsePhase += jelly.pulseSpeed * midIntensity;
+    jelly.tentaclePhase += jelly.pulseSpeed * 1.5 * midIntensity;
+    
+    // Calculate movement based on pulse
+    const pulse = Math.sin(jelly.pulsePhase);
+    const propulsion = Math.max(0, pulse) * 0.5 + 0.3; // More thrust on upward pulse
+    
+    // Update position
+    jelly.x += Math.cos(jelly.direction) * jelly.speed * propulsion;
+    jelly.y += Math.sin(jelly.direction) * jelly.speed * propulsion;
+    
+    // Occasionally change direction
+    if (Math.random() < 0.01 + mid * 0.02) {
+      jelly.direction += (Math.random() - 0.5) * 0.5;
+    }
+    
+    // Wrap around edges
+    if (jelly.x < -50) jelly.x = width + 50;
+    if (jelly.x > width + 50) jelly.x = -50;
+    if (jelly.y < -100) jelly.y = height + 50;
+    if (jelly.y > height + 100) jelly.y = -50;
+    
+    // Draw jellyfish
+    drawJellyfish(jelly, pulse, mid);
+  }
+}
+
+function drawJellyfish(jelly, pulse, mid) {
+  const { x, y, size, tentaclePhase, opacity, glowIntensity } = jelly;
+  
+  // Don't draw if off-screen
+  if (x < -100 || x > width + 100 || y < -100 || y > height + 100) return;
+  
+  // Calculate expanded bell based on pulse (-1 to 1)
+  const bellExpansion = 0.8 + pulse * 0.2;
+  
+  const jellyColor = colors.jellyfish;
+  const midBoost = mid * 50;
+  
+  // Draw bell with glow
+  const glowSize = size * 2.5;
+  const glowOpacity = 0.2 * glowIntensity * (0.5 + mid * 0.5);
+  
+  // Outer glow
+  const glowGradient = context.createRadialGradient(
+    x, y, 0,
+    x, y, glowSize
+  );
+  
+  glowGradient.addColorStop(0, `rgba(${jellyColor.r+midBoost}, ${jellyColor.g+midBoost}, ${jellyColor.b+midBoost}, ${glowOpacity})`);
+  glowGradient.addColorStop(1, `rgba(${jellyColor.r}, ${jellyColor.g}, ${jellyColor.b}, 0)`);
+  
+  context.fillStyle = glowGradient;
+  context.beginPath();
+  context.arc(x, y, glowSize, 0, Math.PI * 2);
+  context.fill();
+  
+  // Bell shape
+  context.fillStyle = `rgba(${jellyColor.r}, ${jellyColor.g}, ${jellyColor.b}, ${opacity})`;
+  context.beginPath();
+  
+  // Draw bell as half-ellipse
+  const bellWidth = size * bellExpansion;
+  const bellHeight = size * 0.8 * (2 - bellExpansion); // Contract height as width expands
+  
+  context.save();
+  context.translate(x, y);
+  
+  // Draw bell
+  context.beginPath();
+  context.ellipse(0, 0, bellWidth, bellHeight, 0, Math.PI, 0);
+  context.fill();
+  
+  // Add inner bell detail
+  context.fillStyle = `rgba(${jellyColor.r+30}, ${jellyColor.g+30}, ${jellyColor.b+30}, ${opacity * 0.7})`;
+  context.beginPath();
+  context.ellipse(0, 0, bellWidth * 0.7, bellHeight * 0.6, 0, Math.PI, 0);
+  context.fill();
+  
+  // Draw tentacles
+  const tentacleCount = 12;
+  const tentacleLength = size * 2.5;
+  
+  for (let i = 0; i < tentacleCount; i++) {
+    const tentacleWidth = i % 3 === 0 ? size * 0.15 : size * 0.05;
+    const baseAngle = i / tentacleCount * Math.PI;
+    const tAngle = baseAngle + Math.sin(tentaclePhase + i) * 0.2;
+    
+    const tx = Math.cos(tAngle) * bellWidth * 0.9;
+    const ty = Math.sin(tAngle) * bellHeight * 0.9;
+    
+    // Create wavy tentacle
+    context.strokeStyle = `rgba(${jellyColor.r}, ${jellyColor.g}, ${jellyColor.b}, ${opacity * 0.8})`;
+    context.lineWidth = tentacleWidth;
+    context.lineCap = 'round';
+    
+    context.beginPath();
+    context.moveTo(tx, ty);
+    
+    // Create curved tentacle path with waves
+    const segments = 10;
+    for (let j = 1; j <= segments; j++) {
+      const segmentDist = j / segments;
+      const wavePhase = tentaclePhase + i + j * 0.3;
+      const waveAmp = size * 0.2 * segmentDist;
+      
+      const waveX = tx + Math.sin(wavePhase) * waveAmp;
+      const waveY = ty + segmentDist * tentacleLength;
+      
+      // Use quadratic curve for smoother tentacles
+      if (j === 1) {
+        context.lineTo(waveX, waveY);
+      } else {
+        const prevY = ty + (j-1) / segments * tentacleLength;
+        const cpX = tx + Math.sin(wavePhase - 0.3) * waveAmp;
+        const cpY = (prevY + waveY) / 2;
+        
+        context.quadraticCurveTo(cpX, cpY, waveX, waveY);
+      }
+    }
+    
+    context.stroke();
+  }
+  
+  context.restore();
+}
+
+function updateAndDrawBubbles(time, high) {
+  // High frequencies affect bubble wobble and speed
+  const highFactor = 0.5 + high * 2;
+  
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const bubble = bubbles[i];
+    
+    // Update bubble position
+    bubble.y -= bubble.speed * highFactor;
+    
+    // Update wobble
+    bubble.wobblePhase += bubble.wobbleFreq * highFactor;
+    
+    // Calculate wobble offset
+    const wobbleX = Math.sin(bubble.wobblePhase) * bubble.wobbleSize * highFactor;
+    bubble.x += wobbleX;
+    
+    // Remove bubbles that go off-screen
+    if (bubble.y < -bubble.size * 2) {
+      bubbles.splice(i, 1);
+      continue;
+    }
+    
+    // Draw bubble
+    const bubbleColor = colors.bubbles;
+    
+    // Outer bubble
+    context.strokeStyle = `rgba(${bubbleColor.r}, ${bubbleColor.g}, ${bubbleColor.b}, ${bubbleColor.a})`;
+    context.lineWidth = 1;
+    context.beginPath();
+    context.arc(bubble.x, bubble.y, bubble.size, 0, Math.PI * 2);
+    context.stroke();
+    
+    // Inner highlight
+    const highlightSize = bubble.size * 0.3;
+    const highlightX = bubble.x - bubble.size * 0.3;
+    const highlightY = bubble.y - bubble.size * 0.3;
+    
+    context.fillStyle = `rgba(255, 255, 255, 0.4)`;
+    context.beginPath();
+    context.arc(highlightX, highlightY, highlightSize, 0, Math.PI * 2);
+    context.fill();
+  }
+}
+
+function drawWaterEffect(time, bass, mid, high) {
+  // Apply subtle water movement effect
+  const waterY = height / 2;
+  const waterStrength = settings.waterEffect;
+  const waterColor = colors.water;
+  
+  for (let i = 0; i < 3; i++) {
+    const phase = waterTime + i * Math.PI / 6;
+    const alpha = waterColor.a * (0.5 + bass * 0.5) * waterStrength;
+    
+    context.fillStyle = `rgba(${waterColor.r}, ${waterColor.g}, ${waterColor.b}, ${alpha})`;
+    
+    context.beginPath();
+    context.moveTo(0, 0);
+    
+    // Draw undulating water bands
+    for (let x = 0; x <= width; x += 20) {
+      const waveHeight = Math.sin(phase + x * 0.01) * height * 0.4 * waterStrength;
+      context.lineTo(x, waterY + waveHeight);
+    }
+    
+    context.lineTo(width, height);
+    context.lineTo(0, height);
+    context.closePath();
+    context.fill();
+  }
+}

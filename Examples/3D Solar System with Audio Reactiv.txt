@@ -1,0 +1,96 @@
+// 3D Solar System with Audio Reactivity
+// This creates a sun with orbiting planets that react to audio
+
+let time = 0;
+let planets = [];
+
+function setup() {
+  // Set up camera
+  cameraPosition(0, -100, 600);
+  cameraLookAt(0, 0, 0);
+  
+  // Create planets
+  for (let i = 0; i < 8; i++) {
+      planets.push({
+          distance: 100 + i * 50,
+          angle: Math.random() * Math.PI * 2,
+          speed: 0.2 + Math.random() * 0.5,
+          size: 10 + Math.random() * 20,
+          color: `hsl(${i * 45}, 100%, 50%)`
+      });
+  }
+  
+  // Load audio
+  loadAudio("https://cdn1.suno.ai/4d63d59d-195b-491c-b5ab-074da7d3672e.wav");
+  playAudio();
+}
+
+function draw(t) {
+  time = t;
+  
+  // Set dark space background
+  background(5, 5, 15);
+  
+  
+  visualNebular(0, 0, width, height, 5, 100, 240, 20, 2000, true);
+  
+  // Slowly orbit camera
+  //orbitCamera(time * 5, Math.sin(time * 0.2) * 15 + 20, 700);
+  
+  // Clear previous 3D points
+  clear3D();
+  
+  // Draw reference grid
+  //grid3D(600, 12, "#333333", "#222222");
+  
+  // Draw sun (center)
+  const bassAmplitude = audiohz(60) * 0.6 + 0.4;
+  const sunSize = 50 * (1 + bassAmplitude * 0.2);
+  sphere3D(0, 0, 0, sunSize, 15, "#FFCC00");
+  
+  // Add a glow around sun using 2D
+  glowStart("#FFAA00", 2000);
+  const sunPos = projectPoint({x: 0, y: 0, z: 0});
+  circle(sunPos.x, sunPos.y, sunSize * 1.2);
+  glowEnd();
+  
+  // Draw planets
+  for (let i = 0; i < planets.length; i++) {
+      const p = planets[i];
+      
+      // Update planet position
+      p.angle += p.speed * 0.01;
+      
+      // Get specific frequency for this planet
+      const freq = 100 + i * 200;
+      const amplitude = audiohz(freq) * 0.7 + 0.3;
+      
+      // Calculate position
+      const x = Math.cos(p.angle) * p.distance;
+      const z = Math.sin(p.angle) * p.distance;
+      const y = Math.sin(time + i) * 20 * amplitude;
+      
+      // Draw orbit path
+      for (let a = 0; a < Math.PI * 2; a += 0.1) {
+          const px = Math.cos(a) * p.distance;
+          const pz = Math.sin(a) * p.distance;
+          point3D(px, 0, pz, .05, "#444444");
+      }
+      
+      // Draw planet
+      sphere3D(x, y, z, p.size * amplitude, 10, p.color);
+  }
+  
+  // Draw everything
+  draw3D();
+  
+  fill(0, 0, 0, 0.5);
+  visualBar(0, height, width, 50, 32, 2, 5, 0, true, true);
+  
+  visualCircular(width/2, height/1.42, 100, 200, 64, 20, 2000, time*0.001, true);
+  
+  // Show FPS
+  text("FPS: " + getFps(), 10, 20, 12, "Arial", "left", "#FFFFFF");
+  
+  text("Kaleido-Script: Javascript based reactive audio visualizer", width / 2, height - 24, 24, "Arial", "center", "#FFFFFF");
+}
