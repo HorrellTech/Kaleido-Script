@@ -243,7 +243,7 @@ class Renderer {
         this.context.shadowBlur = 2;
         this.context.shadowOffsetX = 1;
         this.context.shadowOffsetY = 1;
-        this.context.fillText('Kaleido-Script - JavaScript based Animation and Audio Visualization', 10, this.canvas.height - 10);
+        //this.context.fillText('Kaleido-Script - JavaScript based Animation and Audio Visualization', 10, this.canvas.height - 10);
         // Reset shadow properties after drawing text
         this.context.shadowColor = 'transparent';
         this.context.shadowBlur = 0;

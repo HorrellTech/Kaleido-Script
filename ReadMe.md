@@ -2,15 +2,18 @@
 
 KaleidoScript is an interactive web-based application for creating code-based animated visualizations and music-reactive graphics. It features a dedicated code editor with syntax highlighting, real-time preview, and tools for audio integration.
 
-![KaleidoScript Screenshot](screenshots/kaleidoscript-screenshot.png)
+# NOTE!!!!!!
+
+ - When clicking play, you may need to click it twice to get it to work when changing the audio from the previous play. It is a bug I am working out. 
+ - There are also some features with the UI that arent fully functional. This app is still WIP.
+ - Also, the recording works all good, but I find for the best results, use OBS screen recording software or any other screen recording software to record the visualizer, then use a free video editor like Clipchamp to crop the video and then you have your visualized song!
 
 ## Features
 
 - **Code-Based Animation Engine**: Create dynamic visualizations using JavaScript
 - **Real-Time Preview**: See your animations instantly as you code
 - **Audio Visualization**: Create music-reactive graphics that respond to audio frequencies
-- **Export Options**: Save your creations as PNG, GIF, or HTML5
-- **File Management**: Save and organize your scripts
+- **Export Options**: Save your creations as PNG, GIF
 - **Responsive Canvas**: Adjust canvas size with preset aspect ratios
 - **Recording Capability**: Record your animations with audio as video files
 
@@ -26,31 +29,26 @@ KaleidoScript is an interactive web-based application for creating code-based an
 Here's a simple example to get you started:
 
 ```javascript
-// This function runs every frame
+// Import an audio file first via the "Imports" tab
+loadAudio("music.mp3");
+
 function draw(time) {
-    // Clear the canvas with a dark background
-    background(20, 20, 40);
+    // Play audio when animation starts
+    if (time < 0.1) audioPlay();
     
-    // Draw a pulsing circle at the center
-    fill(255, 100, 100);
-    const size = 100 + Math.sin(time) * 50;
-    circle(width()/2, height()/2, size);
+    // Dark background
+    background(10, 10, 30);
     
-    // Draw some rotating rectangles
-    for (let i = 0; i < 12; i++) {
-        const angle = (i / 12) * Math.PI * 2 + time;
-        const distance = 200;
-        const x = width()/2 + Math.cos(angle) * distance;
-        const y = height()/2 + Math.sin(angle) * distance;
-        
-        fill(i * 20, 100, 255);
-        
-        // Save context, rotate, draw, restore
-        const ctx = context();
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(angle);
-        rect(-20, -20, 40, 40);
-        ctx.restore();
-    }
+    // Draw circular audio visualizer at center
+    visualCircular(
+        width()/2,    // x
+        height()/2,   // y
+        100,          // minimum radius
+        200,          // maximum radius
+        64,           // number of points
+        20,           // low frequency
+        2000,         // high frequency
+        time * 0.5,   // rotation speed
+        true          // enable glow effect
+    );
 }

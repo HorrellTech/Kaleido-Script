@@ -380,10 +380,10 @@ class AudioProcessor {
             this.initAudioContext();
             
             // Ensure we have audio connections before playing
-            if (!this.audioSource || !this.analyser) {
+            //if (!this.audioSource || !this.analyser) {
                 console.log('Setting up audio connections before playing');
                 this.ensureAudioConnections();
-            }
+            //}
             
             // Resume the audio context if it's suspended (important for Chrome)
             if (this.audioContext && this.audioContext.state === 'suspended') {

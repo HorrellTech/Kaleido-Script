@@ -407,8 +407,8 @@ class Interpreter {
 
             window.loadImage = (imagePath) => this.loadImage(imagePath);
 
-            window.width = () => this.renderer.canvas.width;
-            window.height = () => this.renderer.canvas.height;
+            window.width = () => this.width();
+            window.height = () => this.height();
             window.size = (width, height) => this.renderer.resize(width, height);
 
             window.context = () => this.renderer.context;
@@ -632,6 +632,14 @@ class Interpreter {
             }
             return false;
         }
+    }
+
+    width() {
+        return this.renderer.canvas.width;
+    }
+
+    height() {
+        return this.renderer.canvas.height;
     }
 
     mouseX() {

@@ -165,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Move all UI initialization code to this function
 function initializeUI() {
-    // Set up UI controls
+    // Set up UI controls - with null checks for each element
     const btnPlay = document.getElementById('btn-play');
     const btnPause = document.getElementById('btn-pause');
     const btnStop = document.getElementById('btn-stop');
@@ -179,106 +179,120 @@ function initializeUI() {
     const clearConsole = document.getElementById('clear-console');
     const applySettings = document.getElementById('apply-settings');
 
-     // Set up video quality settings UI
-     const videoQualitySelector = document.getElementById('video-quality');
-     const customBitrateDiv = document.querySelector('.custom-bitrate');
-     
-     if (videoQualitySelector && customBitrateDiv) {
-         videoQualitySelector.addEventListener('change', function() {
-             if (this.value === 'custom') {
-                 customBitrateDiv.style.display = 'block';
-             } else {
-                 customBitrateDiv.style.display = 'none';
-             }
-         });
-     }
-
-     // Set up copy embed code button
-     const copyEmbedCodeBtn = document.getElementById('copy-embed-code');
-     if (copyEmbedCodeBtn) {
-         copyEmbedCodeBtn.addEventListener('click', () => {
-             // Get current canvas dimensions
-             const width = parseInt(document.getElementById('canvas-width').value, 10) || 800;
-             const height = parseInt(document.getElementById('canvas-height').value, 10) || 600;
-             
-             // Generate embed code with current dimensions
-             const embedCode = `<iframe 
-     src="path/to/extracted/files/index.html" 
-     width="${width}" 
-     height="${height + 50}" 
-     frameborder="0" 
-     allowfullscreen
-     ></iframe>`;
-             
-             // Copy to clipboard
-             navigator.clipboard.writeText(embedCode).then(() => {
-                 // Show success message
-                 const originalText = copyEmbedCodeBtn.innerHTML;
-                 copyEmbedCodeBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                 setTimeout(() => {
-                     copyEmbedCodeBtn.innerHTML = originalText;
-                 }, 2000);
-                 
-                 window.logToConsole('Embed code copied to clipboard', 'success');
-             }).catch(err => {
-                 console.error('Failed to copy embed code:', err);
-                 window.logToConsole('Failed to copy embed code', 'error');
-             });
-         });
-     }
-     
-     // Set up audio quality settings UI
-     const audioQualitySelector = document.getElementById('audio-quality');
-     const customAudioBitrateDiv = document.querySelector('.custom-audio-bitrate');
-     
-     if (audioQualitySelector && customAudioBitrateDiv) {
-         audioQualitySelector.addEventListener('change', function() {
-             if (this.value === 'custom') {
-                 customAudioBitrateDiv.style.display = 'block';
-             } else {
-                 customAudioBitrateDiv.style.display = 'none';
-             }
-         });
-     }
+    // Set up video quality settings UI - with null checks
+    const videoQualitySelector = document.getElementById('video-quality');
+    const customBitrateDiv = document.querySelector('.custom-bitrate');
     
-    // Set up tab navigation
-    const tabButtons = document.querySelectorAll('.tab-button');
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const tabName = button.dataset.tab;
-            
-            // Deactivate all tabs
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-            
-            // Activate selected tab
-            button.classList.add('active');
-            document.getElementById(`${tabName}-tab`).classList.add('active');
+    if (videoQualitySelector && customBitrateDiv) {
+        videoQualitySelector.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                customBitrateDiv.style.display = 'block';
+            } else {
+                customBitrateDiv.style.display = 'none';
+            }
         });
-    });
+    }
+
+    // Set up copy embed code button - with null check
+    const copyEmbedCodeBtn = document.getElementById('copy-embed-code');
+    if (copyEmbedCodeBtn) {
+        copyEmbedCodeBtn.addEventListener('click', () => {
+            // Get current canvas dimensions
+            const width = parseInt(document.getElementById('canvas-width')?.value, 10) || 800;
+            const height = parseInt(document.getElementById('canvas-height')?.value, 10) || 600;
+            
+            // Generate embed code with current dimensions
+            const embedCode = `<iframe 
+src="path/to/extracted/files/index.html" 
+width="${width}" 
+height="${height + 50}" 
+frameborder="0" 
+allowfullscreen
+></iframe>`;
+            
+            // Copy to clipboard
+            navigator.clipboard.writeText(embedCode).then(() => {
+                // Show success message
+                const originalText = copyEmbedCodeBtn.innerHTML;
+                copyEmbedCodeBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    copyEmbedCodeBtn.innerHTML = originalText;
+                }, 2000);
+                
+                if (window.logToConsole) window.logToConsole('Embed code copied to clipboard', 'success');
+            }).catch(err => {
+                console.error('Failed to copy embed code:', err);
+                if (window.logToConsole) window.logToConsole('Failed to copy embed code', 'error');
+            });
+        });
+    }
     
-    // Toggle side panel collapse/expand
+    // Set up audio quality settings UI - with null check
+    const audioQualitySelector = document.getElementById('audio-quality');
+    const customAudioBitrateDiv = document.querySelector('.custom-audio-bitrate');
+    
+    if (audioQualitySelector && customAudioBitrateDiv) {
+        audioQualitySelector.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                customAudioBitrateDiv.style.display = 'block';
+            } else {
+                customAudioBitrateDiv.style.display = 'none';
+            }
+        });
+    }
+    
+    // Set up tab navigation - with null check
+    const tabButtons = document.querySelectorAll('.tab-button');
+    if (tabButtons && tabButtons.length > 0) {
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabName = button.dataset.tab;
+                if (!tabName) return;
+                
+                // Deactivate all tabs
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+                
+                // Activate selected tab
+                button.classList.add('active');
+                const tabContent = document.getElementById(`${tabName}-tab`);
+                if (tabContent) tabContent.classList.add('active');
+            });
+        });
+    }
+    
+    // Toggle side panel collapse/expand - with null check
     const collapseButton = document.getElementById('collapse-button');
     const sidePanel = document.getElementById('side-panel');
-    collapseButton.addEventListener('click', () => {
-        sidePanel.classList.toggle('collapsed');
-        collapseButton.querySelector('i').classList.toggle('fa-chevron-left');
-        collapseButton.querySelector('i').classList.toggle('fa-chevron-right');
-    });
+    if (collapseButton && sidePanel) {
+        collapseButton.addEventListener('click', () => {
+            sidePanel.classList.toggle('collapsed');
+            const icon = collapseButton.querySelector('i');
+            if (icon) {
+                icon.classList.toggle('fa-chevron-left');
+                icon.classList.toggle('fa-chevron-right');
+            }
+        });
+    }
     
-    // Apply theme change
-    document.getElementById('theme-select').addEventListener('change', (e) => {
-        const theme = e.target.value;
-        updateEditorTheme(theme);
-    });
+    // Apply theme change - with null check
+    const themeSelect = document.getElementById('theme-select');
+    if (themeSelect) {
+        themeSelect.addEventListener('change', (e) => {
+            const theme = e.target.value;
+            if (typeof updateEditorTheme === 'function') {
+                updateEditorTheme(theme);
+            }
+        });
+    }
 
-    // Add fullscreen button handler
+    // Add fullscreen button handler - with null check
     const fullscreenBtn = document.getElementById('fullscreen-btn');
-    if (fullscreenBtn) {
+    if (fullscreenBtn && typeof toggleFullscreen === 'function') {
         fullscreenBtn.addEventListener('click', toggleFullscreen);
     }
 
-    // Initialize the record button
+    // Initialize the record button - with null check
     if (btnRecord) {
         // Reset state on page load
         window.isRecording = false;
@@ -290,11 +304,13 @@ function initializeUI() {
         
         btnRecord.addEventListener('click', () => {
             console.log('Record button clicked', window.isRecording ? '(recording)' : '(not recording)');
-            toggleRecording(window.renderer);
+            if (typeof toggleRecording === 'function' && window.renderer) {
+                toggleRecording(window.renderer);
+            }
         });
         
         // Check if recording is supported
-        if (!checkRecordingSupport()) {
+        if (typeof checkRecordingSupport === 'function' && !checkRecordingSupport()) {
             console.warn('Recording not supported, disabling button');
             btnRecord.disabled = true;
             btnRecord.title = 'Recording not supported in this browser';
@@ -302,95 +318,99 @@ function initializeUI() {
         } else {
             console.log('Recording is supported');
         }
-    } else {
-        console.warn('Record button not found in DOM');
     }
     
-    // Button event listeners
-    btnPlay.addEventListener('click', () => {
-        try {
-            // Make sure we have code to evaluate
-            const editorCode = window.editor ? window.editor.getValue() : '';
-            if (!editorCode) {
-                window.logToConsole('No code to execute', 'warning');
-                return;
-            }
-            
-            // Initialize the interpreter if needed
-            if (!window.interpreter) {
-                if (window.renderer) {
-                    window.interpreter = new Interpreter(window.renderer);
-                    window.renderer.interpreter = window.interpreter;
-                } else {
-                    window.logToConsole('Renderer not available', 'error');
+    // Button event listeners - with null checks
+    if (btnPlay) {
+        btnPlay.addEventListener('click', () => {
+            try {
+                // Make sure we have code to evaluate
+                const editorCode = window.editor ? window.editor.getValue() : '';
+                if (!editorCode) {
+                    if (window.logToConsole) window.logToConsole('No code to execute', 'warning');
                     return;
                 }
-            }
+                
+                // Initialize the interpreter if needed
+                if (!window.interpreter) {
+                    if (window.renderer) {
+                        window.interpreter = new Interpreter(window.renderer);
+                        window.renderer.interpreter = window.interpreter;
+                    } else {
+                        if (window.logToConsole) window.logToConsole('Renderer not available', 'error');
+                        return;
+                    }
+                }
 
-            renderer.stop();
-        
-            // Stop any playing audio
-            if (window.audioProcessor) {
-                window.audioProcessor.stop();
-            }
+                if (window.renderer) window.renderer.stop();
             
-            // Also stop recording if active
-            if (window.isRecording) {
-                console.log('Stopping recording due to stop button');
-                toggleRecording(renderer);
-            }
-            
-            // Reset the interpreter and evaluate the code
-            window.interpreter.reset();
-            const success = window.interpreter.evaluate(editorCode);
-            
-            if (success) {
-                // First, ensure audio processor is properly initialized even if no audio file is loaded
+                // Stop any playing audio
                 if (window.audioProcessor) {
-                    // Initialize audio context if it doesn't exist
-                    if (!window.audioProcessor.audioContext) {
-                        window.audioProcessor.initAudioContext();
-                    }
+                    window.audioProcessor.stop();
+                }
+                
+                // Also stop recording if active
+                if (window.isRecording && typeof toggleRecording === 'function' && window.renderer) {
+                    console.log('Stopping recording due to stop button');
+                    toggleRecording(window.renderer);
+                }
+                
+                // Reset the interpreter and evaluate the code
+                if (window.interpreter) {
+                    window.interpreter.reset();
+                    const success = window.interpreter.evaluate(editorCode);
                     
-                    // Resume audio context if it's suspended (needed by browsers)
-                    if (window.audioProcessor.audioContext && 
-                        window.audioProcessor.audioContext.state === 'suspended') {
-                        window.audioProcessor.audioContext.resume();
-                    }
-                    
-                    // If there's an audio element and audio file, try to play it
-                    if (window.audioProcessor.audioElement && 
-                        window.audioProcessor.audioElement.src) {
-                        window.audioProcessor.play();
-                        
-                        // Important: If we're recording, we need to ensure the cloned audio stays in sync
-                        if (window.isRecording) {
-                            ensureAudioSync();
+                    if (success) {
+                        // First, ensure audio processor is properly initialized even if no audio file is loaded
+                        if (window.audioProcessor) {
+                            // Initialize audio context if it doesn't exist
+                            if (!window.audioProcessor.audioContext) {
+                                window.audioProcessor.initAudioContext();
+                            }
+                            
+                            // Resume audio context if it's suspended (needed by browsers)
+                            if (window.audioProcessor.audioContext && 
+                                window.audioProcessor.audioContext.state === 'suspended') {
+                                window.audioProcessor.audioContext.resume();
+                            }
+                            
+                            // If there's an audio element and audio file, try to play it
+                            if (window.audioProcessor.audioElement && 
+                                window.audioProcessor.audioElement.src) {
+                                window.audioProcessor.play();
+                                
+                                // Important: If we're recording, we need to ensure the cloned audio stays in sync
+                                if (window.isRecording && typeof ensureAudioSync === 'function') {
+                                    ensureAudioSync();
+                                }
+                            }
                         }
+                        
+                        // Start the animation
+                        if (window.renderer) window.renderer.start();
+                        
+                        // Dispatch an event to signal that playback has started
+                        window.dispatchEvent(new Event('play-animation'));
+                        
+                        // If we're recording, show a notification
+                        if (window.isRecording && window.mediaRecorder && window.logToConsole) {
+                            window.logToConsole('Recording animation with audio...', 'info');
+                        }
+                    } else if (window.logToConsole) {
+                        window.logToConsole('Failed to evaluate code', 'error');
                     }
                 }
-                
-                // Start the animation
-                renderer.start();
-                
-                // Dispatch an event to signal that playback has started
-                window.dispatchEvent(new Event('play-animation'));
-                
-                // If we're recording, show a notification
-                if (window.isRecording && window.mediaRecorder) {
-                    window.logToConsole('Recording animation with audio...', 'info');
-                }
-            } else {
-                window.logToConsole('Failed to evaluate code', 'error');
+            } catch (error) {
+                console.error('Error starting animation:', error);
+                if (window.logToConsole) window.logToConsole(`Error: ${error.message}`, 'error');
             }
-        } catch (error) {
-            console.error('Error starting animation:', error);
-            window.logToConsole(`Error: ${error.message}`, 'error');
-        }
-    });
+        });
+    }
     
-    // New render image button (just renders a single frame)
-    if (btnRenderImage) {
+    // Continue with the rest of the initialization with null checks for each element
+
+    // New render image button (just renders a single frame) - with null check
+    if (btnRenderImage && typeof logToConsole === 'function') {
         btnRenderImage.addEventListener('click', () => {
             try {
                 logToConsole('Rendering single image...');
@@ -403,15 +423,17 @@ function initializeUI() {
                 }
                 
                 // Reset the interpreter
-                interpreter.reset();
-                const success = interpreter.evaluate(editorCode);
-                
-                if (success) {
-                    // Render a single frame at time 0
-                    renderer.renderFrame(0);
-                    logToConsole('Image rendered successfully');
-                } else {
-                    logToConsole('Failed to render image', 'error');
+                if (window.interpreter) {
+                    window.interpreter.reset();
+                    const success = window.interpreter.evaluate(editorCode);
+                    
+                    if (success && window.renderer) {
+                        // Render a single frame at time 0
+                        window.renderer.renderFrame(0);
+                        logToConsole('Image rendered successfully');
+                    } else {
+                        logToConsole('Failed to render image', 'error');
+                    }
                 }
             } catch (error) {
                 logToConsole(`Error rendering image: ${error.message}`, 'error');
@@ -420,43 +442,51 @@ function initializeUI() {
         });
     }
     
-    btnPause.addEventListener('click', () => {
-        renderer.pause();
-        
-        // Also pause audio if it's playing
-        if (window.audioProcessor && window.audioProcessor.isAudioPlaying()) {
-            window.audioProcessor.pause();
-        }
-        
-        logToConsole('Animation paused');
-    });
+    if (btnPause && window.renderer) {
+        btnPause.addEventListener('click', () => {
+            window.renderer.pause();
+            
+            // Also pause audio if it's playing
+            if (window.audioProcessor && window.audioProcessor.isAudioPlaying) {
+                window.audioProcessor.pause();
+            }
+            
+            if (typeof logToConsole === 'function') logToConsole('Animation paused');
+        });
+    }
     
-    btnStop.addEventListener('click', () => {
-        renderer.stop();
-        
-        // Stop any playing audio
-        if (window.audioProcessor) {
-            window.audioProcessor.stop();
-        }
-        
-        // Also stop recording if active
-        if (window.isRecording) {
-            console.log('Stopping recording due to stop button');
-            toggleRecording(renderer);
-        }
-        
-        window.logToConsole('Animation stopped');
-    });
+    if (btnStop) {
+        btnStop.addEventListener('click', () => {
+            if (window.renderer) window.renderer.stop();
+            
+            // Stop any playing audio
+            if (window.audioProcessor) {
+                window.audioProcessor.stop();
+            }
+            
+            // Also stop recording if active
+            if (window.isRecording && typeof toggleRecording === 'function' && window.renderer) {
+                console.log('Stopping recording due to stop button');
+                toggleRecording(window.renderer);
+            }
+            
+            if (window.logToConsole) window.logToConsole('Animation stopped');
+        });
+    }
     
-    fpsInput.addEventListener('change', () => {
-        renderer.setFPS(parseInt(fpsInput.value, 10));
-    });
+    if (fpsInput && window.renderer) {
+        fpsInput.addEventListener('change', () => {
+            window.renderer.setFPS(parseInt(fpsInput.value, 10));
+        });
+    }
     
-    durationInput.addEventListener('change', () => {
-        renderer.setDuration(parseInt(durationInput.value, 10));
-    });
+    if (durationInput && window.renderer) {
+        durationInput.addEventListener('change', () => {
+            window.renderer.setDuration(parseInt(durationInput.value, 10));
+        });
+    }
 
-    // Add event listener for the main export button
+    // Add event listener for the main export button - with null check
     const exportButton = document.getElementById('export-button');
     if (exportButton) {
         exportButton.addEventListener('click', (e) => {
@@ -466,80 +496,117 @@ function initializeUI() {
         });
     }
     
-    if (exportPNG) exportPNG.addEventListener('click', () => exportToPNG(renderer));
-    if (exportGIF) exportGIF.addEventListener('click', () => exportToGIF(renderer));
-    if (exportMP4) exportMP4.addEventListener('click', () => exportToMP4(renderer));
+    if (exportPNG && typeof exportToPNG === 'function') {
+        exportPNG.addEventListener('click', () => exportToPNG(window.renderer));
+    }
+    
+    if (exportGIF && typeof exportToGIF === 'function') {
+        exportGIF.addEventListener('click', () => exportToGIF(window.renderer));
+    }
+    
+    if (exportMP4 && typeof exportToMP4 === 'function') {
+        exportMP4.addEventListener('click', () => exportToMP4(window.renderer));
+    }
+    
     const exportHTML5 = document.getElementById('export-html5');
-    if (exportHTML5) exportHTML5.addEventListener('click', () => exportToHTML5(renderer));
+    if (exportHTML5 && typeof exportToHTML5 === 'function') {
+        exportHTML5.addEventListener('click', () => exportToHTML5(window.renderer));
+    }
     
-    clearConsole.addEventListener('click', () => {
-        document.getElementById('console-output').innerHTML = '';
-    });
+    if (clearConsole) {
+        clearConsole.addEventListener('click', () => {
+            const consoleOutput = document.getElementById('console-output');
+            if (consoleOutput) consoleOutput.innerHTML = '';
+        });
+    }
     
-    applySettings.addEventListener('click', () => {
-        const width = parseInt(document.getElementById('canvas-width').value, 10);
-        const height = parseInt(document.getElementById('canvas-height').value, 10);
-        renderer.resizeCanvas(width, height);
+    if (applySettings) {
+        applySettings.addEventListener('click', () => {
+            const widthInput = document.getElementById('canvas-width');
+            const heightInput = document.getElementById('canvas-height');
+            const width = widthInput ? parseInt(widthInput.value, 10) : 800;
+            const height = heightInput ? parseInt(heightInput.value, 10) : 600;
+            
+            if (window.renderer) window.renderer.resizeCanvas(width, height);
 
-         // Save aspect ratio lock setting
-        const lockAspectRatio = document.getElementById('lock-aspect-ratio').checked;
-        localStorage.setItem('kaleidoScript.lockAspectRatio', lockAspectRatio);
-        
-    });
-    
-    // Handle image import
-    document.getElementById('import-image-btn').addEventListener('click', () => {
-        importImage((image) => {
-            addImageToLibrary(image);
+            // Save aspect ratio lock setting
+            const lockAspectRatioInput = document.getElementById('lock-aspect-ratio');
+            if (lockAspectRatioInput) {
+                const lockAspectRatio = lockAspectRatioInput.checked;
+                localStorage.setItem('kaleidoScript.lockAspectRatio', lockAspectRatio);
+            }
         });
-    });
+    }
     
-    // Handle audio import
-    document.getElementById('import-audio-btn').addEventListener('click', () => {
-        importAudio((audioFile) => {
-            addAudioToLibrary(audioFile);
+    // Handle image import - with null check
+    const importImageBtn = document.getElementById('import-image-btn');
+    if (importImageBtn && typeof importImage === 'function') {
+        importImageBtn.addEventListener('click', () => {
+            importImage((image) => {
+                if (typeof addImageToLibrary === 'function') addImageToLibrary(image);
+            });
         });
-    });
+    }
     
-    // Load initial code
-    if (fileManager && fileManager.files['main.js']) {
-        const initialCode = fileManager.files['main.js'];
+    // Handle audio import - with null check
+    const importAudioBtn = document.getElementById('import-audio-btn');
+    if (importAudioBtn && typeof importAudio === 'function') {
+        importAudioBtn.addEventListener('click', () => {
+            importAudio((audioFile) => {
+                if (typeof addAudioToLibrary === 'function') addAudioToLibrary(audioFile);
+            });
+        });
+    }
+    
+    // Load initial code - with null check
+    if (window.fileManager && window.fileManager.files && window.fileManager.files['main.js']) {
+        const initialCode = window.fileManager.files['main.js'];
         if (window.editor) {
             window.editor.setValue(initialCode);
-            updateHints(initialCode);
-            logToConsole('Initial script loaded');
+            if (typeof updateHints === 'function') updateHints(initialCode);
+            if (window.logToConsole) window.logToConsole('Initial script loaded');
         }
     }
 
-    // Fix dropdown menus
-    document.querySelectorAll('.dropdown-toggle').forEach(button => {
-        button.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const menu = button.nextElementSibling;
-            menu.classList.toggle('show');
+    // Fix dropdown menus - with null check
+    const dropdownToggles = document.querySelectorAll('.dropdown-toggle');
+    if (dropdownToggles && dropdownToggles.length > 0) {
+        dropdownToggles.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menu = button.nextElementSibling;
+                if (menu) menu.classList.toggle('show');
+            });
         });
-    });
+    }
 
-    // Close dropdown when clicking outside
+    // Close dropdown when clicking outside - with null check
     document.addEventListener('click', () => {
-        document.querySelectorAll('.dropdown-menu').forEach(menu => {
-            menu.classList.remove('show');
-        });
+        const dropdownMenus = document.querySelectorAll('.dropdown-menu');
+        if (dropdownMenus && dropdownMenus.length > 0) {
+            dropdownMenus.forEach(menu => {
+                menu.classList.remove('show');
+            });
+        }
     });
-
-    
 
     // Check recording support and disable the button if not supported
-    if (!checkRecordingSupport() && btnRecord) {
+    if (typeof checkRecordingSupport === 'function' && !checkRecordingSupport() && btnRecord) {
         btnRecord.disabled = true;
         btnRecord.title = 'Recording not supported in this browser';
         btnRecord.style.opacity = '0.5';
     }
 
-    initEditorCanvasResizing();
+    if (typeof initEditorCanvasResizing === 'function') {
+        initEditorCanvasResizing();
+    }
 
     // Load settings and initialize renderer
-    loadSettings();
+    if (typeof loadSettings === 'function') {
+        loadSettings();
+    }
+    
+    console.log('UI initialization completed successfully');
 }
 
 // Common resolution presets with their aspect ratios

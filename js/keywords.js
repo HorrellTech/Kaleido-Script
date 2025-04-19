@@ -6,15 +6,15 @@
 // Global canvas/renderer functions
 const canvasFunctions = {
     width: {
-        name: 'width()',
+        name: 'width',
         description: 'Returns the current canvas width in pixels.',
-        example: 'const w = width(); // Get canvas width',
+        example: 'const w = width; // Get canvas width',
         category: 'canvas'
     },
     height: {
-        name: 'height()',
+        name: 'height',
         description: 'Returns the current canvas height in pixels.',
-        example: 'const h = height(); // Get canvas height',
+        example: 'const h = height; // Get canvas height',
         category: 'canvas'
     },
     size: {
@@ -24,15 +24,15 @@ const canvasFunctions = {
         category: 'canvas'
     },
     context: {
-        name: 'context()',
+        name: 'context',
         description: 'Returns the canvas 2D rendering context.',
-        example: 'const ctx = context(); // Get raw drawing context',
+        example: 'const ctx = context; // Get raw drawing context',
         category: 'canvas'
     },
     canvas: {
-        name: 'canvas()',
+        name: 'canvas',
         description: 'Returns the canvas DOM element.',
-        example: 'const cnv = canvas(); // Get canvas element',
+        example: 'const cnv = canvas; // Get canvas element',
         category: 'canvas'
     }
 };

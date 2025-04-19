@@ -70,19 +70,19 @@ function draw(time) {
   const highs = audiohz(2000) * settings.reactivity;
   
   // Add fog in the background
-  visualFog(0, 0, width(), height(), 8, 120, 250, 0.3, 50, 150, 0.15, 
+  visualFog(0, 0, width, height, 8, 120, 250, 0.3, 50, 150, 0.15, 
     'rgba(100, 150, 255, 0.1)', false);
   
   // Add some particles that respond to mids
   fill(255, 255, 255, 0.4);
-  visualParticle(0, 0, width(), height(), 20, 500, 2000, false);
+  visualParticle(0, 0, width, height, 20, 500, 2000, false);
   
   // Draw circular visualizer around the album art
   stroke(settings.primaryColor);
   lineWidth(2 + bass * 3);
   glowStart(settings.primaryColor, 10);
   visualCircular(
-    width()/2, height()/2,    // Center position
+    width/2, height/2,    // Center position
     settings.albumSize/2,     // Min radius (size of album)
     settings.albumSize/2 + 80 + bass * 50, // Max radius
     64,                      // Points count
@@ -97,7 +97,7 @@ function draw(time) {
   lineWidth(1.5);
   glowStart(settings.accentColor, 5);
   visualCircular(
-    width()/2, height()/2,
+    width/2, height/2,
     settings.albumSize/2 + 100,
     settings.albumSize/2 + 150 + mids * 50,
     48,
@@ -119,8 +119,8 @@ function draw(time) {
   fill(settings.primaryColor);
   glowStart(settings.primaryColor, 10);
   visualBar(
-    0, height(),            // Position at bottom
-    width(), 120,           // Size
+    0, height,            // Position at bottom
+    width, 120,           // Size
     64,                     // Bar count
     2,                      // Spacing
     3,                      // Min height
@@ -134,7 +134,7 @@ function draw(time) {
   lineWidth(1);
   stroke(settings.accentColor);
   visualVortex(
-    width()/2, height()/2,      // Position
+    width/2, height/2,      // Position
     350,                        // Size
     3,                          // Rings
     20,                         // Points per ring
@@ -145,11 +145,11 @@ function draw(time) {
   
   // Add song title and info
   fill(255, 255, 255, 0.9);
-  text("SONG TITLE", width()/2, 50, 24, "Arial", "center");
-  text("Artist Name", width()/2, 80, 16, "Arial", "center");
+  text("SONG TITLE", width/2, 50, 24, "Arial", "center");
+  text("Artist Name", width/2, 80, 16, "Arial", "center");
   
   // Add audio level indicators in corner
-  drawAudioLevels(30, height() - 80, bass, mids, highs);
+  drawAudioLevels(30, height - 80, bass, mids, highs);
 }
 
 // Helper function to draw audio level indicators
@@ -4573,14 +4573,14 @@ function draw(time) {
   
   // Add 2D overlay elements
   fill(255, 255, 255, 0.8);
-  text("3D AUDIO WORLD", width()/2, 40, 24, "Arial", "center");
+  text("3D AUDIO WORLD", width/2, 40, 24, "Arial", "center");
   text("Bass: " + Math.round(bass * 100) + "%", 20, 40, 14);
-  text("FPS: " + Math.round(getFps()), width() - 80, 40, 14);
+  text("FPS: " + Math.round(getFps()), width - 80, 40, 14);
   
   // Add equalizer at bottom of screen
   fill(settings.orbitColor);
   glowStart(settings.orbitColor, 5);
-  visualBar(0, height(), width(), 60, 32, 2, 3, 0, true, false);
+  visualBar(0, height, width, 60, 32, 2, 3, 0, true, false);
   glowEnd();
 }`
 }
