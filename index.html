@@ -51,6 +51,24 @@
             margin: 0;
         }
         
+        .donate-link {
+            display: inline-block;
+            margin-left: 10px;
+            color: #61dafb;
+            text-decoration: none;
+            transition: color 0.2s, transform 0.2s;
+            font-weight: 500;
+        }
+        
+        .donate-link:hover {
+            color: #4fc0e8;
+            transform: translateY(-1px);
+        }
+        
+        .donate-link i {
+            margin-right: 5px;
+        }
+        
         /* Make sure the app container allows proper layout */
         .app-container {
             display: flex;
@@ -408,7 +426,7 @@
         </div>
     
         <footer class="app-footer">
-            <p>SynKrown</p>
+            <p>SynKrown <a href="https://synkrowngames.itch.io/kaleido-script" target="_blank" class="donate-link"><i class="fas fa-coffee"></i> Buy Me a Coffee - Donate</a></p>
         </footer>
     </div>
     <!-- PixiJS Library -->
