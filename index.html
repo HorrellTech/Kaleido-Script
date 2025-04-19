@@ -164,6 +164,32 @@
             z-index: 100; /* Ensure it's above other elements */
         }
     </style>
+    <style>
+        .bmc-button {
+            display: inline-flex;
+            margin-left: 10px;
+            vertical-align: middle;
+            height: 30px;
+        }
+        
+        .bmc-button img {
+            height: 30px;
+        }
+        
+        @media screen and (max-width: 768px) {
+            .app-footer p {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .bmc-button {
+                margin-left: 0;
+                margin-top: 5px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div id="loading-screen">
@@ -457,9 +483,16 @@
             </div>
         </div>
     
-        <footer class="app-footer">
+        <!--footer class="app-footer">
             <p>SynKrown <a href="https://synkrowngames.itch.io/kaleido-script" target="_blank" class="donate-link">
                 <i class="fas fa-coffee"></i> Buy Me a Coffee - Please donate to help support my work on this project :)</a></p>
+        </footer-->
+        <footer class="app-footer">
+            <p>SynKrown 
+                <a href="https://www.buymeacoffee.com/SynKrown" target="_blank" class="bmc-button">
+                    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="30">
+                </a>
+            </p>
         </footer>
     </div>
     <!-- PixiJS Library -->
