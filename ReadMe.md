@@ -2,6 +2,14 @@
 
 KaleidoScript is an interactive web-based application for creating code-based animated visualizations and music-reactive graphics. It features a dedicated code editor with syntax highlighting, real-time preview, and tools for audio integration.
 
+# Screenshots
+## User Interface
+![KaleidoScript Editor Interface](screenshots/screen1.png)
+
+## Sample Visualizations
+![Example Fire Visualizer](screenshots/screen2.png)
+![3D Animation Example](screenshots/screen3.png)
+
 # NOTE!!!!!!
 
  - When clicking play, you may need to click it twice to get it to work when changing the audio from the previous play. It is a bug I am working out. 
