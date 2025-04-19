@@ -162,7 +162,13 @@ const drawingFunctions = {
         description: 'Sets a background image with options for sizing and audio reactivity.',
         example: 'backgroundImage("landscape.jpg", "fill", 0.3, "#FF5500"); // Responsive image with orange pulse',
         category: 'color'
-    }
+    },
+    loadImage: {
+        name: 'loadImage(imagePath)',
+        description: 'Loads an image from the specified path.',
+        example: 'var image = loadImage("image.png"); // Load image file',
+        category: 'color'
+    },
 };
 
 // Turtle graphics functions
