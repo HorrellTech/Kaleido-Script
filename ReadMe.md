@@ -41,8 +41,8 @@ function draw(time) {
     
     // Draw circular audio visualizer at center
     visualCircular(
-        width()/2,    // x
-        height()/2,   // y
+        width/2,    // x
+        height/2,   // y
         100,          // minimum radius
         200,          // maximum radius
         64,           // number of points
