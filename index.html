@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="css/fullscreen.css">
     <link rel="stylesheet" href="css/recording.css">
     <link rel="stylesheet" href="css/volume-visualizer.css">
+    <link rel="stylesheet" href="css/mobile.css">
     <!-- CodeMirror CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
@@ -146,6 +147,11 @@
             <div class="progress-bar" id="loading-progress-bar"></div>
         </div>
     </div>
+
+    <button class="mobile-menu-button" id="mobile-menu-button">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="mobile-overlay" id="mobile-overlay"></div>
 
     <div class="app-container">
         <header>
@@ -459,6 +465,8 @@
     <!-- Custom JS -->
     <script src="js/visualizers/visual-racing-cars.js"></script>
     <script src="js/keywords.js"></script>
+    <script src="js/mobile-support.js"></script>    
+    <script src="js/touch-support.js"></script>
     <script src="js/enhanced-features.js"></script>
     <script src="js/visualizers.js"></script>
     <script src="js/settings-panel.js"></script>
