@@ -19,10 +19,7 @@ KaleidoScript is an interactive web-based application for creating code-based an
 
 ## Getting Started
 
-1. Clone this repository or download the files
-2. Open `index.html` in a modern web browser
-3. Start coding in the editor panel on the left
-4. Use the play/pause/stop controls to view your animation
+[Visit Website](https://horrelltech.github.io/Kaleido-Script/)
 
 ## Basic Example
 
