@@ -75,6 +75,25 @@ function initEditor() {
     initEditorResizers();
 
     setTimeout(maintainHintPanelSize, 200); // Short delay to ensure DOM is ready
+    setTimeout(addVisualComposerButton, 100);
+}
+
+function addVisualComposerButton() {
+    const editorHeader = document.querySelector('.editor-header');
+    if (!editorHeader) return;
+    
+    const composerBtn = document.createElement('button');
+    composerBtn.className = 'composer-button';
+    composerBtn.id = 'visual-composer-btn';
+    composerBtn.innerHTML = '<i class="fas fa-magic"></i> Visual Composer';
+    composerBtn.title = 'Create visualizations without coding';
+    
+    editorHeader.appendChild(composerBtn);
+    
+    // Add event listener
+    composerBtn.addEventListener('click', function() {
+        openVisualComposer();
+    });
 }
 
 window.addEventListener('resize', maintainHintPanelSize);
@@ -114,62 +133,32 @@ function maintainHintPanelSize() {
 }
 
 function getDefaultCode() {
-    return `/**
- * KaleidoScript
- * A creative coding environment for audio-reactive visualizations
- */
+    return `var cImage = null;
 
-// Global variables
-const settings = {
-  colorScheme: {
-    background: [20, 20, 30],
-    primary: [0, 150, 255],
-    accent: [255, 50, 150]
-  },
-  intensity: 1.0,
-  speed: 1.0
-};
-
-/**
- * Setup runs once when the script starts
- * Use it to initialize variables and configurations
- */
 function setup() {
-  // Set initial background color
-  background(...settings.colorScheme.background);
+    loadAudio("Music/Be My Moon.wav");
+    playAudio();
   
-  // Uncomment to load and play audio
-  // loadAudio("your_audio_file.mp3");
-  // playAudio();
-  
-  // Log a message to show setup is complete
-  log("Setup complete!");
+    cImage = loadImage("Images/MoonBroken.png");
 }
 
-/**
- * Draw runs on every animation frame
- * @param {number} time - Elapsed time in milliseconds
- */
 function draw(time) {
-  // Clear with background color
-  background(...settings.colorScheme.background);
+    // Dark background
+    background(5, 5, 10);
+  	
+  	fill(220, 16, 128, 1);
+    
+  	visualCircular(width / 2, height / 2, 150, 250, 64, 20, 2000, time * 0.001, true);
   
-  // Example: draw a circle that moves with time
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const radius = 100 + Math.sin(time * 0.001 * settings.speed) * 50;
+    // Add album art in the center with glow that responds to bass
+    visualCenterImage(cImage, 200, 0.6, "#FF33AA");
+    
+  	stroke(220 + (audiohz(200) * 500), 16, 128, .6);
   
-  // Use the primary color
-  fill(settings.colorScheme.primary[0], 
-       settings.colorScheme.primary[1], 
-       settings.colorScheme.primary[2]);
-  
-  // Draw the circle
-  circle(centerX, centerY, radius * settings.intensity);
-  
-  // Add some text
-  fill(255, 255, 255);
-  text("KaleidoScript is ready!", centerX - 80, centerY - radius - 20, 16);
+  	visualBar(0, height, width, 60, 128, 2, 5, 0, true, true);
+    
+  	// Overlay some particles for additional visual interest
+    visualParticle(0, 0, width, height, 40, 500, 4000, true);
 }`;
 }
 
