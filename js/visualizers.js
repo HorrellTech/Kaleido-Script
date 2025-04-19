@@ -1894,6 +1894,9 @@ class Visualizers {
     // Add nebula visualizer
     nebulaVisualizer(x, y, width, height, density = 5, starCount = 100, hue = 240, freqStart = 20, freqEnd = 2000, glow = true) {
         if (!this.context) return;
+
+        // Save the current context state at the beginning
+        this.context.save();
         
         // Initialize nebula data if it doesn't exist
         if (!this.nebulaData) {
@@ -1982,6 +1985,9 @@ class Visualizers {
             
             // Add cross glow for brighter stars
             if (brightness > 0.8) {
+                // Save state before changing globalAlpha
+                this.context.save();
+
                 this.context.globalAlpha = brightness * 0.3;
                 this.context.beginPath();
                 this.context.moveTo(star.x - starSize * 3, star.y);
@@ -1991,13 +1997,18 @@ class Visualizers {
                 this.context.strokeStyle = `rgba(255, 255, 255, ${brightness})`;
                 this.context.lineWidth = starSize * 0.5;
                 this.context.stroke();
-                this.context.globalAlpha = 1;
+                // Restore state after drawing star cross
+                this.context.restore();
             }
         });
         
-        if (glow) {
-            this.context.shadowBlur = 0;
-        }
+        // Reset shadow effects and restore the original context state
+        this.context.shadowBlur = 0;
+        this.context.shadowColor = 'transparent';
+        this.context.globalAlpha = 1.0;
+        
+        // Restore the context to its original state
+        this.context.restore();
     }
 
     adjustColorBrightness(color, factor) {
