@@ -1,0 +1,82 @@
+/* Recording button styles */
+#btn-record {
+    background-color: #444;
+    transition: background-color 0.3s, color 0.3s, transform 0.1s;
+    position: relative;
+}
+
+#btn-record.recording {
+    background-color: #e74c3c !important;
+    animation: pulse-record 1.5s infinite;
+}
+
+#btn-record i {
+    color: #e74c3c; /* Always keep the circle red */
+}
+
+#btn-record.recording i {
+    color: white; /* When recording, make the circle white */
+}
+
+/* Ensure the button stays red while recording */
+#btn-record.recording:hover {
+    background-color: #c0392b !important; /* Slightly darker red on hover */
+}
+
+/* Record button pulse animation */
+@keyframes pulse-record {
+    0% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(231, 76, 60, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+    }
+}
+
+/* Recording indicator */
+.recording-indicator {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(231, 76, 60, 0.9); /* More solid red */
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    z-index: 1000;
+    animation: fadeInOut 2s infinite;
+    gap: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.recording-indicator .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background-color: white;
+    border-radius: 50%;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0.9; }
+    50% { opacity: 1; }
+    100% { opacity: 0.9; }
+}
+
+/* Add a class for success messages */
+.console-success {
+    color: #2ecc71;
+}
+

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaleido-Script - Code Based Animated Image Generator</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/filesystem.css">
+    <link rel="stylesheet" href="css/fullscreen.css">
+    <link rel="stylesheet" href="css/recording.css">
+    <link rel="stylesheet" href="css/volume-visualizer.css">
+    <!-- CodeMirror CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/darcula.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/material.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/material-darker.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/material-palenight.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/material-ocean.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/nord.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/ayu-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/cobalt.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/night.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/solarized.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.css">
+
+    <!-- JSZip Library for ZIP file creation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    
+
+    <style>
+        .app-footer {
+            display: block;
+            position: relative;
+            text-align: center;
+            padding: 1px 0;
+            margin-top: 12px;
+            font-size: 0.9rem;
+            color: #888;
+            border-top: 1px solid #444;
+            width: 100%;
+            z-index: 100; /* Ensure it's above other elements */
+        }
+        
+        .app-footer p {
+            margin: 0;
+        }
+        
+        /* Make sure the app container allows proper layout */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 50px); /* Adjust as needed */
+        }
+    </style>
+    <style>
+        /* Loading screen styles */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease-out;
+        }
+
+        #loading-screen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loader {
+            width: 80px;
+            height: 80px;
+            border: 5px solid rgba(97, 218, 251, 0.2);
+            border-radius: 50%;
+            border-top: 5px solid #61dafb;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-text {
+            color: #61dafb;
+            font-size: 18px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+        }
+
+        .loading-progress {
+            width: 300px;
+            height: 4px;
+            background-color: #333;
+            border-radius: 2px;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #61dafb;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="loader"></div>
+        <div class="loading-text">Initializing KaleidoScript...</div>
+        <div class="loading-progress">
+            <div class="progress-bar" id="loading-progress-bar"></div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <header>
+            <h1>Kaleido-Script</h1>
+
+            <div class="control-panel">
+                <button id="btn-record" title="Record Video" class="record-inactive"><i class="fas fa-circle"></i></button>
+                <button id="btn-play" title="Play"><i class="fas fa-play"></i></button>
+                <button id="btn-pause" title="Pause"><i class="fas fa-pause"></i></button>
+                <button id="btn-stop" title="Stop"><i class="fas fa-stop"></i></button>
+                <button id="btn-render-image" title="Render Single Image"><i class="fas fa-image"></i></button>
+                <span class="separator"></span>
+                <label for="fps-input">FPS:</label>
+                <input type="number" id="fps-input" min="1" max="60" value="30">
+                <div class="animation-controls">
+                    <label for="duration-input" class="duration-label">Duration (s):</label>
+                    <input type="number" id="duration-input" min="0" max="60" value="0" class="duration-input" title="0 means infinite">
+                </div>
+                <span class="separator"></span>
+                <div class="dropdown">
+                    <button class="dropdown-toggle" id="export-button">
+                      Export <i class="fas fa-caret-down"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                      <button id="export-png">PNG</button>
+                      <button id="export-gif">GIF</button>
+                      <!--button id="export-html5">HTML5 Player</button-->
+                      <!--button id="export-mp4">MP4</button-->
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="side-panel" id="side-panel">
+                <div class="panel-tabs">
+                    <button class="tab-button active" data-tab="files">Files</button>
+                    <button class="tab-button" data-tab="imports">Imports</button>
+                    <button class="tab-button" data-tab="examples">Examples</button>
+                    <button class="tab-button" data-tab="settings">Settings</button>
+                </div>
+                <div class="tab-content active" id="files-tab">
+                    <div class="file-list">
+                        <div class="file-item active" data-filename="main.js">main.js</div>
+                        <!-- More files will be added dynamically -->
+                    </div>
+                    <div class="file-actions">
+                        <!--button id="new-file-btn"><i class="fas fa-file"></i> New File</button>
+                        <button id="save-file-btn"><i class="fas fa-save"></i> Save File</button>
+                        <button id="load-file-btn"><i class="fas fa-folder-open"></i> Load File</button-->
+                    </div>
+                </div>
+                <div class="tab-content" id="imports-tab">
+                    <div class="imports-section">
+                        <h3>Images</h3>
+                        <div class="image-list">
+                            <!-- Images will be added here -->
+                        </div>
+                        <button id="import-image-btn"><i class="fas fa-upload"></i> Import Image</button>
+                    </div>
+                    
+                    <div class="imports-section">
+                        <h3>Audio</h3>
+                        <div class="audio-list">
+                            <!-- Audio files will be added here -->
+                        </div>
+                        <div class="audio-controls">
+                            <button id="import-audio-btn"><i class="fas fa-music"></i> Import Audio</button>
+                            <div class="audio-player" style="display: none;">
+                                <audio id="audio-preview" controls controlsList="nodownload"></audio>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-content" id="examples-tab">
+                    <div class="examples-list">
+                        <!-- Examples will be populated from examples.js -->
+                    </div>
+                </div>
+                <div class="tab-content" id="settings-tab">
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label for="resolution-preset">Resolution Preset:</label>
+                            <select id="resolution-preset">
+                                <option value="custom">Custom</option>
+                                <!-- Presets will be populated by JavaScript -->
+                            </select>
+                        </div>
+                        <div class="form-group canvas-dimensions">
+                            <label for="canvas-width">Canvas Width:</label>
+                            <input type="number" id="canvas-width" value="800" min="50" max="7680">
+                        </div>
+                        <div class="form-group canvas-dimensions">
+                            <label for="canvas-height">Canvas Height:</label>
+                            <input type="number" id="canvas-height" value="600" min="50" max="4320">
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="lock-aspect-ratio">
+                            <label for="lock-aspect-ratio">Lock Aspect Ratio</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="graphics-engine">Graphics Engine:</label>
+                            <select id="graphics-engine">
+                                <option value="canvas">Canvas (Default)</option>
+                                <!--option value="pixi">PixiJS (WebGL)</option-->
+                                <!--<option value="three">Three.js (WebGL, NOT YET FUNCTIONAL)</option>
+                                //<option value="svg">SVG (Experimental)</option>
+                                <option value="webgl">WebGL (Experimental)</option>-->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="theme-select">Editor Theme:</label>
+                            <select id="theme-select">
+                                <option value="monokai">Monokai</option>
+                                <option value="default">Default</option>
+                                <option value="darcula">Darcula</option>
+                                <option value="dracula">Dracula</option>
+                                <option value="material">Material</option>
+                                <option value="material-darker">Material Darker</option>
+                                <option value="material-palenight">Material Palenight</option>
+                                <option value="material-ocean">Material Ocean</option>
+                                <option value="nord">Nord</option>
+                                <option value="ayu-dark">Ayu Dark</option>
+                                <option value="cobalt">Cobalt</option>
+                                <option value="night">Night</option>
+                                <option value="solarized">Solarized</option>
+                            </select>
+                        </div>
+
+                        <!-- Add Video Recording Settings Section -->
+                        <h3>Video Recording Settings</h3>
+                        <div class="form-group">
+                            <label for="video-quality">Video Quality:</label>
+                            <select id="video-quality">
+                                <option value="high">High (8 Mbps)</option>
+                                <option value="medium" selected>Medium (5 Mbps)</option>
+                                <option value="low">Low (2 Mbps)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="form-group custom-bitrate" style="display: none;">
+                            <label for="video-bitrate">Custom Video Bitrate (Mbps):</label>
+                            <input type="number" id="video-bitrate" value="5" min="0.5" max="20" step="0.5">
+                        </div>
+                        <div class="form-group">
+                            <label for="audio-quality">Audio Quality:</label>
+                            <select id="audio-quality">
+                                <option value="high">High (320 kbps)</option>
+                                <option value="medium" selected>Medium (128 kbps)</option>
+                                <option value="low">Low (64 kbps)</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="form-group custom-audio-bitrate" style="display: none;">
+                            <label for="audio-bitrate">Custom Audio Bitrate (kbps):</label>
+                            <input type="number" id="audio-bitrate" value="128" min="32" max="320" step="16">
+                        </div>
+                        <div class="form-group">
+                            <label for="recording-codec">Video Codec:</label>
+                            <select id="recording-codec">
+                                <option value="vp9">VP9 (Best Quality)</option>
+                                <option value="vp8" selected>VP8 (Compatible)</option>
+                                <option value="h264">H.264 (If Available)</option>
+                            </select>
+                        </div>
+
+                        <div class="settings-section">
+                            <h3>HTML5 Export &amp; Embedding</h3>
+                            <div class="embed-info">
+                                <p>Export your KaleidoScript animation as a self-contained HTML5 package:</p>
+                                
+                                <ol>
+                                    <li>Create your visualization and add audio/images (if needed)</li>
+                                    <li>Click <strong>Export → HTML5 Player</strong> in the toolbar</li>
+                                    <li>Save the generated ZIP file to your computer</li>
+                                </ol>
+                                
+                                <p><strong>To use the exported package:</strong></p>
+                                <ol>
+                                    <li>Extract all files from the ZIP archive</li>
+                                    <li>Upload the extracted files to your web server</li>
+                                    <li>Open index.html in a web browser or embed using the code below</li>
+                                </ol>
+                                
+                                <p><strong>Embedding code:</strong> Copy this code and add to your website HTML:</p>
+                                
+                                <div class="code-example">
+                                    <pre><code>&lt;iframe 
+                        src="path/to/extracted/files/index.html" 
+                        width="800" 
+                        height="650" 
+                        frameborder="0" 
+                        allowfullscreen
+                        &gt;&lt;/iframe&gt;</code></pre>
+                                    <button id="copy-embed-code" class="copy-button">
+                                        <i class="fas fa-copy"></i> Copy Code
+                                    </button>
+                                </div>
+                                
+                                <div class="embed-notes">
+                                    <p><strong>Notes:</strong></p>
+                                    <ul>
+                                        <li>The HTML5 package contains all necessary files (HTML, audio, images)</li>
+                                        <li>All assets are properly linked for local playback</li>
+                                        <li>The player is fully interactive with play/pause controls</li>
+                                        <li>Set <code>width</code> and <code>height</code> to match your canvas dimensions + 50px for controls</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <button id="apply-settings">Apply</button>
+                    </div>
+                </div>
+                <button class="collapse-button" id="collapse-button">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
+
+            <div class="workspace">
+                <div class="editor-panel">
+                    <div class="editor-header">
+                        <span id="current-file-name">main.ks</span>
+                    </div>
+                    <div id="code-editor"></div>
+                    <div class="editor-hints">
+                        <div class="hint-header">Hint</div>
+                        <div id="hint-content">
+                            <div class="hint-title">Welcome to KaleidoScript!</div>
+                            <div class="hint-description">Start typing to see hints for available functions and keywords.</div>
+                            <div class="hint-example">Example: <code>circle(400, 300, 50);</code></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="vertical-resizer"></div>
+                
+                <div class="output-panel">
+                    <div class="canvas-container">
+                        <canvas id="output-canvas"></canvas>
+                        <div id="settings-panel" class="settings-panel">
+                            <button class="settings-toggle">
+                                <i class="fas fa-sliders-h"></i>
+                            </button>
+                            <div class="settings-header">
+                                <h3>Animation Settings</h3>
+                            </div>
+                            <div class="settings-content">
+                                <!-- Settings will be dynamically added here -->
+                            </div>
+                            <div class="settings-footer">
+                                <button class="btn-save-settings">Save Settings</button>
+                            </div>
+                        </div>
+
+                        <button id="fullscreen-btn" title="Toggle Fullscreen">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="horizontal-resizer"></div>
+                    
+                    <div class="console-container">
+                        <div class="console-header">
+                            <span>Console</span>
+                            <div class="volume-visualizer">
+                                <span class="volume-label"></span>
+                                <div class="db-meter">
+                                    <div class="db-meter-level"></div>
+                                </div>
+                                <span class="db-value">-∞ dB</span>
+                            </div>
+                            <button id="clear-console"><i class="fas fa-trash"></i></button>
+                        </div>
+                        <div id="console-output"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+        <footer class="app-footer">
+            <p>SynKrown</p>
+        </footer>
+    </div>
+    <!-- PixiJS Library -->
+    <!--script src="https://cdn.jsdelivr.net/npm/pixi.js@7.3.2/dist/pixi.min.js"></script-->
+
+    <!-- PixiJS Library (v6.5.8 - more stable version) -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@5.3.11/dist/pixi.min.js"></script>
+
+    <!-- CodeMirror JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/javascript-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/mode/simple.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/matchbrackets.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/closebrackets.js"></script>
+    
+    <!-- GIF.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js"></script>
+    
+    <!-- FFmpeg for MP4 export -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"></script>
+    
+    <!-- Web Audio API Helper -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/web-audio-api/0.2.2/web-audio-api.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="js/visualizers/visual-racing-cars.js"></script>
+    <script src="js/keywords.js"></script>
+    <script src="js/enhanced-features.js"></script>
+    <script src="js/visualizers.js"></script>
+    <script src="js/settings-panel.js"></script>
+    <script src="js/examples.js"></script>
+    <script src="js/resizers.js"></script>
+    <script src="js/file-manager.js"></script>
+    <script src="js/file-system-manager.js"></script>
+    <script src="js/editor.js"></script>
+    <!--script src="js/pixi-renderer.js"></script>
+    <script src="js/standalone-pixi-renderer.js"></script-->
+    <script src="js/renderer.js"></script>    
+    <script src="js/webgl-detection.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/audio-processor.js"></script>
+    <script src="js/kscript-parser.js"></script>
+    <script src="js/interpreter.js"></script>
+    <script src="js/volume-visualizer.js"></script>
+    <script src="js/main.js"></script>
+
+    <!-- Debug script to verify PIXI is loaded -->
+    <!--script>
+        // Verify PixiJS loading and add a listener for when DOM content is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+        if (typeof PIXI === 'undefined') {
+            window.logToConsole('Error: PixiJS library failed to load. Ensure you have an internet connection.', 'error');
+        } else {
+            window.logToConsole('PixiJS loaded successfully: v' + PIXI.VERSION);
+        }
+        });
+    </script-->
+</body>
+</html>

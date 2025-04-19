@@ -1,0 +1,71 @@
+# Audio Visualizer Request Template
+
+I'm using a JavaScript canvas-based audio visualization framework that provides these key features:
+
+## Core Functions
+- `audiohz(freq)`: Returns amplitude (0-1) at specified frequency
+- `glowStart(color, size)` / `glowEnd()`: Add glow effects
+- Global `time` variable for animations (seconds elapsed)
+- Canvas dimensions available as `width` and `height`
+
+## Available Visualizer Building Blocks:
+```javascript
+// Basic Drawing
+circle(x, y, radius, outline?)           // Draw circle
+line(x1, y1, x2, y2)                    // Draw line
+fill(r, g, b, alpha?)                   // Set fill color
+stroke(r, g, b, alpha?)                 // Set stroke color
+lineWidth(width)                        // Set line width
+
+// Effects
+glowStart(color, size)                  // Start glow effect
+glowEnd()                              // End glow effect
+motionBlurStart(alpha, composite)       // Start motion blur
+motionBlurEnd()                        // End motion blur
+```
+
+## Example Structure:
+```javascript
+const settings = {
+    settings1: 0,
+    settings2: 2
+}
+
+function setup()
+{
+    loadAudio("audio.mp3");
+    playAudio();
+}
+
+function draw(time) {
+    // Clear previous frame
+    clear();
+    
+    // Get audio data
+    const bassAmplitude = audiohz(60);  // Low frequencies
+    const midAmplitude = audiohz(500);  // Mid frequencies
+    const highAmplitude = audiohz(2000); // High frequencies
+    
+    // Draw visualization
+    // Your visualization code here
+}
+```
+
+## My Request:
+I want to create a visualizer that [describe your desired visualization]. The visualization should react to [specify which frequencies] and should [describe the desired behavior/effect].
+
+Key elements I want to include:
+1. [List specific visual elements]
+2. [List audio reactive behaviors]
+3. [List any special effects desired]
+
+Please generate the code using this framework's functions.
+
+
+
+
+
+Can you look at the keywords and interpreter and this prompt tempate, and make some audio visualizers for me? 
+Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. 
+Ready yourself for the requests, you are now a kaleido-script master
+CaCan you look at the keywords and interpreter and this prompt tempate, and make some audio visualizers for me? Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. Ready yourself for the requests, you are now a kaleido-script mastern you look at the keywoCan you look at the keywords and interpreter anCan you look at the keywords and interpreter and this prompt tempate, and make some audio visualizers for me? Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. Ready yourself for the requests, you are now a kaleido-script masterd this prompt tempate, and make some audio visualizers for me? Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. Ready yourself for the requests, you are now a kaleido-script masterrds and interpreter and this prompt tempate, and make some audio visualizers for me? Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. Ready yourself for the requests, you are now a kaleido-script master

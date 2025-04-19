@@ -1,0 +1,1890 @@
+/* Base styles and reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #1e1e1e;
+    color: #f0f0f0;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden; /* Prevent scrolling at container level */
+}
+
+/* Header styling */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #252525;
+    border-bottom: 1px solid #333;
+}
+
+header h1 {
+    font-size: 1.5rem;
+    color: #61dafb;
+}
+
+.control-panel {
+    display: flex;
+    align-items: center;
+}
+
+.control-panel button {
+    background: #333;
+    color: #f0f0f0;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    margin: 0 3px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.control-panel button:hover {
+    background: #444;
+}
+
+.separator {
+    width: 1px;
+    height: 20px;
+    background: #555;
+    margin: 0 10px;
+}
+
+#fps-input {
+    width: 50px;
+    background: #333;
+    color: #f0f0f0;
+    border: 1px solid #555;
+    padding: 3px 5px;
+    border-radius: 3px;
+}
+
+/* Dropdown menu */
+.dropdown {
+    position: relative;
+}
+
+.dropdown-toggle {
+    background: #333;
+    color: #f0f0f0;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    min-width: 80px;
+}
+
+.dropdown-toggle:hover {
+    background: #444;
+}
+
+.dropdown-toggle i {
+    margin-left: 5px;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    min-width: 120px;
+    display: none;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-menu button {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    text-align: left;
+    background: transparent;
+    color: #f0f0f0;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    min-width: 80px;
+}
+
+.dropdown-menu button:hover {
+    background: #444;
+}
+
+/* Main content area */
+.main-content {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+    position: relative; /* Add positioning context */
+    flex: 1;
+    height: calc(100vh - 60px); /* Adjust based on header height */
+}
+
+/* Fixes for side panel layering */
+.side-panel {
+    width: 250px;
+    background: #252525;
+    border-right: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transition: width 0.3s;
+    z-index: 10; /* Add higher z-index */
+    height: 100%;
+    overflow: hidden;
+}
+
+.side-panel.collapsed {
+    width: 40px;
+    min-width: 40px;
+    overflow: hidden;
+}
+
+.side-panel.collapsed .panel-tabs,
+.side-panel.collapsed .tab-content {
+    visibility: hidden;
+}
+
+.side-panel.collapsed .collapse-button {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    visibility: visible;
+}
+
+.panel-tabs {
+    display: flex;
+    border-bottom: 1px solid #333;
+    position: relative;
+    z-index: 11;
+    z-index: 101; /* Above side panel */
+}
+
+.tab-button {
+    flex-grow: 1;
+    padding: 10px;
+    background: #2d2d2d;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    transition: background 0.2s;
+    position: relative;
+    z-index: 11; /* Higher than side panel */
+}
+
+.tab-button.active {
+    background: #333;
+    color: #61dafb;
+}
+
+.tab-content {
+    display: none;
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.tab-content.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.file-list, .image-list {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.file-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.file-item:hover {
+    background: #333;
+}
+
+#new-file-btn, #import-image-btn {
+    margin-top: 10px;
+    padding: 6px;
+    background: #333;
+    color: #f0f0f0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+#new-file-btn:hover, #import-image-btn:hover {
+    background: #444;
+}
+
+.collapse-button {
+    position: absolute;
+    right: -15px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20; /* Make sure it's above everything */
+}
+
+/* Settings tab */
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.form-group input, .form-group select {
+    background: #333;
+    color: #f0f0f0;
+    border: 1px solid #555;
+    padding: 6px;
+    border-radius: 4px;
+}
+
+#apply-settings {
+    padding: 8px;
+    background: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    margin-top: 10px;
+    cursor: pointer;
+}
+
+#apply-settings:hover {
+    background: #0077ee;
+}
+
+/* Workspace */
+.workspace {
+    flex-grow: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    z-index: 5; /* Lower than side panel */
+}
+
+/* Editor panel */
+.editor-panel {
+    width: 50%;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #333;
+    overflow: hidden; /* Prevent overflow */
+    flex: 0 1 50%;
+    min-width: 300px;
+    position: relative;
+    z-index: 6; /* Above workspace but below side panel */
+}
+
+.editor-header {
+    padding: 5px 15px;
+    background: #252525;
+    border-bottom: 1px solid #333;
+    font-family: monospace;
+}
+
+#code-editor {
+    flex-grow: 1;
+    flex-shrink: 1; /* Allow the editor to shrink */
+    overflow: hidden;
+    min-height: 100px; /* Ensure minimum height for editor */
+    flex: 1;
+    position: relative;
+}
+
+/* Hints panel under the editor */
+.editor-hints {
+    background: #252525;
+    border-top: 1px solid #333;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    height: 100px; /* Set a minimum height */
+    min-height: 100px; /* Ensure minimum height */
+    max-height: 50%; /* Limit to 50% of editor panel */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0; /* Prevent the hints from shrinking */
+}
+
+.hint-header {
+    padding: 3px 15px;
+    background: #333;
+    font-size: 12px;
+    color: #aaa;
+}
+
+#hint-content {
+    padding: 10px 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-grow: 1; /* Take all available space */
+}
+
+.hint-title {
+    color: #61dafb;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.hint-description {
+    color: #ccc;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.hint-example {
+    color: #aaa;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.hint-example code {
+    background: #333;
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: #f8f8f2;
+}
+
+/* Update the hint-match styles to make them more clickable */
+
+.hint-match {
+    font-size: 12px;
+    padding: 5px 8px;
+    margin: 2px 0;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.hint-match:hover {
+    background-color: rgba(97, 218, 251, 0.2);
+    transform: translateX(3px);
+}
+
+.hint-match:active {
+    background-color: rgba(97, 218, 251, 0.3);
+}
+
+.hint-match code {
+    background: #333;
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: #61dafb;
+    margin-right: 5px;
+    font-family: monospace;
+}
+
+/* Style for the signature display in function details */
+.reference-signature {
+    background-color: #333;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+.reference-signature code {
+    color: #61dafb;
+    font-family: monospace;
+    font-size: 14px;
+}
+
+/* Make the hint matches container scrollable */
+.hint-matches {
+    max-height: 200px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #555 #333;
+}
+
+.hint-matches::-webkit-scrollbar {
+    width: 8px;
+}
+
+.hint-matches::-webkit-scrollbar-track {
+    background: #333;
+    border-radius: 4px;
+}
+
+.hint-matches::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.hint-matches::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* Making CodeMirror fill the container */
+.CodeMirror {
+    height: 100% !important;
+    font-size: 14px;
+    position: relative;
+    z-index: 5; /* Lower than side panel but higher than default */
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100% !important;
+    z-index: 7;
+}
+
+/* CodeMirror Syntax Highlighting */
+.cm-keyword {
+    color: #f92672 !important;
+}
+
+.cm-number {
+    color: #ae81ff !important;
+}
+
+.cm-string {
+    color: #e6db74 !important;
+}
+
+.cm-operator {
+    color: #f92672 !important;
+}
+
+.cm-comment {
+    color: #75715e !important;
+}
+
+.cm-function {
+    color: #66d9ef !important;
+    font-style: italic;
+}
+
+.cm-variable {
+    color: #a6e22e !important;
+}
+
+.cm-property {
+    color: #fd971f !important;
+}
+
+.cm-atom {
+    color: #ae81ff !important;
+}
+
+/* Output panel */
+.output-panel {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    position: relative;
+    z-index: 5;
+    overflow: hidden;
+}
+
+.canvas-container {
+    flex-grow: 1;
+    background: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+#output-canvas {
+    background: #000;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+.console-container {
+    height: 150px;
+    border-top: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+}
+
+.console-header {
+    padding: 5px 15px;
+    background: #252525;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#clear-console {
+    background: transparent;
+    border: none;
+    color: #aaa;
+    cursor: pointer;
+}
+
+#clear-console:hover {
+    color: #fff;
+}
+
+#console-output {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 14px;
+}
+
+/* Resizers */
+.vertical-resizer {
+    width: 5px;
+    background: #333;
+    cursor: col-resize;
+    transition: background 0.2s;
+    position: relative;
+    z-index: 6; /* Slightly higher than CodeMirror */
+    flex: 0 0 5px;
+    background-color: #333;
+    cursor: col-resize;
+    position: relative;
+    z-index: 50; /* Above workspace components */
+}
+
+.vertical-resizer:hover, .vertical-resizer.active {
+    background: #61dafb;
+}
+
+.horizontal-resizer {
+    height: 5px;
+    background: #333;
+    cursor: row-resize;
+    transition: background 0.2s;
+}
+
+.horizontal-resizer:hover, .horizontal-resizer.active {
+    background: #61dafb;
+}
+
+/* Console message types */
+.console-info {
+    color: #61dafb;
+}
+
+.console-warning {
+    color: #ffd700;
+}
+
+.console-error {
+    color: #ff6b6b;
+}
+
+.console-output {
+    color: #a8e6cf;
+}
+
+/* File actions */
+.file-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+}
+
+.file-actions button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: #444;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.file-actions button:hover {
+    background-color: #555;
+}
+
+/* Make sure the icons are displayed correctly */
+.fa, .fas, .far, .fab {
+    display: inline-block;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Examples tab */
+.examples-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 0;
+}
+
+.example-item {
+    width: 100%;
+}
+
+.example-button {
+    width: 100%;
+    padding: 12px 15px;
+    border: none;
+    background: linear-gradient(145deg, #2d2d2d, #323232);
+    color: #61dafb;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.example-button:before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, transparent, rgba(97, 218, 251, 0.1), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s;
+    z-index: -1;
+}
+
+.example-button:hover {
+    background: linear-gradient(145deg, #333, #383838);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+}
+
+.example-button:hover:before {
+    transform: translateX(100%);
+}
+
+.example-button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* Animation duration control */
+.animation-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 10px;
+}
+
+.duration-input {
+    width: 60px;
+    background: #333;
+    color: #f0f0f0;
+    border: 1px solid #555;
+    padding: 3px 5px;
+    border-radius: 3px;
+}
+
+.duration-label {
+    color: #ccc;
+    font-size: 12px;
+}
+
+/* Audio controls styling */
+.imports-section {
+    margin-bottom: 15px;
+}
+
+.imports-section h3 {
+    margin-bottom: 10px;
+    color: #61dafb;
+    font-size: 14px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+}
+
+.audio-list {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.audio-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 5px;
+    background: #2d2d2d;
+    transition: background 0.2s;
+}
+
+.audio-item:hover {
+    background: #333;
+}
+
+.audio-item i {
+    color: #61dafb;
+    margin-right: 10px;
+}
+
+.audio-name {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.audio-actions {
+    display: flex;
+    align-items: center;
+}
+
+.audio-actions button {
+    background: transparent;
+    border: none;
+    color: #aaa;
+    padding: 3px 6px;
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+.audio-actions button:hover {
+    color: #fff;
+    background: #3a3a3a;
+}
+
+/* Audio controls and player */
+.audio-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#import-audio-btn {
+    margin: 0;
+    padding: 8px;
+    background: #333;
+    color: #f0f0f0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: background 0.2s;
+}
+
+#import-audio-btn:hover {
+    background: #444;
+}
+
+.audio-player {
+    margin-top: 8px;
+    width: 100%;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #222;
+}
+
+audio {
+    width: 100%;
+    height: 32px;
+}
+
+/* Fix image and audio lists to match styling */
+.image-list {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.image-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 5px;
+    background: #2d2d2d;
+    transition: background 0.2s;
+}
+
+.image-item:hover {
+    background: #333;
+}
+
+.image-item img {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    margin-right: 10px;
+    border-radius: 3px;
+}
+
+.image-name {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .workspace {
+            flex-direction: column;
+        }
+        
+        .editor-panel {
+            width: 100%;
+            height: 50%;
+            border-right: none;
+            border-bottom: 1px solid #333;
+        }
+        
+        .vertical-resizer {
+            width: 100%;
+            height: 5px;
+            cursor: row-resize;
+        }
+    }
+}
+
+/* Export Modal Styling */
+.export-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.export-modal-content {
+    background-color: #252525;
+    border-radius: 8px;
+    width: 450px;
+    max-width: 90%;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.modal-header {
+    background-color: #333;
+    color: #61dafb;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #999;
+    cursor: pointer;
+}
+
+.modal-close-btn:hover {
+    color: #fff;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    padding: 15px;
+    background-color: #333;
+    text-align: right;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #ccc;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    background-color: #333;
+    border: 1px solid #555;
+    color: white;
+    border-radius: 4px;
+}
+
+.form-group.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.form-group.checkbox-group input {
+    width: auto;
+}
+
+.form-group.checkbox-group label {
+    margin-bottom: 0;
+}
+
+.slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 10px;
+    border-radius: 5px;
+    background: #444;
+    outline: none;
+    margin-top: 10px;
+}
+
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #61dafb;
+    cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #61dafb;
+    cursor: pointer;
+}
+
+.range-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #888;
+    margin-top: 5px;
+}
+
+.btn-primary {
+    background-color: #61dafb;
+    color: #222;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-primary:hover {
+    background-color: #4fc0e8;
+}
+
+.btn-secondary {
+    background-color: #555;
+    color: #eee;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background-color: #666;
+}
+
+/* Export Progress Dialog */
+.export-progress {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #252525;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    width: 350px;
+    max-width: 80%;
+    z-index: 1100;
+    display: none;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.progress-message {
+    color: #61dafb;
+    text-align: center;
+    font-size: 16px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background-color: #333;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-inner {
+    height: 100%;
+    background-color: #61dafb;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+#cancel-export {
+    align-self: center;
+    margin-top: 10px;
+}
+
+/* Make filename inputs more prominent */
+#gif-filename, #mp4-filename {
+    font-weight: bold;
+    border-color: #61dafb;
+    color: white;
+    background-color: #333;
+}
+
+/* Render Image Button */
+#btn-render-image {
+    background: #333;
+    color: #f0f0f0;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    margin: 0 3px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#btn-render-image:hover {
+    background: #444;
+}
+
+.export-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.export-modal-content {
+    background: #2d2d2d;
+    border-radius: 8px;
+    padding: 20px;
+    width: 400px;
+    max-width: 90%;
+}
+
+.export-progress {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #2d2d2d;
+    padding: 20px;
+    border-radius: 8px;
+    width: 300px;
+    z-index: 1000;
+}
+
+.progress-bar {
+    background: #444;
+    height: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-bar-inner {
+    background: #4CAF50;
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+/* Settings panel */
+
+.settings-panel {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 250px;
+    height: 100%;
+    background: rgba(37, 37, 37, 0.95);
+    border-left: 1px solid #333;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+}
+
+.settings-panel.expanded {
+    transform: translateX(0);
+}
+
+.settings-toggle {
+    position: absolute;
+    left: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 60px;
+    background: rgba(37, 37, 37, 0.95);
+    border: 1px solid #333;
+    border-right: none;
+    border-radius: 4px 0 0 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #61dafb;
+    z-index: 1001;
+}
+
+.settings-toggle i {
+    font-size: 16px;
+}
+
+.settings-header {
+    padding: 15px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings-header h3 {
+    margin: 0;
+    color: #61dafb;
+    font-size: 16px;
+}
+
+.settings-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.settings-footer {
+    padding: 15px;
+    border-top: 1px solid #333;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.setting-item {
+    margin-bottom: 15px;
+}
+
+.setting-item label {
+    display: block;
+    margin-bottom: 5px;
+    color: #ccc;
+    font-size: 12px;
+}
+
+.setting-item input[type="number"],
+.setting-item input[type="text"],
+.setting-item select {
+    width: 100%;
+    padding: 8px;
+    background: #333;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 13px;
+}
+
+.setting-item input[type="range"] {
+    width: 100%;
+    margin: 8px 0;
+}
+
+.setting-item .range-value {
+    float: right;
+    color: #61dafb;
+    font-size: 12px;
+}
+
+.btn-save-settings {
+    background: #61dafb;
+    color: #1a1a1a;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.btn-save-settings:hover {
+    background: #4fa8d5;
+}
+
+.setting-item .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: #ccc;
+    font-size: 12px;
+}
+
+.setting-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: #61dafb;
+}
+
+/* Hint improvements */
+.hint-matches {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.hint-match {
+    font-size: 12px;
+    padding: 3px 0;
+    cursor: pointer;
+}
+
+.hint-match:hover {
+    background-color: rgba(97, 218, 251, 0.1);
+}
+
+.hint-match code {
+    background: #333;
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: #61dafb;
+    margin-right: 5px;
+}
+
+/* Help button */
+.hint-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.help-button {
+    background: transparent;
+    border: none;
+    color: #61dafb;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 5px;
+    transition: transform 0.2s ease;
+}
+
+.help-button:hover {
+    transform: scale(1.2);
+    color: #8ae0ff;
+}
+
+/* Hint resizer */
+.hint-resizer {
+    height: 5px;
+    background: #333;
+    cursor: row-resize;
+    width: 100%;
+    transition: background 0.2s;
+}
+
+.hint-resizer:hover, .hint-resizer.active {
+    background: #61dafb;
+}
+
+#resize-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    background: transparent;
+}
+
+/* Function reference modal */
+.reference-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+}
+
+.reference-content {
+    width: 80%;
+    max-width: 1200px;
+    height: 80%;
+    background-color: #252525;
+    border-radius: 8px;
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.reference-header {
+    padding: 15px 20px;
+    background-color: #333;
+    border-bottom: 1px solid #444;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.reference-header h2 {
+    margin: 0;
+    color: #61dafb;
+    font-size: 18px;
+}
+
+.reference-body {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.reference-sidebar {
+    width: 300px;
+    border-right: 1px solid #333;
+    overflow-y: auto;
+    padding: 15px 0;
+}
+
+.reference-details {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background-color: #2a2a2a;
+}
+
+.reference-category {
+    margin-bottom: 20px;
+}
+
+.reference-category h3 {
+    color: #61dafb;
+    font-size: 16px;
+    margin: 0 0 8px 0;
+    padding: 0 15px;
+}
+
+.reference-category ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.reference-category li {
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    color: #ddd;
+    font-size: 14px;
+}
+
+.reference-category li:hover {
+    background-color: rgba(97, 218, 251, 0.1);
+}
+
+.reference-category li.active {
+    background-color: rgba(97, 218, 251, 0.2);
+    border-left: 3px solid #61dafb;
+    color: white;
+}
+
+.reference-placeholder {
+    color: #888;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 15px;
+    font-size: 16px;
+}
+
+.reference-placeholder i {
+    font-size: 24px;
+    color: #61dafb;
+}
+
+.close-reference {
+    background: transparent;
+    border: none;
+    color: #ccc;
+    font-size: 18px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.close-reference:hover {
+    color: white;
+}
+
+.reference-details h2 {
+    color: #61dafb;
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 18px;
+    font-family: monospace;
+    border-bottom: 1px solid #444;
+    padding-bottom: 10px;
+}
+
+.reference-description {
+    color: #ddd;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.reference-category-tag {
+    display: inline-block;
+    background-color: rgba(97, 218, 251, 0.2);
+    color: #61dafb;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-bottom: 20px;
+    text-transform: capitalize;
+}
+
+.reference-example {
+    background-color: #333;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.reference-example h3 {
+    color: #ccc;
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.reference-example pre {
+    margin: 0;
+    padding: 0;
+    white-space: pre-wrap;
+}
+
+.reference-example code {
+    color: #f8f8f8;
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.insert-code {
+    background-color: #61dafb;
+    color: #222;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.insert-code:hover {
+    background-color: #4dc0e6;
+}
+
+.settings-form h3 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+    color: #ccc;
+    font-size: 16px;
+}
+
+.custom-bitrate,
+.custom-audio-bitrate {
+    padding-left: 15px;
+    border-left: 3px solid #555;
+    margin-top: 5px;
+    transition: all 0.3s ease;
+}
+
+#video-bitrate,
+#audio-bitrate {
+    width: 80px;
+}
+
+/* HTML5 Export and Embedding section */
+.settings-section {
+    margin-top: 25px;
+    padding-top: 10px;
+    border-top: 1px solid #444;
+}
+
+.embed-info {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 15px;
+    margin: 10px 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.embed-info p {
+    margin: 8px 0;
+}
+
+.embed-info ol, .embed-info ul {
+    margin: 8px 0;
+    padding-left: 25px;
+}
+
+.embed-info li {
+    margin-bottom: 5px;
+}
+
+.code-example {
+    position: relative;
+    margin: 15px 0;
+    background-color: #252525;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.code-example pre {
+    margin: 0;
+    padding: 12px;
+    overflow-x: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #e6e1dc;
+}
+
+.code-example code {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.copy-button {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background-color: #444;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.copy-button:hover {
+    opacity: 1;
+}
+
+.embed-notes {
+    margin-top: 15px;
+    font-size: 13px;
+    color: #aaa;
+}
+
+.embed-notes ul {
+    padding-left: 20px;
+}
+
+.embed-notes code {
+    background-color: #333;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    color: #e6e1dc;
+}
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #0088ff;
+    animation: spin 1s ease-in-out infinite;
+    margin-bottom: 20px;
+}
+
+.loading-message {
+    color: white;
+    font-size: 18px;
+    text-align: center;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.checkbox-group label {
+    margin-bottom: 0;
+    font-size: 14px;
+    color: #ccc;
+    cursor: pointer;
+}
+
+/* Style for resolution presets dropdown */
+#resolution-preset {
+    width: 100%;
+    padding: 8px;
+    background: #333;
+    border: 1px solid #444;
+    color: #f0f0f0;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+/* Add visual indication when lock is active */
+.canvas-dimensions.locked input {
+    border-color: #61dafb;
+    box-shadow: 0 0 2px #61dafb;
+}
+
+/* Add a lock icon when aspect ratio is locked */
+#lock-aspect-ratio:checked + label::after {
+    content: "🔒";
+    margin-left: 5px;
+    font-size: 12px;
+}
+
+.workspace {
+    flex-grow: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.editor-panel {
+    min-width: 200px; /* Set minimum width */
+    flex-basis: 50%;
+    flex-grow: 0;
+    flex-shrink: 1; /* Allow panel to shrink */
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #333;
+    overflow: hidden;
+}
+
+.output-panel {
+    min-width: 200px; /* Set minimum width */
+    flex-grow: 1;
+    flex-shrink: 1; /* Allow output panel to shrink */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Fix for overlapping tabs and panels - add at the end of your styles.css */
+
+/* Ensure proper stacking context and containment */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden; /* Prevent scrolling at container level */
+}
+
+.main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    height: calc(100vh - 60px); /* Adjust based on header height */
+    position: relative;
+}
+
+/* Fixes for side panel layering */
+.side-panel {
+    z-index: 100; /* Higher z-index to stay above other elements */
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.panel-tabs {
+    z-index: 101; /* Above side panel */
+    position: relative;
+}
+
+/* Fix workspace containment */
+.workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    z-index: 5; /* Lower than side panel */
+}
+
+/* Fix editor panel layering */
+.editor-panel {
+    flex: 0 1 50%;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+    position: relative;
+    z-index: 6; /* Above workspace but below side panel */
+    overflow: hidden;
+}
+
+#code-editor {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Fix CodeMirror handling */
+.CodeMirror {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100% !important;
+    z-index: 7;
+}
+
+/* Fix output panel layering */
+.output-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 5;
+    overflow: hidden;
+}
+
+/* Resizer fixes */
+.vertical-resizer {
+    width: 5px;
+    flex: 0 0 5px;
+    background-color: #333;
+    cursor: col-resize;
+    position: relative;
+    z-index: 50; /* Above workspace components */
+}
+
+/* Force footer to be at the bottom */
+.app-footer {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 5;
+    background-color: #1e1e1e;
+    width: 100%;
+}
+
+/* Ensure file list stays contained */
+.file-list {
+    max-height: calc(100% - 60px);
+    overflow-y: auto;
+}

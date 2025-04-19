@@ -1,0 +1,62 @@
+.volume-visualizer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-left: auto; /* Push to right side */
+    margin-right: 10px; /* Space before trash button */
+  }
+  
+  .volume-label {
+    color: white;
+    font-size: 12px;
+    margin-right: 8px;
+  }
+  
+  .db-meter {
+    width: 100px;
+    height: 12px;
+    background: linear-gradient(to right, #2ecc71, #f1c40f, #e74c3c);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+  }
+  
+  .db-meter-level {
+    height: 100%;
+    width: 0%;
+    background-color: rgba(0, 0, 0, 0.3);
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  
+  .db-value {
+    color: white;
+    font-size: 11px;
+    margin-left: 8px;
+    min-width: 36px;
+  }
+  
+  .db-meter:hover {
+    transform: scale(1.05);
+    transition: transform 0.2s;
+  }
+  
+  /* Make sure the console header properly aligns items */
+  .console-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .console-header span {
+    margin-right: auto; /* Push the title to the left */
+  }
+  
+  .console-header button {
+    margin-left: 5px; /* Space for the clear button */
+  }
