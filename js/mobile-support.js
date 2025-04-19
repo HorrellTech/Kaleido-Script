@@ -20,6 +20,10 @@
         outputPanel = document.querySelector('.output-panel');
         workspaceEl = document.querySelector('.workspace');
         
+        // Initial visibility setup
+        updateMenuButtonVisibility();
+        updateFooterVisibility();
+        
         // Check if we're on mobile
         if (window.innerWidth <= 768) {
             setupMobileLayout();
@@ -37,17 +41,26 @@
         if (mobileOverlay) {
             mobileOverlay.addEventListener('click', closeMobileMenu);
         }
+        
+        // Add listener for sidebar collapse button to update mobile menu button visibility
+        const collapseButton = document.getElementById('collapse-button');
+        if (collapseButton) {
+            collapseButton.addEventListener('click', function() {
+                // Small delay to allow the sidebar animation to complete
+                setTimeout(updateMenuButtonVisibility, 100);
+            });
+        }
     }
     
     function setupMobileLayout() {
         // Hide the side panel by default on mobile
         if (sidePanel) {
             sidePanel.classList.remove('mobile-visible');
-        }
-        
-        // Show mobile menu button
-        if (mobileMenuButton) {
-            mobileMenuButton.style.display = 'flex';
+            
+            // Show mobile menu button only when sidebar is closed
+            if (mobileMenuButton) {
+                mobileMenuButton.style.display = 'flex';
+            }
         }
         
         // Adjust editor and output panels for mobile
@@ -71,10 +84,6 @@
             setupMobileLayout();
         } else {
             // Reset to desktop layout
-            if (mobileMenuButton) {
-                mobileMenuButton.style.display = 'none';
-            }
-            
             if (sidePanel) {
                 sidePanel.style.left = '0';
             }
@@ -91,6 +100,11 @@
                 outputPanel.style.width = '50%';
             }
             
+            // Hide mobile menu button in desktop mode
+            if (mobileMenuButton) {
+                mobileMenuButton.style.display = 'none';
+            }
+            
             // Refresh CodeMirror
             if (window.editor) {
                 setTimeout(() => {
@@ -98,12 +112,27 @@
                 }, 100);
             }
         }
+        
+        // Update footer visibility
+        updateFooterVisibility();
+    }
+
+    function updateFooterVisibility() {
+        const footer = document.querySelector('.app-footer');
+        if (footer) {
+            footer.style.display = 'block'; // Always show the footer
+        }
     }
     
     function toggleMobileMenu() {
         if (sidePanel && mobileOverlay) {
-            sidePanel.classList.toggle('mobile-visible');
+            const isVisible = sidePanel.classList.toggle('mobile-visible');
             mobileOverlay.classList.toggle('visible');
+            
+            // Hide the menu button when sidebar is visible
+            if (mobileMenuButton) {
+                mobileMenuButton.style.display = isVisible ? 'none' : 'flex';
+            }
         }
     }
     
@@ -111,7 +140,22 @@
         if (sidePanel && mobileOverlay) {
             sidePanel.classList.remove('mobile-visible');
             mobileOverlay.classList.remove('visible');
+            
+            // Show the button again
+            if (mobileMenuButton && window.innerWidth <= 768) {
+                mobileMenuButton.style.display = 'flex';
+            }
         }
+    }
+
+    function updateMenuButtonVisibility() {
+        if (!mobileMenuButton) return;
+        
+        const isMobile = window.innerWidth <= 768;
+        const isSidebarVisible = sidePanel && sidePanel.classList.contains('mobile-visible');
+        
+        // Only show the button on mobile AND when sidebar is hidden
+        mobileMenuButton.style.display = (isMobile && !isSidebarVisible) ? 'flex' : 'none';
     }
     
     // Initialize when document is ready

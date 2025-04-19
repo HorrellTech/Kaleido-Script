@@ -75,9 +75,8 @@
         transform: none;
     }
     
-    /* Add a hamburger menu button */
     .mobile-menu-button {
-        display: block;
+        display: none; /* Hidden by default, will be shown via JS when needed */
         position: fixed;
         top: 10px;
         left: 10px;
@@ -89,9 +88,9 @@
         color: white;
         font-size: 20px;
         z-index: 1001;
-        display: flex;
         align-items: center;
         justify-content: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
     }
     
     /* Add an overlay to capture clicks outside the drawer */
@@ -165,7 +164,16 @@
     
     /* Footer */
     .app-footer {
-        padding: 10px 0;
+        display: block !important; /* Force display */
+        position: relative;
+        text-align: center;
+        padding: 1px 0;
+        margin-top: 12px;
+        font-size: 0.9rem;
+        color: #888;
+        border-top: 1px solid #444;
+        width: 100%;
+        z-index: 100;
     }
     
     .app-footer p {
@@ -244,5 +252,38 @@
     
     .dropdown-toggle {
         padding: 4px 8px;
+    }
+
+    .app-footer {
+        padding: 10px 0;
+        margin-top: 5px;
+    }
+
+    .app-container {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    /* Ensure main content doesn't push footer off screen */
+    .main-content {
+        flex: 1 0 auto; /* Don't allow to shrink below content size */
+    }
+    
+    /* Footer styling for mobile */
+    .app-footer p {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .donate-link {
+        margin-left: 0;
+        font-size: 0.8rem;
+        padding: 5px 10px;
+        background: rgba(97, 218, 251, 0.1);
+        border-radius: 15px;
+        margin-top: 5px;
     }
 }

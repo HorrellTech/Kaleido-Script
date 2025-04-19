@@ -138,6 +138,32 @@
             100% { transform: rotate(360deg); }
         }
     </style>
+    <style>
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        
+        .main-content {
+            flex: 1;
+            display: flex;
+            position: relative;
+        }
+        
+        .app-footer {
+            display: block;
+            position: relative;
+            text-align: center;
+            padding: 1px 0;
+            margin-top: 12px;
+            font-size: 0.9rem;
+            color: #888;
+            border-top: 1px solid #444;
+            width: 100%;
+            z-index: 100; /* Ensure it's above other elements */
+        }
+    </style>
 </head>
 <body>
     <div id="loading-screen">
