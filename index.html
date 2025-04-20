@@ -165,6 +165,24 @@
             width: 100%;
             z-index: 100; /* Ensure it's above other elements */
         }
+
+        .last-updated {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            color: #777;
+        }
+        
+        @media (max-width: 768px) {
+            .last-updated {
+                position: static;
+                display: block;
+                margin-top: 5px;
+                transform: none;
+            }
+        }
     </style>
     <style>
         .bmc-button {
