@@ -1301,61 +1301,96 @@ function toggleRecording(renderer) {
         }
 
         if (!hasAudio) {
-            window.logToConsole('No audio loaded. Recording video only.', 'warning');
-        }
-        
-        // Start recording
-        console.log('Attempting to start recording');
-        const success = startRecording(renderer);
-        
-        if (success) {
-            console.log('Recording started successfully');
-            // Update button appearance
-            btnRecord.classList.add('recording');
-            btnRecord.title = 'Stop Recording';
-            
-            // Add recording indicator
-            const indicator = document.createElement('div');
-            indicator.className = 'recording-indicator';
-            indicator.innerHTML = '<span class="dot"></span> Recording...';
-            indicator.id = 'recording-indicator';
-            canvasContainer.appendChild(indicator);
-            
-            window.logToConsole('Recording started. Animation will play automatically.', 'info');
-            
-            // First, reset the audio to the beginning
-            if (window.audioProcessor && window.audioProcessor.audioElement) {
-                window.audioProcessor.audioElement.currentTime = 0;
+            const proceed = confirm('No audio is loaded. Recording will not include audio. Continue?');
+            if (!proceed) {
+                return;
             }
-            
-            // Automatically start playing the animation after a short delay to ensure recorder is ready
-            setTimeout(() => {
-                const btnPlay = document.getElementById('btn-play');
-                if (btnPlay) {
-                    console.log('Auto-starting playback for recording');
-                    btnPlay.click();
-                }
-            }, 500);
-        } else {
-            console.error('Failed to start recording');
-            window.logToConsole('Failed to start recording', 'error');
         }
+        
+        // Start recording with a slight delay to ensure all initialization is complete
+        console.log('Attempting to start recording');
+        
+        // Show a preparation message
+        window.logToConsole('Preparing to record...', 'info');
+        
+        // Update button appearance immediately to give user feedback
+        btnRecord.classList.add('recording');
+        btnRecord.title = 'Stop Recording';
+        
+        // Add recording indicator
+        let indicator = document.getElementById('recording-indicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'recording-indicator';
+            indicator.innerHTML = '<i class="fas fa-circle"></i> REC';
+            canvasContainer.appendChild(indicator);
+        }
+        
+        // Use a small delay before actually starting the recording
+        // This helps avoid the race condition
+        setTimeout(() => {
+            const success = startRecording(renderer);
+            
+            if (success) {
+                window.isRecording = true;
+                window.logToConsole('Recording started', 'info');
+                
+                // Make sure the animation is running while recording
+                if (renderer && !renderer.isAnimating) {
+                    renderer.start();
+                }
+                
+                // Make sure audio is playing if available
+                if (hasAudio && window.audioProcessor && 
+                    typeof window.audioProcessor.play === 'function' &&
+                    !window.audioProcessor.isPlaying) {
+                    window.audioProcessor.play();
+                }
+            } else {
+                // Revert UI changes if recording failed
+                btnRecord.classList.remove('recording');
+                btnRecord.title = 'Record Video';
+                
+                if (indicator && indicator.parentNode) {
+                    indicator.parentNode.removeChild(indicator);
+                }
+                
+                window.logToConsole('Failed to start recording', 'error');
+            }
+        }, 200);
     } else {
         // Stop recording
         console.log('Stopping recording');
-        stopRecording();
         
-        // Update button appearance
-        btnRecord.classList.remove('recording');
-        btnRecord.title = 'Record Video';
-        
-        // Remove recording indicator
-        const indicator = document.getElementById('recording-indicator');
-        if (indicator) {
-            indicator.parentNode.removeChild(indicator);
+        // We need to be careful here - make sure the recording had time to actually start
+        if (window.mediaRecorder && window.mediaRecorder.state === 'recording') {
+            stopRecording();
+            
+            // Update button appearance
+            btnRecord.classList.remove('recording');
+            btnRecord.title = 'Record Video';
+            
+            // Remove recording indicator
+            const indicator = document.getElementById('recording-indicator');
+            if (indicator && indicator.parentNode) {
+                indicator.parentNode.removeChild(indicator);
+            }
+            
+            window.logToConsole('Recording stopped. Processing video...', 'info');
+        } else {
+            console.warn('MediaRecorder not in recording state when trying to stop');
+            window.logToConsole('Error: Recording was not properly started', 'warning');
+            
+            // Reset the recording state and UI
+            window.isRecording = false;
+            btnRecord.classList.remove('recording');
+            btnRecord.title = 'Record Video';
+            
+            const indicator = document.getElementById('recording-indicator');
+            if (indicator && indicator.parentNode) {
+                indicator.parentNode.removeChild(indicator);
+            }
         }
-        
-        window.logToConsole('Recording stopped. Processing video...', 'info');
     }
 }
 
@@ -1378,76 +1413,60 @@ function startRecording(renderer) {
         
         // Get audio stream if available
         let audioStream = null;
+        let audioContext = null;
+        let audioSource = null;
         
         // Set up audio capture
-        if (window.audioProcessor && window.audioProcessor.audioElement) {
-            const audioElement = window.audioProcessor.audioElement;
+        if (window.audioProcessor && window.audioProcessor.audioElement && 
+            window.audioProcessor.audioElement.src) {
+            console.log('Setting up audio stream from audio element');
             
             try {
-                console.log('Setting up audio for recording');
-                
-                // Create a new MediaStream to capture system audio output
-                // This is the most reliable way to capture exactly what the user hears
-                
-                // First, ensure we have audio context
+                // Create audio context if it doesn't exist
                 if (!window.audioProcessor.audioContext) {
                     window.audioProcessor.initAudioContext();
                 }
                 
-                // Create an audio stream directly from the audio context destination
-                const audioContext = window.audioProcessor.audioContext;
-                const dest = audioContext.createMediaStreamDestination();
+                // Get the audio context
+                audioContext = window.audioProcessor.audioContext;
                 
-                // Connect the main audio destination to our recording destination
-                // We need to create a gain node as an intermediary to avoid errors
-                const gainNode = audioContext.createGain();
-                gainNode.gain.value = 1.0;
-                
-                // Connect the gain node to our stream destination
-                gainNode.connect(dest);
-                
-                // Store this for later cleanup
-                window.recordingGainNode = gainNode;
-                
-                // If we have an audio source already, connect it to our destination
-                if (window.audioProcessor.audioSource) {
-                    window.audioProcessor.audioSource.connect(gainNode);
-                    console.log('Connected existing audio source to recording');
-                } else {
-                    // Create a new audio source and connect to both the normal destination and our recording destination
-                    const source = audioContext.createMediaElementSource(audioElement);
-                    source.connect(audioContext.destination);
-                    source.connect(gainNode);
+                if (audioContext) {
+                    // Create a gain node for the recording (helps with volume control)
+                    window.recordingGainNode = audioContext.createGain();
+                    window.recordingGainNode.gain.value = 1.0; // Normal volume
                     
-                    // Store the source for later use
-                    window.audioProcessor.audioSource = source;
-                    console.log('Created and connected new audio source to recording');
-                }
-                
-                // Get the audio stream from the destination
-                audioStream = dest.stream;
-                console.log(`Audio stream created with ${audioStream.getAudioTracks().length} tracks`);
-                
-                // Create a function that will be called when audio starts/stops
-                window.captureAudioEvent = function(playing) {
-                    console.log(`Audio ${playing ? 'started' : 'stopped'} during recording`);
-                    if (playing && window.mediaRecorder && window.mediaRecorder.state === 'recording') {
-                        console.log('Synchronizing audio with recording');
-                        // Request data to mark the transition point in the recording
-                        window.mediaRecorder.requestData();
+                    // Connect the audio source to our recording gain node
+                    if (!window.audioProcessor.audioSource) {
+                        window.audioProcessor.ensureAudioConnections();
                     }
-                };
-                
-                // Subscribe to audio events
-                audioElement.addEventListener('play', () => window.captureAudioEvent(true), { once: false });
-                audioElement.addEventListener('pause', () => window.captureAudioEvent(false), { once: false });
-                
+                    
+                    // If we have an audio source, connect it to the recording gain node
+                    if (window.audioProcessor.audioSource) {
+                        try {
+                            audioSource = window.audioProcessor.audioSource;
+                            audioSource.connect(window.recordingGainNode);
+                            window.recordingGainNode.connect(audioContext.destination);
+                            
+                            // Get the audio stream from the gain node
+                            const audioDestination = audioContext.createMediaStreamDestination();
+                            window.recordingGainNode.connect(audioDestination);
+                            audioStream = audioDestination.stream;
+                            
+                            console.log('Audio stream created successfully');
+                        } catch (e) {
+                            console.error('Error connecting audio for recording:', e);
+                        }
+                    } else {
+                        console.warn('No audio source available for recording');
+                    }
+                }
             } catch (e) {
-                console.error('Error capturing audio:', e);
-                window.logToConsole('Warning: Could not capture audio. Recording video only.', 'warning');
+                console.error('Error setting up audio for recording:', e);
+                window.logToConsole('Could not capture audio for recording', 'warning');
             }
         } else {
-            console.log('No audio processor or audio element available, recording video only');
+            console.log('No audio element or source available for recording');
+            window.logToConsole('Recording without audio', 'info');
         }
         
         // Combine video and audio streams
@@ -1455,19 +1474,11 @@ function startRecording(renderer) {
         if (audioStream && audioStream.getAudioTracks().length > 0) {
             const videoTracks = canvasStream.getVideoTracks();
             const audioTracks = audioStream.getAudioTracks();
-            
-            console.log(`Adding ${audioTracks.length} audio tracks to the recording`);
-            
-            // Create a new MediaStream with both video and audio tracks
-            combinedStream = new MediaStream([
-                ...videoTracks,
-                ...audioTracks
-            ]);
-            
-            console.log(`Combined stream created with ${combinedStream.getVideoTracks().length} video tracks and ${combinedStream.getAudioTracks().length} audio tracks`);
+            combinedStream = new MediaStream([...videoTracks, ...audioTracks]);
+            console.log('Combined video and audio streams');
         } else {
-            console.log('Using canvas stream only (no audio)');
             combinedStream = canvasStream;
+            console.log('Using video-only stream');
         }
         
         // Get user quality settings
@@ -1479,28 +1490,22 @@ function startRecording(renderer) {
         const videoQuality = document.getElementById('video-quality')?.value || 'medium';
         if (videoQuality === 'high') {
             videoBitsPerSecond = 8000000; // 8 Mbps
-        } else if (videoQuality === 'medium') {
-            videoBitsPerSecond = 5000000; // 5 Mbps
         } else if (videoQuality === 'low') {
-            videoBitsPerSecond = 2000000; // 2 Mbps
+            videoBitsPerSecond = 2500000; // 2.5 Mbps
         } else if (videoQuality === 'custom') {
-            // Get custom bitrate in Mbps and convert to bps
-            const customBitrate = parseFloat(document.getElementById('video-bitrate')?.value || '5');
-            videoBitsPerSecond = customBitrate * 1000000;
+            const customBitrate = document.getElementById('video-bitrate')?.value || '5';
+            videoBitsPerSecond = parseFloat(customBitrate) * 1000000;
         }
         
         // Get audio quality setting
         const audioQuality = document.getElementById('audio-quality')?.value || 'medium';
         if (audioQuality === 'high') {
-            audioBitsPerSecond = 320000; // 320 kbps
-        } else if (audioQuality === 'medium') {
-            audioBitsPerSecond = 128000; // 128 kbps
+            audioBitsPerSecond = 256000; // 256 kbps
         } else if (audioQuality === 'low') {
-            audioBitsPerSecond = 64000;  // 64 kbps
+            audioBitsPerSecond = 64000; // 64 kbps
         } else if (audioQuality === 'custom') {
-            // Get custom bitrate in kbps and convert to bps
-            const customBitrate = parseInt(document.getElementById('audio-bitrate')?.value || '128');
-            audioBitsPerSecond = customBitrate * 1000;
+            const customBitrate = document.getElementById('audio-bitrate')?.value || '128';
+            audioBitsPerSecond = parseFloat(customBitrate) * 1000;
         }
         
         // Get codec preference
@@ -1522,47 +1527,26 @@ function startRecording(renderer) {
         
         // Set up event handlers
         window.mediaRecorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-                console.log(`Received chunk of size: ${e.data.size} bytes`);
+            if (e.data.size > 0) {
                 window.recordedChunks.push(e.data);
-            } else {
-                console.warn('Received empty data chunk');
+                console.log(`Recorded chunk: ${e.data.size} bytes`);
             }
         };
         
         window.mediaRecorder.onstop = () => {
-            console.log('MediaRecorder stopped, processing video');
-            
-            // Clean up event listeners
-            if (window.audioProcessor && window.audioProcessor.audioElement) {
-                window.audioProcessor.audioElement.removeEventListener('play', window.captureAudioEvent);
-                window.audioProcessor.audioElement.removeEventListener('pause', window.captureAudioEvent);
-                window.captureAudioEvent = null;
-            }
-            
-            // Clean up gain node if it exists
-            if (window.recordingGainNode) {
-                try {
-                    window.recordingGainNode.disconnect();
-                    window.recordingGainNode = null;
-                } catch (e) {
-                    console.error('Error disconnecting gain node:', e);
-                }
-            }
-            
+            console.log('MediaRecorder stopped, processing video...');
             processRecordedVideo();
         };
         
         window.mediaRecorder.onerror = (e) => {
             console.error('MediaRecorder error:', e);
-            window.logToConsole(`Recording error: ${e.message || 'Unknown error'}`, 'error');
+            window.logToConsole(`Recording error: ${e.error.message}`, 'error');
         };
         
         // Start recording - request data more frequently to avoid missing chunks
         window.mediaRecorder.start(500); // Collect data every 500ms
         console.log('MediaRecorder started');
         
-        window.isRecording = true;
         return true;
     } catch (error) {
         console.error('Error starting recording:', error);
