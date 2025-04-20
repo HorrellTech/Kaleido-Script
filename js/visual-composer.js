@@ -203,6 +203,11 @@ class VisualComposer {
         const container = document.getElementById('composer-visualizers-container');
         if (!container) return;
         
+        // Important: Change grid to flex column for drag-and-drop to work properly
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '15px';
+        
         // Clear existing content
         container.innerHTML = '';
         
@@ -215,12 +220,17 @@ class VisualComposer {
             item.className = 'visualizer-item';
             item.dataset.name = visualizer.name;
             
-            // Add color picker for the visualizer
+            // Add drag handle and selection indicator
             const colorId = `${visualizer.name}-color`;
             const defaultColor = this.visualizerColors[visualizer.name] || '#ffffff';
             
             item.innerHTML = `
                 <div class="visualizer-header">
+                    <div class="visualizer-drag-handle" title="Drag to reorder">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="#888" d="M4 4h2v2H4V4zm0 6h2v2H4v-2zm0-3h2v2H4V7zm6 3h2v2h-2v-2zm0-3h2v2h-2V7zm0-3h2v2h-2V4z"></path>
+                        </svg>
+                    </div>
                     <div class="visualizer-header-content">
                         <input type="checkbox" class="visualizer-checkbox" 
                                id="viz-${index}" ${isSelected ? 'checked' : ''}>
@@ -249,10 +259,12 @@ class VisualComposer {
             
             container.appendChild(item);
             
+            // Make the item draggable
+            item.setAttribute('draggable', 'true');
+            
             // Add event listeners
             const checkbox = item.querySelector('.visualizer-checkbox');
             checkbox.addEventListener('change', (e) => {
-                // Direct DOM access to ensure we get the current state
                 const isChecked = e.target.checked;
                 console.log(`Checkbox for ${visualizer.name} changed to: ${isChecked}`);
                 
@@ -260,9 +272,14 @@ class VisualComposer {
                 this.toggleVisualizerSelection(visualizer.name, isChecked);
                 this.updatePreview(item, visualizer);
                 
-                // Debug log the current selection state
+                // Update the item's appearance based on selection
+                item.classList.toggle('selected', isChecked);
+                
                 console.log(`Current selections (${this.selectedVisualizers.length}): ${this.selectedVisualizers.join(', ')}`);
             });
+            
+            // Set initial selected state
+            item.classList.toggle('selected', isSelected);
             
             // Add color picker event listener
             const colorPicker = item.querySelector('.visualizer-color');
@@ -297,15 +314,244 @@ class VisualComposer {
                 this.updateConfig(visualizer.name);
             }
             
-            // Manually set the selection state - critical step!
+            // Manually set the selection state
             if (checkbox.checked && !this.selectedVisualizers.includes(visualizer.name)) {
                 this.selectedVisualizers.push(visualizer.name);
             }
+            
+            // Drag and Drop functionality
+            this.addDragAndDropListeners(item);
         });
+        
+        // Add touch-friendly drag and drop support for mobile
+        this.setupMobileDragAndDrop(container);
         
         // After populating the visualizers, attach custom select listeners
         this.attachCustomSelectListeners();
         console.log(`After population, selected visualizers: ${this.selectedVisualizers.join(', ')}`);
+    }
+
+    addDragAndDropListeners(element) {
+        // Drag start - store the element being dragged
+        element.addEventListener('dragstart', (e) => {
+            // Add a class to style the dragged element
+            element.classList.add('dragging');
+            
+            // Store the dragged element's name in the dataTransfer
+            e.dataTransfer.setData('text/plain', element.dataset.name);
+            
+            // Set a custom drag image (optional)
+            const dragImage = document.createElement('div');
+            dragImage.textContent = element.querySelector('.visualizer-title').textContent;
+            dragImage.className = 'drag-ghost';
+            document.body.appendChild(dragImage);
+            e.dataTransfer.setDragImage(dragImage, 0, 0);
+            
+            // Clean up the drag image after a delay
+            setTimeout(() => document.body.removeChild(dragImage), 0);
+        });
+        
+        // Drag end - remove styling
+        element.addEventListener('dragend', () => {
+            element.classList.remove('dragging');
+            this.updateVisualizerOrder();
+        });
+        
+        // Allow dropping
+        element.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const dragging = document.querySelector('.dragging');
+            if (dragging && dragging !== element) {
+                // Determine drop position (before or after)
+                const rect = element.getBoundingClientRect();
+                const mouseY = e.clientY;
+                const threshold = rect.top + rect.height / 2;
+                
+                if (mouseY < threshold) {
+                    // Drop before
+                    element.classList.add('drop-before');
+                    element.classList.remove('drop-after');
+                } else {
+                    // Drop after
+                    element.classList.add('drop-after');
+                    element.classList.remove('drop-before');
+                }
+            }
+        });
+        
+        // Handle drop
+        element.addEventListener('drop', (e) => {
+            e.preventDefault();
+            element.classList.remove('drop-before', 'drop-after');
+            
+            const draggedName = e.dataTransfer.getData('text/plain');
+            const dragging = document.querySelector(`[data-name="${draggedName}"]`);
+            
+            if (dragging && dragging !== element) {
+                const container = document.getElementById('composer-visualizers-container');
+                const rect = element.getBoundingClientRect();
+                const mouseY = e.clientY;
+                const threshold = rect.top + rect.height / 2;
+                
+                if (mouseY < threshold) {
+                    // Insert before
+                    container.insertBefore(dragging, element);
+                } else {
+                    // Insert after
+                    const nextSibling = element.nextElementSibling;
+                    if (nextSibling) {
+                        container.insertBefore(dragging, nextSibling);
+                    } else {
+                        container.appendChild(dragging);
+                    }
+                }
+                
+                this.updateVisualizerOrder();
+            }
+        });
+        
+        // Clear drop markers when leaving
+        element.addEventListener('dragleave', () => {
+            element.classList.remove('drop-before', 'drop-after');
+        });
+        
+        // Make sure the drag handle is the only part that initiates drag
+        const dragHandle = element.querySelector('.visualizer-drag-handle');
+        if (dragHandle) {
+            // Prevent other parts of the item from initiating drag
+            element.addEventListener('mousedown', (e) => {
+                if (e.target !== dragHandle && !dragHandle.contains(e.target)) {
+                    e.stopPropagation();
+                }
+            });
+            
+            // Make only the drag handle initiate dragging
+            dragHandle.addEventListener('mousedown', () => {
+                element.setAttribute('draggable', 'true');
+            });
+            
+            element.addEventListener('mouseup', () => {
+                element.setAttribute('draggable', 'false');
+            });
+        }
+    }
+
+    // Mobile touch-based drag and drop
+    setupMobileDragAndDrop(container) {
+        let touchDragging = null;
+        let touchDragStart = null;
+        let placeholder = null;
+        
+        // Create the touch event handlers
+        document.addEventListener('touchstart', (e) => {
+            // Find if we're touching a drag handle
+            let target = e.target;
+            const dragHandle = target.closest('.visualizer-drag-handle');
+            
+            if (dragHandle) {
+                const visualizerItem = dragHandle.closest('.visualizer-item');
+                if (visualizerItem) {
+                    e.preventDefault(); // Prevent scrolling while dragging
+                    touchDragging = visualizerItem;
+                    
+                    // Create a semi-transparent clone as placeholder
+                    placeholder = visualizerItem.cloneNode(true);
+                    placeholder.style.opacity = '0.5';
+                    placeholder.style.position = 'absolute';
+                    placeholder.style.zIndex = '1000';
+                    placeholder.style.width = `${visualizerItem.offsetWidth}px`;
+                    placeholder.style.pointerEvents = 'none';
+                    
+                    // Store initial touch position
+                    touchDragStart = {
+                        x: e.touches[0].clientX,
+                        y: e.touches[0].clientY
+                    };
+                    
+                    document.body.appendChild(placeholder);
+                    
+                    // Position the placeholder initially
+                    placeholder.style.top = `${visualizerItem.getBoundingClientRect().top}px`;
+                    placeholder.style.left = `${visualizerItem.getBoundingClientRect().left}px`;
+                    
+                    // Add visual indication to the original element
+                    visualizerItem.classList.add('touch-dragging');
+                }
+            }
+        }, { passive: false });
+        
+        document.addEventListener('touchmove', (e) => {
+            if (touchDragging && placeholder) {
+                e.preventDefault(); // Prevent scrolling while dragging
+                
+                // Move placeholder with touch
+                const touchX = e.touches[0].clientX;
+                const touchY = e.touches[0].clientY;
+                
+                // Move the placeholder
+                placeholder.style.top = `${touchY - touchDragStart.y + touchDragging.getBoundingClientRect().top}px`;
+                
+                // Find the element we're hovering over
+                const elementsAtPoint = document.elementsFromPoint(touchX, touchY);
+                const hoverElement = elementsAtPoint.find(el => 
+                    el.classList.contains('visualizer-item') && el !== placeholder && el !== touchDragging
+                );
+                
+                if (hoverElement) {
+                    // Determine position (before or after)
+                    const rect = hoverElement.getBoundingClientRect();
+                    if (touchY < rect.top + rect.height / 2) {
+                        // Want to place above
+                        container.insertBefore(touchDragging, hoverElement);
+                    } else {
+                        // Want to place below
+                        const nextElement = hoverElement.nextElementSibling;
+                        if (nextElement) {
+                            container.insertBefore(touchDragging, nextElement);
+                        } else {
+                            container.appendChild(touchDragging);
+                        }
+                    }
+                }
+            }
+        }, { passive: false });
+        
+        document.addEventListener('touchend', (e) => {
+            if (touchDragging) {
+                touchDragging.classList.remove('touch-dragging');
+                if (placeholder && placeholder.parentNode) {
+                    placeholder.parentNode.removeChild(placeholder);
+                }
+                
+                touchDragging = null;
+                placeholder = null;
+                touchDragStart = null;
+                
+                // Update the order
+                this.updateVisualizerOrder();
+            }
+        });
+    }
+
+    updateVisualizerOrder() {
+        // Only update the order of selected visualizers
+        const selectedItems = document.querySelectorAll('.visualizer-item.selected');
+        if (selectedItems.length === 0) return;
+        
+        // Create a new array with the visualizers in the current DOM order
+        const newOrder = [];
+        selectedItems.forEach(item => {
+            const name = item.dataset.name;
+            if (this.selectedVisualizers.includes(name)) {
+                newOrder.push(name);
+            }
+        });
+        
+        // Replace the selectedVisualizers array with the new order
+        if (newOrder.length > 0) {
+            this.selectedVisualizers = newOrder;
+            console.log('Updated visualizer order:', this.selectedVisualizers);
+        }
     }
     
     generateConfigFields(visualizer) {
@@ -767,7 +1013,7 @@ class VisualComposer {
     generateFullScript() {
         let visualizerCode = '';
         
-        // Generate code for each selected visualizer
+        // Generate code for each selected visualizer in the current order
         this.selectedVisualizers.forEach(name => {
             const visualizer = this.visualizers.find(v => v.name === name);
             if (visualizer) {
@@ -931,6 +1177,20 @@ document.addEventListener('DOMContentLoaded', function() {
             flex-grow: 1;
         }
         
+        .visualizer-drag-handle {
+            cursor: move;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.6;
+            touch-action: none;
+        }
+        
+        .visualizer-drag-handle:hover {
+            opacity: 1;
+        }
+        
         .visualizer-color-picker {
             margin-right: 10px;
         }
@@ -968,6 +1228,57 @@ document.addEventListener('DOMContentLoaded', function() {
             margin-bottom: 8px;
         }
         
+        /* Drag and drop styles */
+        .visualizer-item {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .visualizer-item.selected {
+            box-shadow: 0 0 0 2px #61dafb;
+        }
+        
+        .visualizer-item.dragging {
+            opacity: 0.5;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+        }
+        
+        .visualizer-item.touch-dragging {
+            opacity: 0.7;
+        }
+        
+        .visualizer-item.drop-before {
+            border-top: 2px solid #61dafb;
+        }
+        
+        .visualizer-item.drop-after {
+            border-bottom: 2px solid #61dafb;
+        }
+        
+        .drag-ghost {
+            background: #2d2d3a;
+            color: #61dafb;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: absolute;
+            top: -1000px; /* Hidden but available for size calculation */
+            opacity: 0.8;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        /* Status indicator */
+        .layer-info {
+            display: inline-block;
+            background: rgba(97, 218, 251, 0.2);
+            color: #61dafb;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            margin-left: 8px;
+        }
+        
         /* Style for the last updated info in footer */
         .last-updated {
             position: absolute;
@@ -985,6 +1296,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 margin-top: 5px;
                 transform: none;
             }
+            
+            /* Make headers easier to tap on mobile */
+            .visualizer-header {
+                min-height: 44px;
+                padding: 10px;
+            }
+            
+            .visualizer-drag-handle {
+                padding: 10px;
+                margin: -10px 0 -10px -10px;
+            }
+            
+            /* Add instruction text */
+            .composer-visualizers::before {
+                content: "Drag to reorder visualizers. Items at the top will be drawn first (bottom layer).";
+                display: block;
+                margin-bottom: 15px;
+                color: #888;
+                font-size: 0.9rem;
+                text-align: center;
+            }
         }
     `;
     document.head.appendChild(style);
@@ -998,7 +1330,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const year = now.getFullYear();
         
-        lastUpdatedElement.textContent = `v1.0.3 (${day}/${month}/${year})`;
+        lastUpdatedElement.textContent = `v1.0.4 (${day}/${month}/${year})`;
     }
     
     // Initialize VisualComposer only once
