@@ -372,18 +372,8 @@ function updateHints() {
         hintContent.innerHTML = defaultHint;
     }
 
-    // Add the help button
-    const helpButton = document.createElement('button');
-    helpButton.className = 'help-button';
-    helpButton.innerHTML = '<i class="fas fa-question-circle"></i>';
-    helpButton.title = 'Show function reference';
-    helpButton.onclick = showFunctionReference;
-    
-    // Add help button to hint container
-    const hintHeader = document.querySelector('.hint-header');
-    if (hintHeader && !hintHeader.querySelector('.help-button')) {
-        hintHeader.appendChild(helpButton);
-    }
+    // Use our new separate function to add and animate the help button
+    addPulsingHelpButton();
 
     // Make the hint panel scrollable if there are many suggestions
     if (matches.length > 10) {
@@ -399,6 +389,105 @@ function updateHints() {
 
     // Add at the end of the function:
     maintainHintPanelSize();
+}
+
+function addPulsingHelpButton() {
+    // Add the help button
+    const helpButton = document.createElement('button');
+    helpButton.className = 'help-button';
+    helpButton.innerHTML = '<i class="fas fa-question-circle"></i>';
+    helpButton.title = 'Show function reference';
+    helpButton.id = 'hint-help-button';
+    helpButton.onclick = showFunctionReference;
+    
+    // Add help button to hint container
+    const hintHeader = document.querySelector('.hint-header');
+    if (hintHeader && !hintHeader.querySelector('.help-button')) {
+        hintHeader.appendChild(helpButton);
+        
+        // Add CSS for the enhanced pulsing animation with glow
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes pulse-help {
+                0% { 
+                    color: #61dafb; 
+                    text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+                }
+                50% { 
+                    color: #a0e6ff; 
+                    text-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+                }
+                100% { 
+                    color: #61dafb; 
+                    text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+                }
+            }
+            
+            .help-button.pulsing {
+                animation: pulse-help 2s ease-in-out;
+            }
+            
+            .help-button {
+                position: relative;
+                overflow: visible;
+            }
+            
+            @keyframes glow-ring {
+                0% {
+                    opacity: 0;
+                    transform: scale(1);
+                    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+                }
+                15% {
+                    opacity: 0.1;
+                }
+                50% {
+                    opacity: 0.3;
+                    transform: scale(1.4);
+                    box-shadow: 0 0 10px rgba(160, 230, 255, 0.5);
+                }
+                85% {
+                    opacity: 0.1;
+                }
+                100% {
+                    opacity: 0;
+                    transform: scale(1);
+                    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+                }
+            }
+            
+            .help-button:before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                border-radius: 50%;
+                background: transparent;
+                pointer-events: none;
+                opacity: 0;
+            }
+            
+            .help-button.pulsing:before {
+                animation: glow-ring 2s ease-in-out;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Set up the interval to pulse the button every 10 seconds
+        setInterval(() => {
+            const helpBtn = document.getElementById('hint-help-button');
+            if (helpBtn) {
+                helpBtn.classList.add('pulsing');
+                
+                // Remove the class after animation completes
+                setTimeout(() => {
+                    helpBtn.classList.remove('pulsing');
+                }, 2000);
+            }
+        }, 4000);
+    }
 }
 
 function addKScriptToggle() {

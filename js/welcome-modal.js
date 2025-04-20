@@ -34,8 +34,8 @@ class WelcomeModal {
                         
                         <div class="youtube-container">
                             <iframe width="560" height="315" 
-                                src="https://www.youtube.com/embed/VIDEO_ID" 
-                                title="KaleidoScript Tutorial" 
+                                src="https://www.youtube.com/embed/2wzBDQ4Mdl8?si=7DJNqkrSS6_8C5BK" 
+                                title="KaleidoScript Examples" 
                                 frameborder="0" 
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                                 allowfullscreen>
@@ -73,7 +73,7 @@ class WelcomeModal {
                     </div>
                     
                     <div class="welcome-section">
-                        <h3>Learn More</h3>
+                        <!--h3>Learn More</h3>
                         <p>
                             Check out the tutorials and resources below to learn more about creating visualizations with KaleidoScript:
                         </p>
@@ -91,7 +91,7 @@ class WelcomeModal {
                             <a href="https://youtube.com/playlist?list=PLAYLIST_ID" target="_blank" class="welcome-link">
                                 <i class="fab fa-youtube"></i> Video Tutorials
                             </a>
-                        </div>
+                        </div-->
                     </div>
                 </div>
                 
@@ -187,6 +187,9 @@ class WelcomeModal {
             // Save preference if user checked "don't show again"
             if (this.dontShowAgain) {
                 localStorage.setItem('kaleidoScript.welcomeShown', 'true');
+            }
+            else {
+                localStorage.setItem('kaleidoScript.welcomeShown', 'false');
             }
         }
     }
