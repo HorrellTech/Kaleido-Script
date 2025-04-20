@@ -293,17 +293,17 @@ const mathFunctions = {
 
 // Audio visualizer functions
 const visualizerFunctions = {
-    backgroundImage: {
-        name: 'backgroundImage(imagePath, mode, reactivity, pulseColor)',
-        description: 'Sets a background image with options for sizing and audio reactivity.',
-        example: 'backgroundImage("landscape.jpg", "fill", 0.3, "#FF5500"); // Responsive image with orange pulse',
-        category: 'color'
+    visualBackgroundImage: {
+        name: 'visualBackgroundImage(imagePath, mode, reactivity, pulseColor)',
+        description: 'Sets a background image with options for sizing and audio reactivity. mode: "fill", "fit", "stretch", "tile". Reactivity: 0-1 (0 = no reactivity, 1 = full reactivity).',
+        example: 'backgroundImage("landscape.jpg", "fill", 0.3, "#FF5500");',
+        category: 'visualizer'
     },
     visualCenterImage: {
         name: 'visualCenterImage(imagePath, size, reactivity, glowColor)',
         description: 'Draws a circular image centered on the canvas that pulses with audio. The image is cropped to fit in a circle.',
-        example: 'visualCenterImage("album-cover.jpg", 200, 0.5, "#FFFFFF"); // Album art with white glow',
-        category: 'effects'
+        example: 'visualCenterImage("album-cover.jpg", 200, 0.5, "#FFFFFF");',
+        category: 'visualizer'
     },
     visualCircular: {
         name: 'visualCircular(x, y, minRadius, maxRadius, pointCount, freqStart, freqEnd, rotation, glow)',
@@ -430,7 +430,7 @@ const visualizerFunctions = {
         name: 'visual3DSphere(x, y, z, minRadius, maxRadius, particleCount, freqStart, freqEnd, glow)',
         description: 'Creates a 3D sphere of particles that reacts to audio.',
         example: 'visual3DSphere(0, 0, 0, 100, 200, 150, 20, 2000, true);',
-        category: '3d'
+        category: 'visualizer'
     },
     visual3DCircularBars: {
         name: 'visual3DCircularBars(centerX, centerY, centerZ, radius, barCount, minHeight, maxHeight, barWidth, freqStart, freqEnd, rotationX, rotationY, rotationZ, colorStart, colorEnd, glow)',

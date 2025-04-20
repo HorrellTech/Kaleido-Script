@@ -433,7 +433,7 @@ class Interpreter {
             window.visualCenterImage = (imagePath, size = 200, reactivity = 0.5, glowColor = null) =>
                 this.visualCenterImage(imagePath, size, reactivity, glowColor);
 
-            window.backgroundImage = (imagePath, mode = 'fill', reactivity = 0.2, pulseColor = null) =>
+            window.visualBackgroundImage = (imagePath, mode = 'fill', reactivity = 0.2, pulseColor = null) =>
                 this.backgroundImage(imagePath, mode, reactivity, pulseColor);
 
             window.adjustColorBrightness = (color, factor) => this.adjustColorBrightness(color, factor);

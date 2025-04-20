@@ -238,6 +238,8 @@ class VisualComposer {
             const item = document.createElement('div');
             item.className = 'visualizer-item';
             item.dataset.name = visualizer.name;
+    
+            item.setAttribute('draggable', true);
             
             // Add drag handle and selection indicator
             const colorId = `${visualizer.name}-color`;
@@ -254,65 +256,69 @@ class VisualComposer {
                 }
             }
             
-            item.innerHTML = `
-        <div class="visualizer-header">
-            <div class="visualizer-drag-handle" title="Drag to reorder">
-                <svg width="16" height="16" viewBox="0 0 16 16">
-                    <path fill="${isSelected ? '#61dafb' : '#888'}" d="M4 4h2v2H4V4zm0 6h2v2H4v-2zm0-3h2v2H4V7zm6 3h2v2h-2v-2zm0-3h2v2h-2V7zm0-3h2v2h-2V4z"></path>
-                </svg>
-            </div>
-            <div class="visualizer-header-content">
-                <input type="checkbox" class="visualizer-checkbox" 
-                    id="viz-${index}" ${isSelected ? 'checked' : ''}>
-                <span class="visualizer-title">${visualizer.title}</span>
-                ${isSelected ? `<span class="layer-badge">${layerPosition}</span>` : ''}
-            </div>
-            <div class="visualizer-order-buttons">
-                <button class="visualizer-order-up" title="Move up" ${isSelected ? '' : 'disabled'}>
-                    <svg width="14" height="14" viewBox="0 0 24 24">
-                        <path fill="${isSelected ? '#61dafb' : '#555'}" d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"></path>
-                    </svg>
-                </button>
-                <button class="visualizer-order-down" title="Move down" ${isSelected ? '' : 'disabled'}>
-                    <svg width="14" height="14" viewBox="0 0 24 24">
-                        <path fill="${isSelected ? '#61dafb' : '#555'}" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
-                    </svg>
-                </button>
-            </div>
-            <div class="visualizer-color-picker">
-                <input type="color" id="${colorId}" class="visualizer-color" 
-                    value="${defaultColor}" title="Set visualizer color">
-            </div>
-            <button class="visualizer-toggle" title="Toggle settings">
-                <i class="fas fa-chevron-down"></i>
-            </button>
-        </div>
-        <div class="visualizer-config">
-            <div class="config-description">
-                ${visualizer.description}
-            </div>
-            <div class="config-fields">
-                ${this.generateConfigFields(visualizer)}
-            </div>
-            <div class="config-preview">
-                <code>${this.generatePreviewCode(visualizer)}</code>
-            </div>
-        </div>
-    `;
-
+            // Create main header
+            const headerHtml = `
+                <div class="visualizer-header">
+                    <div class="visualizer-drag-handle" title="Drag to reorder">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="${isSelected ? '#61dafb' : '#888'}" d="M4 4h2v2H4V4zm0 6h2v2H4v-2zm0-3h2v2H4V7zm6 3h2v2h-2v-2zm0-3h2v2h-2V7zm0-3h2v2h-2V4z"></path>
+                        </svg>
+                    </div>
+                    <div class="visualizer-header-content">
+                        <input type="checkbox" class="visualizer-checkbox" 
+                            id="viz-${index}" ${isSelected ? 'checked' : ''}>
+                        <span class="visualizer-title">${visualizer.title}</span>
+                        ${isSelected ? `<span class="layer-badge">${layerPosition}</span>` : ''}
+                    </div>
+                    <div class="visualizer-order-buttons">
+                        <button class="visualizer-order-up" title="Move up">
+                            <svg width="14" height="14" viewBox="0 0 24 24">
+                                <path fill="${isSelected ? '#61dafb' : '#888'}" d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"></path>
+                            </svg>
+                        </button>
+                        <button class="visualizer-order-down" title="Move down">
+                            <svg width="14" height="14" viewBox="0 0 24 24">
+                                <path fill="${isSelected ? '#61dafb' : '#888'}" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="visualizer-color-picker">
+                        <input type="color" id="${colorId}" class="visualizer-color" 
+                            value="${defaultColor}" title="Set visualizer color">
+                    </div>
+                    <button class="visualizer-toggle" title="Toggle settings">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </div>`;
+                
+            // Create config section
+            const configHtml = `
+                <div class="visualizer-config">
+                    <div class="config-content">
+                        ${this.generateConfigFields(visualizer)}
+                    </div>
+                    <div class="config-preview">
+                        <h4>Generated Code</h4>
+                        <pre><code></code></pre>
+                    </div>
+                </div>`;
+                
+            // Add all HTML to the item
+            item.innerHTML = headerHtml + configHtml;
+            
             const upButton = item.querySelector('.visualizer-order-up');
             const downButton = item.querySelector('.visualizer-order-down');
-
+    
             if (upButton) {
-                upButton.addEventListener('click', () => {
-                    if (!isSelected) return;
+                upButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     this.moveVisualizer(visualizer.name, 'up');
                 });
             }
-
+            
             if (downButton) {
-                downButton.addEventListener('click', () => {
-                    if (!isSelected) return;
+                downButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     this.moveVisualizer(visualizer.name, 'down');
                 });
             }
@@ -335,35 +341,28 @@ class VisualComposer {
                 // Update the item's appearance based on selection
                 item.classList.toggle('selected', isChecked);
                 
-                // Set draggable attribute immediately and explicitly
-                if (isChecked) {
-                    console.log(`Setting ${visualizer.name} to draggable`);
-                    item.setAttribute('draggable', 'true');
-                    item.draggable = true; // Set both for cross-browser compatibility
-                } else {
-                    console.log(`Setting ${visualizer.name} to not draggable`);
-                    item.setAttribute('draggable', 'false');
-                    item.draggable = false;
-                }
+                // Always keep items draggable for better UX
+                item.setAttribute('draggable', 'true');
+                item.draggable = true;
                 
                 // Update drag handle color
                 const dragHandlePath = item.querySelector('.visualizer-drag-handle path');
                 if (dragHandlePath) {
                     dragHandlePath.setAttribute('fill', isChecked ? '#61dafb' : '#888');
                 }
-
+    
                 // Update the order buttons
                 const upBtn = item.querySelector('.visualizer-order-up');
                 const downBtn = item.querySelector('.visualizer-order-down');
                 
                 if (upBtn) {
-                    upBtn.disabled = !isChecked;
-                    upBtn.querySelector('path').setAttribute('fill', isChecked ? '#61dafb' : '#555');
+                    upBtn.disabled = false; // Never disable
+                    upBtn.querySelector('path').setAttribute('fill', isChecked ? '#61dafb' : '#888');
                 }
                 
                 if (downBtn) {
-                    downBtn.disabled = !isChecked;
-                    downBtn.querySelector('path').setAttribute('fill', isChecked ? '#61dafb' : '#555');
+                    downBtn.disabled = false; // Never disable
+                    downBtn.querySelector('path').setAttribute('fill', isChecked ? '#61dafb' : '#888');
                 }
                 
                 // Update layer badges for all items
@@ -383,11 +382,14 @@ class VisualComposer {
             });
             
             const toggle = item.querySelector('.visualizer-toggle');
-            toggle.addEventListener('click', () => {
-                const config = item.querySelector('.visualizer-config');
-                config.classList.toggle('open');
-                toggle.classList.toggle('open');
-            });
+            const config = item.querySelector('.visualizer-config');
+            
+            if (toggle && config) {
+                toggle.addEventListener('click', () => {
+                    config.classList.toggle('open');
+                    toggle.classList.toggle('open');
+                });
+            }
             
             // Add event listeners to config inputs for live preview updates
             const inputs = item.querySelectorAll('input:not(.visualizer-color), select');
@@ -413,6 +415,9 @@ class VisualComposer {
                 this.selectedVisualizers.push(visualizer.name);
             }
             
+            // Update the initial preview
+            this.updatePreview(item, visualizer);
+            
             // Drag and Drop functionality
             this.addDragAndDropListeners(item);
         });
@@ -425,53 +430,78 @@ class VisualComposer {
         
         // Update the layer badges to reflect current order
         this.updateLayerBadges();
-
+    
         this.setupContainerDragHandlers();
         
         console.log(`After population, selected visualizers: ${this.selectedVisualizers.join(', ')}`);
     }
 
     moveVisualizer(name, direction) {
-        // Find the index in the data model
-        const itemIndex = this.selectedVisualizers.indexOf(name);
-        if (itemIndex === -1) return;
+        console.log(`Moving visualizer ${name} ${direction}`);
         
-        // Calculate new index based on direction
-        let newIndex = itemIndex;
-        if (direction === 'up' && itemIndex > 0) {
-            newIndex = itemIndex - 1;
-        } else if (direction === 'down' && itemIndex < this.selectedVisualizers.length - 1) {
-            newIndex = itemIndex + 1;
-        } else {
-            // Already at the top/bottom or invalid direction
-            return;
-        }
-        
-        // Find the container and the item to move
+        // Get the container
         const container = document.getElementById('composer-visualizers-container');
         if (!container) return;
         
+        // Find the item to move
         const item = container.querySelector(`.visualizer-item[data-name="${name}"]`);
-        if (!item) return;
-        
-        // Rearrange the array
-        const newOrder = [...this.selectedVisualizers];
-        [newOrder[itemIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[itemIndex]];
-        this.selectedVisualizers = newOrder;
-        
-        // Re-render the visualizer order in the DOM
-        this.reorderVisualizerDom();
-        
-        // Visual feedback for the moved item
-        const updatedItem = container.querySelector(`.visualizer-item[data-name="${name}"]`);
-        if (updatedItem) {
-            updatedItem.classList.add('flash-position');
-            setTimeout(() => {
-                updatedItem.classList.remove('flash-position');
-            }, 800);
+        if (!item) {
+            console.error(`Item with name ${name} not found`);
+            return;
         }
         
-        console.log(`Moved visualizer ${name} ${direction} to position ${newIndex + 1}`);
+        // Find all items in the container
+        const allItems = Array.from(container.querySelectorAll('.visualizer-item'));
+        const currentIndex = allItems.indexOf(item);
+        
+        if (currentIndex === -1) return; // Item not found in list
+        
+        // Calculate the new index
+        let targetIndex;
+        if (direction === 'up' && currentIndex > 0) {
+            targetIndex = currentIndex - 1;
+        } else if (direction === 'down' && currentIndex < allItems.length - 1) {
+            targetIndex = currentIndex + 1;
+        } else {
+            // Already at top or bottom
+            return;
+        }
+        
+        // Check if we need to skip the instructions element
+        if (targetIndex === 0 && container.firstChild && container.firstChild.classList.contains('layer-instructions')) {
+            targetIndex = 1;
+        }
+        
+        const targetItem = allItems[targetIndex];
+        if (!targetItem) return;
+        
+        // Move in the DOM
+        if (direction === 'up') {
+            container.insertBefore(item, targetItem);
+        } else {
+            const nextAfterTarget = targetItem.nextElementSibling;
+            if (nextAfterTarget) {
+                container.insertBefore(item, nextAfterTarget);
+            } else {
+                container.appendChild(item);
+            }
+        }
+        
+        // If the item is selected, update the selected visualizer array
+        if (item.classList.contains('selected')) {
+            this.updateVisualizerOrder();
+        }
+        
+        // Update layer badges
+        this.updateLayerBadges();
+        
+        // Visual feedback
+        item.classList.add('flash-position');
+        setTimeout(() => {
+            item.classList.remove('flash-position');
+        }, 800);
+        
+        console.log(`Moved visualizer ${name} ${direction}`);
     }
 
     reorderVisualizerDom() {
@@ -559,11 +589,11 @@ class VisualComposer {
         // Drag start event handler
         const handleDragStart = (e) => {
             // Only allow dragging if the element is selected (has a checkbox checked)
-            const checkbox = element.querySelector('.visualizer-checkbox');
+            /*const checkbox = element.querySelector('.visualizer-checkbox');
             if (!checkbox || !checkbox.checked) {
                 e.preventDefault();
                 return;
-            }
+            }*/
             
             console.log(`Drag started for ${element.dataset.name}`);
             
@@ -601,8 +631,11 @@ class VisualComposer {
             console.log(`Drag ended for ${element.dataset.name}`);
             element.classList.remove('dragging');
             
-            // Update the order and badge display
-            this.updateVisualizerOrder();
+            // Update the order if the item is selected
+            if (element.classList.contains('selected')) {
+                this.updateVisualizerOrder();
+            }
+            
             this.updateLayerBadges();
             
             // Flash the item for visual feedback
@@ -628,15 +661,12 @@ class VisualComposer {
         const dragHandle = element.querySelector('.visualizer-drag-handle');
         if (dragHandle) {
             const handleMouseDown = (e) => {
-                // Only enable dragging if the item is selected
-                const checkbox = element.querySelector('.visualizer-checkbox');
-                if (checkbox && checkbox.checked) {
-                    console.log(`Setting draggable=true on mouse down for ${element.dataset.name}`);
-                    element.draggable = true;
-                    
-                    // Use browser event propagation to get to the drag event
-                    e.stopPropagation();
-                }
+                // Enable dragging for all items, not just selected ones
+                console.log(`Setting draggable=true on mouse down for ${element.dataset.name}`);
+                element.draggable = true;
+                
+                // Use browser event propagation to get to the drag event
+                e.stopPropagation();
             };
             
             dragHandle.removeEventListener('mousedown', dragHandle._handleMouseDown);
@@ -1217,6 +1247,15 @@ class VisualComposer {
                                value="${selectedOption === 'custom' ? freqValue : ''}">
                     </div>
                 `;
+            } else if (param.name.includes('path') || param.name.includes('image') || param.name.includes('mode') 
+                || param.name.includes('file') || param.name.includes('url')) {
+                return `
+                    <div class="config-field">
+                        <label for="${id}">${param.label}</label>
+                        <input type="text" id="${id}" name="${param.name}" 
+                               value="${defaultValue !== null ? defaultValue : 'image.png'}">
+                    </div>
+                `;
             } else {
                 // For numeric inputs
                 return `
@@ -1277,9 +1316,17 @@ class VisualComposer {
     }
     
     updatePreview(item, visualizer) {
+        if (!item) return;
+        
         const previewElement = item.querySelector('.config-preview code');
         if (previewElement) {
-            previewElement.textContent = this.generatePreviewCode(visualizer);
+            try {
+                const code = this.generatePreviewCode(visualizer);
+                previewElement.textContent = code;
+            } catch (err) {
+                console.error(`Error generating preview for ${visualizer.name}:`, err);
+                previewElement.textContent = `// Error generating preview: ${err.message}`;
+            }
         }
     }
     
@@ -1328,7 +1375,39 @@ class VisualComposer {
             }
         }).join(', ');
         
-        // Get the visualizer color if available
+        // Special handling for functions that may use mode parameters
+        // These functions include backgroundImage and centerImage
+        if (visualizer.name === 'backgroundImage' || visualizer.name === 'centerImage') {
+            // For these special functions, ensure we're using string modes correctly
+            const paramArray = params.split(',').map(p => p.trim());
+            
+            // If the second parameter (mode) is not wrapped in quotes, wrap it
+            if (paramArray.length > 1) {
+                // Check if the mode parameter is a string that needs quotes
+                const modeParam = paramArray[1];
+                if (!modeParam.startsWith('"') && !modeParam.startsWith("'") && 
+                    !modeParam.includes('width') && !modeParam.includes('height') &&
+                    isNaN(parseFloat(modeParam))) {
+                    // It's likely a mode string that needs quotes
+                    paramArray[1] = `"${modeParam}"`;
+                }
+                
+                // Rebuild the params string
+                const updatedParams = paramArray.join(', ');
+                // Get the visualizer color if available
+                const visualizerColor = this.visualizerColors[visualizer.name];
+                
+                if (visualizerColor && visualizerColor !== '#ffffff') {
+                    const rgb = this.hexToRgb(visualizerColor);
+                    // Add tint command instead of fill for image functions
+                    return `tint(${rgb.r}, ${rgb.g}, ${rgb.b}, 255); ${visualizer.name}(${updatedParams});`;
+                } else {
+                    return `${visualizer.name}(${updatedParams});`;
+                }
+            }
+        }
+        
+        // Standard handling for other visualizers
         const visualizerColor = this.visualizerColors[visualizer.name];
         
         if (visualizerColor && visualizerColor !== '#ffffff') {
@@ -1450,25 +1529,54 @@ class VisualComposer {
             const visualizer = this.visualizers.find(v => v.name === name);
             if (visualizer) {
                 visualizerCode += '    // ' + visualizer.title + '\n';
-                visualizerCode += '    ' + this.generatePreviewCode(visualizer) + '\n\n';
+                
+                // Enhanced safety for mode parameters
+                let code = this.generatePreviewCode(visualizer);
+                
+                // Special handling for background/centerImage functions
+                if ((name === 'backgroundImage' || name === 'centerImage') && 
+                    !code.includes('"') && !code.includes("'")) {
+                    // Force adding quotes around the second parameter if it might be a mode
+                    const parts = code.split('(');
+                    if (parts.length > 1) {
+                        const params = parts[1].split(')')[0].split(',');
+                        if (params.length > 1) {
+                            const fileName = params[0].trim();
+                            let mode = params[1].trim();
+                            // Add quotes to mode if it's not already quoted and looks like a string
+                            if (!mode.startsWith('"') && !mode.startsWith("'") && 
+                                isNaN(parseFloat(mode)) && !mode.includes('width') && !mode.includes('height')) {
+                                mode = `"${mode}"`;
+                                code = `${name}(${fileName}, ${mode});`;
+                            }
+                        }
+                    }
+                }
+                
+                visualizerCode += '    ' + code + '\n\n';
             }
         });
         
-        // Create the full template
+        // Create the full template with a safer background call
         return `/**
- * KaleidoScript Visualizer
- * Generated by Visual Composer
- */
+    * KaleidoScript Visualizer
+    * Generated by Visual Composer
+    */
+var backgroundImage; // Default background image if background image visualizer is used
+var centerImage; // Default center image if center image visualizer is used
 
+// Function to load and initialize everything
 function setup() {
-    loadAudio("your-music.mp3");
+    loadAudio("your-music.mp3"); // Load your audio file here
+    audioPlay(); // Start audio playback
+
+    backgroundImage = "background.jpg"; // Set default background image
+    centerImage = "center.png"; // Set default center image
 }
 
+// Function to draw the visualizers and loops
 function draw(time) {
-    // Play audio when animation starts
-    if (time < 0.1) audioPlay();
-    
-    // Set background color
+    // Set background color with direct RGB values
     background(10, 10, 30); // Dark blue background
     
 ${visualizerCode}}`;
@@ -2045,6 +2153,33 @@ document.addEventListener('DOMContentLoaded', function() {
             .layer-badge {
                 margin: 2px 0 0 8px;
             }
+        }
+    `;
+        style.textContent += `
+        /* Update styles to better support non-selected draggable items */
+        .visualizer-drag-handle {
+            cursor: move;  /* All items can be moved */
+        }
+        
+        .visualizer-item {
+            position: relative;
+            border: 1px solid transparent;
+        }
+        
+        .visualizer-item:hover {
+            border-color: rgba(97, 218, 251, 0.3);
+        }
+        
+        .visualizer-order-up:hover path,
+        .visualizer-order-down:hover path {
+            fill: #61dafb !important;  /* Always highlight on hover */
+        }
+        
+        /* Clearer indication for non-selected item interactions */
+        .visualizer-item:not(.selected):hover .visualizer-drag-handle path,
+        .visualizer-item:not(.selected):hover .visualizer-order-up path,
+        .visualizer-item:not(.selected):hover .visualizer-order-down path {
+            fill: #aaa;  /* Lighter color on hover for non-selected */
         }
     `;
     document.head.appendChild(style);
