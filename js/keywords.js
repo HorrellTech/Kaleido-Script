@@ -151,18 +151,6 @@ const drawingFunctions = {
         example: 'motionBlurEnd(); // Turn off motion blur',
         category: 'effects'
     },
-    visualCenterImage: {
-        name: 'visualCenterImage(imagePath, size, reactivity, glowColor)',
-        description: 'Draws a circular image centered on the canvas that pulses with audio. The image is cropped to fit in a circle.',
-        example: 'visualCenterImage("album-cover.jpg", 200, 0.5, "#FFFFFF"); // Album art with white glow',
-        category: 'effects'
-    },
-    backgroundImage: {
-        name: 'backgroundImage(imagePath, mode, reactivity, pulseColor)',
-        description: 'Sets a background image with options for sizing and audio reactivity.',
-        example: 'backgroundImage("landscape.jpg", "fill", 0.3, "#FF5500"); // Responsive image with orange pulse',
-        category: 'color'
-    },
     loadImage: {
         name: 'loadImage(imagePath)',
         description: 'Loads an image from the specified path.',
@@ -305,6 +293,18 @@ const mathFunctions = {
 
 // Audio visualizer functions
 const visualizerFunctions = {
+    backgroundImage: {
+        name: 'backgroundImage(imagePath, mode, reactivity, pulseColor)',
+        description: 'Sets a background image with options for sizing and audio reactivity.',
+        example: 'backgroundImage("landscape.jpg", "fill", 0.3, "#FF5500"); // Responsive image with orange pulse',
+        category: 'color'
+    },
+    visualCenterImage: {
+        name: 'visualCenterImage(imagePath, size, reactivity, glowColor)',
+        description: 'Draws a circular image centered on the canvas that pulses with audio. The image is cropped to fit in a circle.',
+        example: 'visualCenterImage("album-cover.jpg", 200, 0.5, "#FFFFFF"); // Album art with white glow',
+        category: 'effects'
+    },
     visualCircular: {
         name: 'visualCircular(x, y, minRadius, maxRadius, pointCount, freqStart, freqEnd, rotation, glow)',
         description: 'Creates a circular audio visualizer that expands and contracts with sound.',
@@ -426,10 +426,16 @@ const visualizerFunctions = {
         example: 'visualFishPond(0, 0, width, height, 20, [20, 80, 120], [194, 178, 128], true);',
         category: 'visualizer'
     },
-    visualRacingCars: {
-        name: 'visualRacingCars(x, y, width, height, carCount, turnFreq, driftFreq, speedFreq, glow)',
-        description: 'Creates audio-reactive racing cars with realistic drift physics. Cars respond to different audio frequencies for turning, drifting, and speed.',
-        example: 'visualRacingCars(0, 0, width, height, 5, 100, 300, 60, true);',
+    visual3DSphere: {
+        name: 'visual3DSphere(x, y, z, minRadius, maxRadius, particleCount, freqStart, freqEnd, glow)',
+        description: 'Creates a 3D sphere of particles that reacts to audio.',
+        example: 'visual3DSphere(0, 0, 0, 100, 200, 150, 20, 2000, true);',
+        category: '3d'
+    },
+    visual3DCircularBars: {
+        name: 'visual3DCircularBars(centerX, centerY, centerZ, radius, barCount, minHeight, maxHeight, barWidth, freqStart, freqEnd, rotationX, rotationY, rotationZ, colorStart, colorEnd, glow)',
+        description: 'Creates a 3D circular arrangement of bars that react to audio frequencies. Can be rotated in any direction.',
+        example: 'visual3DCircularBars(0, 0, 0, 200, 32, 5, 100, 5, 60, 5000, Math.sin(time/2), time/5, 0, "#FF0000", "#0000FF", true);',
         category: 'visualizer'
     }
 };
@@ -529,18 +535,6 @@ const threeDFunctions = {
         description: 'Positions the camera in an orbit around its look-at point.',
         example: 'orbitCamera(time * 10, Math.sin(time) * 30, 500);',
         category: '3d'
-    },
-    visual3DSphere: {
-        name: 'visual3DSphere(x, y, z, minRadius, maxRadius, particleCount, freqStart, freqEnd, glow)',
-        description: 'Creates a 3D sphere of particles that reacts to audio.',
-        example: 'visual3DSphere(0, 0, 0, 100, 200, 150, 20, 2000, true);',
-        category: '3d'
-    },
-    visual3DCircularBars: {
-        name: 'visual3DCircularBars(centerX, centerY, centerZ, radius, barCount, minHeight, maxHeight, barWidth, freqStart, freqEnd, rotationX, rotationY, rotationZ, colorStart, colorEnd, glow)',
-        description: 'Creates a 3D circular arrangement of bars that react to audio frequencies. Can be rotated in any direction.',
-        example: 'visual3DCircularBars(0, 0, 0, 200, 32, 5, 100, 5, 60, 5000, Math.sin(time/2), time/5, 0, "#FF0000", "#0000FF", true);',
-        category: 'visualizer'
     }
 };
 

@@ -211,6 +211,17 @@ class VisualComposer {
         // Clear existing content
         container.innerHTML = '';
         
+        // Show layering instructions
+        const instructions = document.createElement('div');
+        instructions.className = 'layer-instructions';
+        instructions.innerHTML = `
+            <div class="layer-legend">
+                <div class="layer-arrow top">↑ Top Layer (Drawn Last)</div>
+                <div class="layer-arrow bottom">↓ Bottom Layer (Drawn First)</div>
+            </div>
+        `;
+        container.appendChild(instructions);
+        
         // Add each visualizer as a collapsible item
         this.visualizers.forEach((visualizer, index) => {
             // Check if this visualizer is already selected
@@ -224,6 +235,17 @@ class VisualComposer {
             const colorId = `${visualizer.name}-color`;
             const defaultColor = this.visualizerColors[visualizer.name] || '#ffffff';
             
+            // Calculate layer position for selected items
+            let layerPosition = '';
+            if (isSelected) {
+                const position = this.selectedVisualizers.indexOf(visualizer.name);
+                const total = this.selectedVisualizers.length;
+                if (position !== -1) {
+                    // Convert to layers - first in array is bottom layer
+                    layerPosition = `Layer ${position + 1} of ${total}`;
+                }
+            }
+            
             item.innerHTML = `
                 <div class="visualizer-header">
                     <div class="visualizer-drag-handle" title="Drag to reorder">
@@ -235,6 +257,7 @@ class VisualComposer {
                         <input type="checkbox" class="visualizer-checkbox" 
                                id="viz-${index}" ${isSelected ? 'checked' : ''}>
                         <span class="visualizer-title">${visualizer.title}</span>
+                        ${isSelected ? `<span class="layer-badge">${layerPosition}</span>` : ''}
                     </div>
                     <div class="visualizer-color-picker">
                         <input type="color" id="${colorId}" class="visualizer-color" 
@@ -260,7 +283,7 @@ class VisualComposer {
             container.appendChild(item);
             
             // Make the item draggable
-            item.setAttribute('draggable', 'true');
+            item.setAttribute('draggable', 'false'); // Start with dragging disabled
             
             // Add event listeners
             const checkbox = item.querySelector('.visualizer-checkbox');
@@ -275,11 +298,18 @@ class VisualComposer {
                 // Update the item's appearance based on selection
                 item.classList.toggle('selected', isChecked);
                 
+                // Update draggability - only selected items should be draggable
+                item.setAttribute('draggable', isChecked);
+                
+                // Update layer badges for all items
+                this.updateLayerBadges();
+                
                 console.log(`Current selections (${this.selectedVisualizers.length}): ${this.selectedVisualizers.join(', ')}`);
             });
             
             // Set initial selected state
             item.classList.toggle('selected', isSelected);
+            item.setAttribute('draggable', isSelected);
             
             // Add color picker event listener
             const colorPicker = item.querySelector('.visualizer-color');
@@ -328,21 +358,62 @@ class VisualComposer {
         
         // After populating the visualizers, attach custom select listeners
         this.attachCustomSelectListeners();
+        
+        // Update the layer badges to reflect current order
+        this.updateLayerBadges();
+        
         console.log(`After population, selected visualizers: ${this.selectedVisualizers.join(', ')}`);
     }
 
+    updateLayerBadges() {
+        const items = document.querySelectorAll('.visualizer-item.selected');
+        items.forEach((item, index) => {
+            const badge = item.querySelector('.layer-badge');
+            const totalLayers = items.length;
+            
+            if (!badge && totalLayers > 0) {
+                // Create a new badge if it doesn't exist
+                const title = item.querySelector('.visualizer-title');
+                const newBadge = document.createElement('span');
+                newBadge.className = 'layer-badge';
+                newBadge.textContent = `Layer ${index + 1} of ${totalLayers}`;
+                title.after(newBadge);
+            } else if (badge) {
+                // Update existing badge
+                badge.textContent = `Layer ${index + 1} of ${totalLayers}`;
+            }
+        });
+    }
+
     addDragAndDropListeners(element) {
+        // Store the original position when starting drag
+        let originalIndex = -1;
+        
         // Drag start - store the element being dragged
         element.addEventListener('dragstart', (e) => {
+            // Only allow dragging if the element is selected (has a checkbox checked)
+            const checkbox = element.querySelector('.visualizer-checkbox');
+            if (!checkbox || !checkbox.checked) {
+                e.preventDefault();
+                return;
+            }
+            
+            // Store original position for better visual feedback
+            const container = document.getElementById('composer-visualizers-container');
+            const selectedItems = Array.from(container.querySelectorAll('.visualizer-item.selected'));
+            originalIndex = selectedItems.indexOf(element);
+            
             // Add a class to style the dragged element
             element.classList.add('dragging');
             
             // Store the dragged element's name in the dataTransfer
             e.dataTransfer.setData('text/plain', element.dataset.name);
+            e.dataTransfer.effectAllowed = 'move';
             
             // Set a custom drag image (optional)
             const dragImage = document.createElement('div');
-            dragImage.textContent = element.querySelector('.visualizer-title').textContent;
+            const title = element.querySelector('.visualizer-title').textContent;
+            dragImage.textContent = `Moving: ${title}`;
             dragImage.className = 'drag-ghost';
             document.body.appendChild(dragImage);
             e.dataTransfer.setDragImage(dragImage, 0, 0);
@@ -355,26 +426,43 @@ class VisualComposer {
         element.addEventListener('dragend', () => {
             element.classList.remove('dragging');
             this.updateVisualizerOrder();
+            
+            // Update all layer badges after reordering
+            this.updateLayerBadges();
+            
+            // Generate visible feedback by flashing the newly positioned item
+            element.classList.add('flash-position');
+            setTimeout(() => {
+                element.classList.remove('flash-position');
+            }, 800);
         });
         
-        // Allow dropping
+        // Allow dropping only on selected items
         element.addEventListener('dragover', (e) => {
             e.preventDefault();
+            
+            // Only allow dropping if this element is selected
+            const checkbox = element.querySelector('.visualizer-checkbox');
+            if (!checkbox || !checkbox.checked) return;
+            
             const dragging = document.querySelector('.dragging');
-            if (dragging && dragging !== element) {
+            if (dragging && dragging !== element && dragging.classList.contains('selected')) {
                 // Determine drop position (before or after)
                 const rect = element.getBoundingClientRect();
                 const mouseY = e.clientY;
                 const threshold = rect.top + rect.height / 2;
                 
+                // Clear all drop indicators
+                document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
+                    el.classList.remove('drop-before', 'drop-after');
+                });
+                
                 if (mouseY < threshold) {
                     // Drop before
                     element.classList.add('drop-before');
-                    element.classList.remove('drop-after');
                 } else {
                     // Drop after
                     element.classList.add('drop-after');
-                    element.classList.remove('drop-before');
                 }
             }
         });
@@ -382,12 +470,18 @@ class VisualComposer {
         // Handle drop
         element.addEventListener('drop', (e) => {
             e.preventDefault();
-            element.classList.remove('drop-before', 'drop-after');
+            
+            document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
+                el.classList.remove('drop-before', 'drop-after');
+            });
             
             const draggedName = e.dataTransfer.getData('text/plain');
             const dragging = document.querySelector(`[data-name="${draggedName}"]`);
             
-            if (dragging && dragging !== element) {
+            if (dragging && dragging !== element && 
+                dragging.classList.contains('selected') && 
+                element.classList.contains('selected')) {
+                
                 const container = document.getElementById('composer-visualizers-container');
                 const rect = element.getBoundingClientRect();
                 const mouseY = e.clientY;
@@ -406,7 +500,10 @@ class VisualComposer {
                     }
                 }
                 
+                // Update the order immediately
                 this.updateVisualizerOrder();
+                // Update layer badges
+                this.updateLayerBadges();
             }
         });
         
@@ -427,11 +524,21 @@ class VisualComposer {
             
             // Make only the drag handle initiate dragging
             dragHandle.addEventListener('mousedown', () => {
-                element.setAttribute('draggable', 'true');
+                // Only enable dragging if the item is selected
+                const checkbox = element.querySelector('.visualizer-checkbox');
+                if (checkbox && checkbox.checked) {
+                    element.setAttribute('draggable', 'true');
+                }
             });
             
             element.addEventListener('mouseup', () => {
-                element.setAttribute('draggable', 'false');
+                // Reset draggable state
+                const checkbox = element.querySelector('.visualizer-checkbox');
+                if (checkbox && checkbox.checked) {
+                    element.setAttribute('draggable', 'true');
+                } else {
+                    element.setAttribute('draggable', 'false');
+                }
             });
         }
     }
@@ -441,6 +548,8 @@ class VisualComposer {
         let touchDragging = null;
         let touchDragStart = null;
         let placeholder = null;
+        let originalContainer = null;
+        let originalPosition = null;
         
         // Create the touch event handlers
         document.addEventListener('touchstart', (e) => {
@@ -450,17 +559,30 @@ class VisualComposer {
             
             if (dragHandle) {
                 const visualizerItem = dragHandle.closest('.visualizer-item');
-                if (visualizerItem) {
+                if (visualizerItem && visualizerItem.classList.contains('selected')) {
                     e.preventDefault(); // Prevent scrolling while dragging
                     touchDragging = visualizerItem;
+                    originalContainer = container;
+                    
+                    // Store the original position in the DOM
+                    const children = Array.from(container.children).filter(
+                        child => child.classList.contains('visualizer-item') && child.classList.contains('selected')
+                    );
+                    originalPosition = children.indexOf(visualizerItem);
+                    
+                    // Add visual feedback
+                    visualizerItem.classList.add('touch-dragging');
                     
                     // Create a semi-transparent clone as placeholder
                     placeholder = visualizerItem.cloneNode(true);
-                    placeholder.style.opacity = '0.5';
+                    placeholder.style.opacity = '0.6';
                     placeholder.style.position = 'absolute';
                     placeholder.style.zIndex = '1000';
                     placeholder.style.width = `${visualizerItem.offsetWidth}px`;
+                    placeholder.style.height = `${visualizerItem.offsetHeight}px`;
                     placeholder.style.pointerEvents = 'none';
+                    placeholder.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+                    placeholder.style.transform = 'scale(1.02)';
                     
                     // Store initial touch position
                     touchDragStart = {
@@ -471,11 +593,12 @@ class VisualComposer {
                     document.body.appendChild(placeholder);
                     
                     // Position the placeholder initially
-                    placeholder.style.top = `${visualizerItem.getBoundingClientRect().top}px`;
-                    placeholder.style.left = `${visualizerItem.getBoundingClientRect().left}px`;
+                    const rect = visualizerItem.getBoundingClientRect();
+                    placeholder.style.top = `${rect.top}px`;
+                    placeholder.style.left = `${rect.left}px`;
                     
                     // Add visual indication to the original element
-                    visualizerItem.classList.add('touch-dragging');
+                    visualizerItem.style.opacity = '0.3';
                 }
             }
         }, { passive: false });
@@ -494,21 +617,32 @@ class VisualComposer {
                 // Find the element we're hovering over
                 const elementsAtPoint = document.elementsFromPoint(touchX, touchY);
                 const hoverElement = elementsAtPoint.find(el => 
-                    el.classList.contains('visualizer-item') && el !== placeholder && el !== touchDragging
+                    el.classList.contains('visualizer-item') && 
+                    el.classList.contains('selected') &&
+                    el !== placeholder && 
+                    el !== touchDragging
                 );
                 
+                // Clear all positioning indicators
+                document.querySelectorAll('.touch-drop-before, .touch-drop-after').forEach(el => {
+                    el.classList.remove('touch-drop-before', 'touch-drop-after');
+                });
+                
+                // Add positioning indicator to hover element
                 if (hoverElement) {
                     // Determine position (before or after)
                     const rect = hoverElement.getBoundingClientRect();
                     if (touchY < rect.top + rect.height / 2) {
                         // Want to place above
+                        hoverElement.classList.add('touch-drop-before');
                         container.insertBefore(touchDragging, hoverElement);
                     } else {
                         // Want to place below
+                        hoverElement.classList.add('touch-drop-after');
                         const nextElement = hoverElement.nextElementSibling;
-                        if (nextElement) {
+                        if (nextElement && nextElement !== touchDragging) {
                             container.insertBefore(touchDragging, nextElement);
-                        } else {
+                        } else if (hoverElement.nextElementSibling !== touchDragging) {
                             container.appendChild(touchDragging);
                         }
                     }
@@ -518,24 +652,46 @@ class VisualComposer {
         
         document.addEventListener('touchend', (e) => {
             if (touchDragging) {
+                // Remove all visual indicators
+                touchDragging.style.opacity = '';
                 touchDragging.classList.remove('touch-dragging');
+                
+                document.querySelectorAll('.touch-drop-before, .touch-drop-after').forEach(el => {
+                    el.classList.remove('touch-drop-before', 'touch-drop-after');
+                });
+                
                 if (placeholder && placeholder.parentNode) {
                     placeholder.parentNode.removeChild(placeholder);
                 }
                 
+                // Update the order
+                this.updateVisualizerOrder();
+                
+                // Update layer badges
+                this.updateLayerBadges();
+                
+                // Generate visible feedback by flashing the newly positioned item
+                touchDragging.classList.add('flash-position');
+                setTimeout(() => {
+                    touchDragging.classList.remove('flash-position');
+                }, 800);
+                
+                // Reset variables
                 touchDragging = null;
                 placeholder = null;
                 touchDragStart = null;
-                
-                // Update the order
-                this.updateVisualizerOrder();
+                originalContainer = null;
+                originalPosition = null;
             }
         });
     }
 
     updateVisualizerOrder() {
-        // Only update the order of selected visualizers
-        const selectedItems = document.querySelectorAll('.visualizer-item.selected');
+        // Get all selected items in the current DOM order
+        const container = document.getElementById('composer-visualizers-container');
+        const selectedItems = container ? 
+            Array.from(container.querySelectorAll('.visualizer-item.selected')) : [];
+        
         if (selectedItems.length === 0) return;
         
         // Create a new array with the visualizers in the current DOM order
@@ -549,6 +705,8 @@ class VisualComposer {
         
         // Replace the selectedVisualizers array with the new order
         if (newOrder.length > 0) {
+            // Reverse the order since we want first in the array to be drawn first
+            // but in the UI, items at the top should be the top layer (drawn last)
             this.selectedVisualizers = newOrder;
             console.log('Updated visualizer order:', this.selectedVisualizers);
         }
@@ -932,7 +1090,7 @@ class VisualComposer {
             // Convert hex color to r,g,b values
             const rgb = this.hexToRgb(visualizerColor);
             // Add fill command before the visualizer call with RGB values
-            return `fill(${rgb.r}, ${rgb.g}, ${rgb.b}); ${visualizer.name}(${params});`;
+            return `fill(${rgb.r}, ${rgb.g}, ${rgb.b}, 255); ${visualizer.name}(${params});`;
         } else {
             return `${visualizer.name}(${params});`;
         }
@@ -1204,6 +1362,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         .visualizer-header-content {
             flex-grow: 1;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
         }
         
         .visualizer-drag-handle {
@@ -1257,9 +1418,52 @@ document.addEventListener('DOMContentLoaded', function() {
             margin-bottom: 8px;
         }
         
+        /* Layer badge styles */
+        .layer-badge {
+            font-size: 0.75rem;
+            background: rgba(97, 218, 251, 0.2);
+            color: #61dafb;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+        
+        /* Layering instructions */
+        .layer-instructions {
+            color: #888;
+            font-size: 0.85rem;
+            text-align: center;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-bottom: 1px dashed #444;
+        }
+        
+        .layer-legend {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        
+        .layer-arrow {
+            display: flex;
+            align-items: center;
+        }
+        
+        .layer-arrow.top:before {
+            content: "⬆";
+            margin-right: 5px;
+        }
+        
+        .layer-arrow.bottom:before {
+            content: "⬇";
+            margin-right: 5px;
+        }
+        
         /* Drag and drop styles */
         .visualizer-item {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            position: relative;
         }
         
         .visualizer-item.selected {
@@ -1277,10 +1481,33 @@ document.addEventListener('DOMContentLoaded', function() {
         
         .visualizer-item.drop-before {
             border-top: 2px solid #61dafb;
+            margin-top: -2px;
+            padding-top: 2px;
         }
         
         .visualizer-item.drop-after {
             border-bottom: 2px solid #61dafb;
+            margin-bottom: -2px;
+            padding-bottom: 2px;
+        }
+        
+        .visualizer-item.touch-drop-before {
+            box-shadow: 0 -2px 0 #61dafb;
+        }
+        
+        .visualizer-item.touch-drop-after {
+            box-shadow: 0 2px 0 #61dafb;
+        }
+        
+        /* Animation for position change feedback */
+        .visualizer-item.flash-position {
+            animation: flash-bg 0.8s ease;
+        }
+        
+        @keyframes flash-bg {
+            0% { background-color: rgba(97, 218, 251, 0); }
+            30% { background-color: rgba(97, 218, 251, 0.2); }
+            100% { background-color: rgba(97, 218, 251, 0); }
         }
         
         .drag-ghost {
@@ -1337,9 +1564,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 margin: -10px 0 -10px -10px;
             }
             
+            .layer-badge {
+                margin: 2px 0 0 8px;
+            }
+            
             /* Add instruction text */
             .composer-visualizers::before {
-                content: "Drag to reorder visualizers. Items at the top will be drawn first (bottom layer).";
+                content: "Drag items to reorder layers. Top items appear on top.";
                 display: block;
                 margin-bottom: 15px;
                 color: #888;
@@ -1359,7 +1590,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const year = now.getFullYear();
         
-        lastUpdatedElement.textContent = `v1.0.5 (${day}/${month}/${year})`;
+        lastUpdatedElement.textContent = `v1.0.7 (${day}/${month}/${year})`;
     }
     
     // Initialize VisualComposer only once
