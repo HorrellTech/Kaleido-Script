@@ -90,9 +90,13 @@ function addVisualComposerButton() {
     
     editorHeader.appendChild(composerBtn);
     
-    // Add event listener
     composerBtn.addEventListener('click', function() {
-        openVisualComposer();
+        if (window.openVisualComposer) {
+            window.openVisualComposer();
+        } else {
+            console.error('Visual Composer not loaded or initialized');
+            alert('Visual Composer is not available. Please make sure visual-composer.js is loaded properly.');
+        }
     });
 }
 

@@ -13,7 +13,8 @@ class VisualComposer {
         
         // Extract visualizer functions from the keywords
         this.visualizers = this.extractVisualizerFunctions();
-        
+        this.logKeywordStatus();
+
         // Create the UI overlay
         this.createOverlayUI();
     }
@@ -164,6 +165,7 @@ class VisualComposer {
                     <div class="composer-footer">
                         <div class="composer-help">
                             Select visualizers and configure settings, then generate code
+                            <button id="refresh-visualizers" class="composer-debug-btn">Refresh Visualizers</button>
                         </div>
                         <div class="composer-button-group">
                             <button id="reset-composer" class="composer-action-btn secondary">Reset</button>
@@ -194,6 +196,11 @@ class VisualComposer {
         
         // Store reference to the overlay
         this.overlay = overlay;
+
+        document.getElementById('refresh-visualizers').addEventListener('click', () => {
+            const count = this.refreshVisualizers();
+            alert(`Refreshed visualizers: found ${count} visualizers`);
+        });
         
         // Populate the visualizers
         this.populateVisualizers();
@@ -219,6 +226,7 @@ class VisualComposer {
                 <div class="layer-arrow top">↑ Top Layer (Drawn Last)</div>
                 <div class="layer-arrow bottom">↓ Bottom Layer (Drawn First)</div>
             </div>
+            <div class="layer-hint">Drag selected visualizers to change their order</div>
         `;
         container.appendChild(instructions);
         
@@ -250,7 +258,7 @@ class VisualComposer {
                 <div class="visualizer-header">
                     <div class="visualizer-drag-handle" title="Drag to reorder">
                         <svg width="16" height="16" viewBox="0 0 16 16">
-                            <path fill="#888" d="M4 4h2v2H4V4zm0 6h2v2H4v-2zm0-3h2v2H4V7zm6 3h2v2h-2v-2zm0-3h2v2h-2V7zm0-3h2v2h-2V4z"></path>
+                            <path fill="${isSelected ? '#61dafb' : '#888'}" d="M4 4h2v2H4V4zm0 6h2v2H4v-2zm0-3h2v2H4V7zm6 3h2v2h-2v-2zm0-3h2v2h-2V7zm0-3h2v2h-2V4z"></path>
                         </svg>
                     </div>
                     <div class="visualizer-header-content">
@@ -282,8 +290,8 @@ class VisualComposer {
             
             container.appendChild(item);
             
-            // Make the item draggable
-            item.setAttribute('draggable', 'false'); // Start with dragging disabled
+            // Set draggable state based on selection
+            item.setAttribute('draggable', isSelected);
             
             // Add event listeners
             const checkbox = item.querySelector('.visualizer-checkbox');
@@ -301,6 +309,12 @@ class VisualComposer {
                 // Update draggability - only selected items should be draggable
                 item.setAttribute('draggable', isChecked);
                 
+                // Update drag handle color
+                const dragHandlePath = item.querySelector('.visualizer-drag-handle path');
+                if (dragHandlePath) {
+                    dragHandlePath.setAttribute('fill', isChecked ? '#61dafb' : '#888');
+                }
+                
                 // Update layer badges for all items
                 this.updateLayerBadges();
                 
@@ -309,7 +323,6 @@ class VisualComposer {
             
             // Set initial selected state
             item.classList.toggle('selected', isSelected);
-            item.setAttribute('draggable', isSelected);
             
             // Add color picker event listener
             const colorPicker = item.querySelector('.visualizer-color');
@@ -410,7 +423,7 @@ class VisualComposer {
             e.dataTransfer.setData('text/plain', element.dataset.name);
             e.dataTransfer.effectAllowed = 'move';
             
-            // Set a custom drag image (optional)
+            // Use a simpler drag ghost for better performance
             const dragImage = document.createElement('div');
             const title = element.querySelector('.visualizer-title').textContent;
             dragImage.textContent = `Moving: ${title}`;
@@ -419,11 +432,109 @@ class VisualComposer {
             e.dataTransfer.setDragImage(dragImage, 0, 0);
             
             // Clean up the drag image after a delay
-            setTimeout(() => document.body.removeChild(dragImage), 0);
+            setTimeout(() => {
+                if (dragImage.parentNode) {
+                    document.body.removeChild(dragImage);
+                }
+            }, 10);
         });
         
+        // Drag over the container instead of individual items
+        const container = document.getElementById('composer-visualizers-container');
+        if (container) {
+            container.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Find the closest visualizer item under the mouse
+                const closestItem = this.getClosestItemAtPosition(e.clientX, e.clientY);
+                if (!closestItem) return;
+                
+                // Only proceed if we have a dragged element
+                const dragging = document.querySelector('.dragging');
+                if (!dragging || dragging === closestItem) return;
+                
+                // Determine drop position (before or after)
+                const rect = closestItem.getBoundingClientRect();
+                const mouseY = e.clientY;
+                const threshold = rect.top + (rect.height / 2);
+                
+                // Clear all drop indicators
+                document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
+                    el.classList.remove('drop-before', 'drop-after');
+                });
+                
+                if (mouseY < threshold) {
+                    // Drop before
+                    closestItem.classList.add('drop-before');
+                } else {
+                    // Drop after
+                    closestItem.classList.add('drop-after');
+                }
+            });
+            
+            // Handle drop on container
+            container.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Clear drop indicators
+                document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
+                    el.classList.remove('drop-before', 'drop-after');
+                });
+                
+                // Get the dragged element's name
+                const draggedName = e.dataTransfer.getData('text/plain');
+                if (!draggedName) {
+                    console.error('No data was transferred during drag');
+                    return;
+                }
+                
+                // Find the dragged element
+                const dragging = document.querySelector(`[data-name="${draggedName}"]`);
+                if (!dragging) return;
+                
+                // Find the closest visualizer item under the mouse
+                const closestItem = this.getClosestItemAtPosition(e.clientX, e.clientY);
+                if (!closestItem || dragging === closestItem) return;
+                
+                // Determine insertion position
+                const rect = closestItem.getBoundingClientRect();
+                const mouseY = e.clientY;
+                const threshold = rect.top + (rect.height / 2);
+                
+                // Insert at the correct position
+                if (mouseY < threshold) {
+                    // Insert before the target element
+                    container.insertBefore(dragging, closestItem);
+                    console.log(`Inserted ${draggedName} before ${closestItem.dataset.name}`);
+                } else {
+                    // Insert after the target element
+                    const nextSibling = closestItem.nextElementSibling;
+                    if (nextSibling) {
+                        container.insertBefore(dragging, nextSibling);
+                        console.log(`Inserted ${draggedName} before ${nextSibling.dataset.name}`);
+                    } else {
+                        container.appendChild(dragging);
+                        console.log(`Appended ${draggedName} to the end`);
+                    }
+                }
+                
+                // Update the order in the data model
+                this.updateVisualizerOrder();
+                // Update layer badges
+                this.updateLayerBadges();
+                
+                // Flash the moved element for feedback
+                dragging.classList.add('flash-position');
+                setTimeout(() => {
+                    dragging.classList.remove('flash-position');
+                }, 800);
+            });
+        }
+        
         // Drag end - remove styling
-        element.addEventListener('dragend', () => {
+        element.addEventListener('dragend', (e) => {
             element.classList.remove('dragging');
             this.updateVisualizerOrder();
             
@@ -435,76 +546,8 @@ class VisualComposer {
             setTimeout(() => {
                 element.classList.remove('flash-position');
             }, 800);
-        });
-        
-        // Allow dropping only on selected items
-        element.addEventListener('dragover', (e) => {
-            e.preventDefault();
             
-            // Only allow dropping if this element is selected
-            const checkbox = element.querySelector('.visualizer-checkbox');
-            if (!checkbox || !checkbox.checked) return;
-            
-            const dragging = document.querySelector('.dragging');
-            if (dragging && dragging !== element && dragging.classList.contains('selected')) {
-                // Determine drop position (before or after)
-                const rect = element.getBoundingClientRect();
-                const mouseY = e.clientY;
-                const threshold = rect.top + rect.height / 2;
-                
-                // Clear all drop indicators
-                document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
-                    el.classList.remove('drop-before', 'drop-after');
-                });
-                
-                if (mouseY < threshold) {
-                    // Drop before
-                    element.classList.add('drop-before');
-                } else {
-                    // Drop after
-                    element.classList.add('drop-after');
-                }
-            }
-        });
-        
-        // Handle drop
-        element.addEventListener('drop', (e) => {
-            e.preventDefault();
-            
-            document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
-                el.classList.remove('drop-before', 'drop-after');
-            });
-            
-            const draggedName = e.dataTransfer.getData('text/plain');
-            const dragging = document.querySelector(`[data-name="${draggedName}"]`);
-            
-            if (dragging && dragging !== element && 
-                dragging.classList.contains('selected') && 
-                element.classList.contains('selected')) {
-                
-                const container = document.getElementById('composer-visualizers-container');
-                const rect = element.getBoundingClientRect();
-                const mouseY = e.clientY;
-                const threshold = rect.top + rect.height / 2;
-                
-                if (mouseY < threshold) {
-                    // Insert before
-                    container.insertBefore(dragging, element);
-                } else {
-                    // Insert after
-                    const nextSibling = element.nextElementSibling;
-                    if (nextSibling) {
-                        container.insertBefore(dragging, nextSibling);
-                    } else {
-                        container.appendChild(dragging);
-                    }
-                }
-                
-                // Update the order immediately
-                this.updateVisualizerOrder();
-                // Update layer badges
-                this.updateLayerBadges();
-            }
+            console.log('Drag ended, updated visualizer order');
         });
         
         // Clear drop markers when leaving
@@ -515,32 +558,41 @@ class VisualComposer {
         // Make sure the drag handle is the only part that initiates drag
         const dragHandle = element.querySelector('.visualizer-drag-handle');
         if (dragHandle) {
-            // Prevent other parts of the item from initiating drag
-            element.addEventListener('mousedown', (e) => {
-                if (e.target !== dragHandle && !dragHandle.contains(e.target)) {
-                    e.stopPropagation();
-                }
-            });
-            
             // Make only the drag handle initiate dragging
-            dragHandle.addEventListener('mousedown', () => {
+            dragHandle.addEventListener('mousedown', (e) => {
                 // Only enable dragging if the item is selected
                 const checkbox = element.querySelector('.visualizer-checkbox');
                 if (checkbox && checkbox.checked) {
                     element.setAttribute('draggable', 'true');
+                    // Prevent text selection during drag
+                    e.preventDefault();
                 }
             });
             
-            element.addEventListener('mouseup', () => {
-                // Reset draggable state
+            // Reset draggable state on mouseup anywhere in the document
+            document.addEventListener('mouseup', () => {
+                // We still want selected items to be draggable, 
+                // but ensure unselected ones are not draggable
                 const checkbox = element.querySelector('.visualizer-checkbox');
-                if (checkbox && checkbox.checked) {
-                    element.setAttribute('draggable', 'true');
-                } else {
+                element.setAttribute('draggable', checkbox && checkbox.checked);
+            });
+            
+            // Prevent other elements from initiating drag
+            element.addEventListener('mousedown', (e) => {
+                if (e.target !== dragHandle && !dragHandle.contains(e.target)) {
                     element.setAttribute('draggable', 'false');
                 }
             });
         }
+    }
+    
+    // Helper method to find the closest visualizer item
+    getClosestItemAtPosition(x, y) {
+        // Get all elements at the position
+        const elements = document.elementsFromPoint(x, y);
+        
+        // Find the first visualizer item in the elements list
+        return elements.find(el => el.classList.contains('visualizer-item'));
     }
 
     // Mobile touch-based drag and drop
@@ -613,6 +665,7 @@ class VisualComposer {
                 
                 // Move the placeholder
                 placeholder.style.top = `${touchY - touchDragStart.y + touchDragging.getBoundingClientRect().top}px`;
+                placeholder.style.left = `${touchX - touchDragStart.x + touchDragging.getBoundingClientRect().left}px`;
                 
                 // Find the element we're hovering over
                 const elementsAtPoint = document.elementsFromPoint(touchX, touchY);
@@ -635,14 +688,16 @@ class VisualComposer {
                     if (touchY < rect.top + rect.height / 2) {
                         // Want to place above
                         hoverElement.classList.add('touch-drop-before');
-                        container.insertBefore(touchDragging, hoverElement);
+                        if (hoverElement !== touchDragging.nextElementSibling) {
+                            container.insertBefore(touchDragging, hoverElement);
+                        }
                     } else {
                         // Want to place below
                         hoverElement.classList.add('touch-drop-after');
                         const nextElement = hoverElement.nextElementSibling;
                         if (nextElement && nextElement !== touchDragging) {
                             container.insertBefore(touchDragging, nextElement);
-                        } else if (hoverElement.nextElementSibling !== touchDragging) {
+                        } else if (!nextElement) {
                             container.appendChild(touchDragging);
                         }
                     }
@@ -698,17 +753,15 @@ class VisualComposer {
         const newOrder = [];
         selectedItems.forEach(item => {
             const name = item.dataset.name;
-            if (this.selectedVisualizers.includes(name)) {
+            if (name && this.selectedVisualizers.includes(name)) {
                 newOrder.push(name);
             }
         });
         
         // Replace the selectedVisualizers array with the new order
         if (newOrder.length > 0) {
-            // Reverse the order since we want first in the array to be drawn first
-            // but in the UI, items at the top should be the top layer (drawn last)
             this.selectedVisualizers = newOrder;
-            console.log('Updated visualizer order:', this.selectedVisualizers);
+            console.log('Updated visualizer order:', this.selectedVisualizers.join(', '));
         }
     }
     
@@ -1228,6 +1281,40 @@ function draw(time) {
     
 ${visualizerCode}}`;
     }
+
+    logKeywordStatus() {
+        console.log("--- Visual Composer Diagnostics ---");
+        console.log(`window.keywordInfo exists: ${!!window.keywordInfo}`);
+        
+        if (window.keywordInfo) {
+            const visualizerKeywords = Object.entries(window.keywordInfo)
+                .filter(([_, info]) => info.category === 'visualizer')
+                .map(([key]) => key);
+                
+            console.log(`Found ${visualizerKeywords.length} visualizer keywords:`);
+            console.log(visualizerKeywords);
+        }
+        
+        console.log(`This.visualizers count: ${this.visualizers.length}`);
+        console.log(`Selected visualizers: ${this.selectedVisualizers.length}`);
+        console.log("--- End Diagnostics ---");
+    }
+
+    refreshVisualizers() {
+        console.log("Refreshing visualizers...");
+        
+        // Re-extract visualizers from keywords
+        this.visualizers = this.extractVisualizerFunctions();
+        
+        // Log how many we found
+        console.log(`Found ${this.visualizers.length} visualizers after refresh`);
+        
+        // Re-populate the UI
+        this.populateVisualizers();
+        
+        // Return the count for verification
+        return this.visualizers.length;
+    }
     
     filterVisualizers() {
         // Filter visualizers by category
@@ -1333,21 +1420,105 @@ ${visualizerCode}}`;
     }
 }
 
-// Initialize the component when the document is ready
-document.addEventListener('DOMContentLoaded', function() {
-    window.visualComposer = new VisualComposer();
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+        console.log("Keyboard shortcut detected: opening Visual Composer");
+        if (window.openVisualComposer) {
+            window.openVisualComposer();
+        } else {
+            console.error("openVisualComposer function not available");
+        }
+    }
 });
 
-// Function to open the visual composer from external calls
-function openVisualComposer() {
-    if (window.visualComposer) {
-        window.visualComposer.openComposer();
+// Initialize the component when the document is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if keywords are loaded, if not, wait for them
+    if (!window.keywordInfo) {
+        console.log('Keywords not yet loaded, waiting before initializing Visual Composer');
+        const checkKeywords = setInterval(() => {
+            if (window.keywordInfo) {
+                clearInterval(checkKeywords);
+                console.log('Keywords loaded, initializing Visual Composer');
+                window.visualComposer = new VisualComposer();
+            }
+        }, 100);
     } else {
         window.visualComposer = new VisualComposer();
-        setTimeout(() => {
-            window.visualComposer.openComposer();
-        }, 100);
     }
+});
+
+window.forceRefreshAndOpen = function() {
+    if (window.loadKeywords && typeof window.loadKeywords === 'function') {
+        window.loadKeywords();
+        console.log("Forced keyword refresh");
+        
+        // Wait a bit for keywords to load
+        setTimeout(() => {
+            const keywordsLoaded = window.checkKeywords();
+            console.log(`Keywords loaded after refresh: ${keywordsLoaded}`);
+            
+            // Now open the composer
+            if (window.visualComposer) {
+                window.visualComposer.refreshVisualizers();
+                window.visualComposer.openComposer();
+            } else {
+                window.openVisualComposer();
+            }
+        }, 300);
+    } else {
+        alert("loadKeywords function not available. Cannot refresh visualizers.");
+    }
+}
+
+window.checkKeywords = function() {
+    console.log("--- Keyword Status Check ---");
+    if (window.keywordInfo) {
+        console.log(`Keywords loaded: ${Object.keys(window.keywordInfo).length} total keywords`);
+        
+        const visualizers = Object.entries(window.keywordInfo)
+            .filter(([_, info]) => info.category === 'visualizer')
+            .map(([key]) => key);
+            
+        console.log(`Found ${visualizers.length} visualizer keywords:`);
+        console.log(visualizers);
+        
+        return visualizers.length;
+    } else {
+        console.error("No keywords loaded!");
+        return 0;
+    }
+}
+
+window.openVisualComposer = function() {
+    // Force refresh keywords first to ensure we have the latest
+    if (window.loadKeywords && typeof window.loadKeywords === 'function') {
+        window.loadKeywords();
+        console.log("Calling loadKeywords() to refresh available visualizers");
+    } else {
+        console.warn("loadKeywords function not available");
+    }
+    
+    // Give it a brief moment to load
+    setTimeout(() => {
+        if (window.keywordInfo) {
+            if (!window.visualComposer) {
+                console.log("Creating new VisualComposer instance");
+                window.visualComposer = new VisualComposer();
+                setTimeout(() => {
+                    window.visualComposer.openComposer();
+                }, 100);
+            } else {
+                // Always refresh visualizers when opening
+                console.log("Using existing VisualComposer instance and refreshing");
+                window.visualComposer.refreshVisualizers();
+                window.visualComposer.openComposer();
+            }
+        } else {
+            console.error("Keywords not loaded. Cannot open Visual Composer.");
+            alert("Cannot initialize Visual Composer: keywords not loaded. Please reload the page.");
+        }
+    }, 200); // Wait for keywords to load
 }
 
 // Add some CSS to style the color picker
@@ -1358,6 +1529,26 @@ document.addEventListener('DOMContentLoaded', function() {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding: 8px;
+            border-radius: 4px;
+            background: #1e1e2e;
+            border: 1px solid rgba(97, 218, 251, 0.1);
+        }
+        
+        .visualizer-item {
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            position: relative;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .visualizer-item.selected {
+            box-shadow: 0 0 0 2px #61dafb;
+        }
+        
+        .visualizer-item.selected .visualizer-header {
+            background: rgba(97, 218, 251, 0.1);
         }
         
         .visualizer-header-content {
@@ -1373,12 +1564,26 @@ document.addEventListener('DOMContentLoaded', function() {
             display: flex;
             align-items: center;
             justify-content: center;
-            opacity: 0.6;
+            opacity: 0.7;
             touch-action: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            transition: background 0.2s ease;
+        }
+        
+        .selected .visualizer-drag-handle {
+            cursor: grab;
         }
         
         .visualizer-drag-handle:hover {
             opacity: 1;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .visualizer-drag-handle:active {
+            cursor: grabbing;
+            background: rgba(255, 255, 255, 0.2);
         }
         
         .visualizer-color-picker {
@@ -1386,13 +1591,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         .visualizer-color {
-            width: 25px;
-            height: 25px;
+            width: 26px;
+            height: 26px;
             padding: 0;
-            border: none;
+            border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 50%;
             overflow: hidden;
             cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .visualizer-color:hover {
+            transform: scale(1.1);
         }
         
         .visualizer-color::-webkit-color-swatch-wrapper {
@@ -1415,7 +1625,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         .config-field {
             position: relative;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
         }
         
         /* Layer badge styles */
@@ -1434,9 +1644,17 @@ document.addEventListener('DOMContentLoaded', function() {
             color: #888;
             font-size: 0.85rem;
             text-align: center;
-            padding: 8px;
-            margin-bottom: 10px;
+            padding: 10px;
+            margin-bottom: 15px;
             border-bottom: 1px dashed #444;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        
+        .layer-hint {
+            margin-top: 5px;
+            font-style: italic;
+            color: #aaa;
         }
         
         .layer-legend {
@@ -1450,6 +1668,10 @@ document.addEventListener('DOMContentLoaded', function() {
             align-items: center;
         }
         
+        .layer-arrow.top {
+            color: #61dafb;
+        }
+        
         .layer-arrow.top:before {
             content: "⬆";
             margin-right: 5px;
@@ -1461,18 +1683,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         /* Drag and drop styles */
-        .visualizer-item {
-            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-            position: relative;
-        }
-        
-        .visualizer-item.selected {
-            box-shadow: 0 0 0 2px #61dafb;
-        }
-        
         .visualizer-item.dragging {
-            opacity: 0.5;
-            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+            opacity: 0.6;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+            z-index: 100;
         }
         
         .visualizer-item.touch-dragging {
@@ -1482,13 +1696,11 @@ document.addEventListener('DOMContentLoaded', function() {
         .visualizer-item.drop-before {
             border-top: 2px solid #61dafb;
             margin-top: -2px;
-            padding-top: 2px;
         }
         
         .visualizer-item.drop-after {
             border-bottom: 2px solid #61dafb;
             margin-bottom: -2px;
-            padding-bottom: 2px;
         }
         
         .visualizer-item.touch-drop-before {
@@ -1506,7 +1718,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         @keyframes flash-bg {
             0% { background-color: rgba(97, 218, 251, 0); }
-            30% { background-color: rgba(97, 218, 251, 0.2); }
+            30% { background-color: rgba(97, 218, 251, 0.15); }
             100% { background-color: rgba(97, 218, 251, 0); }
         }
         
@@ -1516,12 +1728,14 @@ document.addEventListener('DOMContentLoaded', function() {
             padding: 5px 10px;
             border-radius: 4px;
             font-size: 0.9rem;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            position: absolute;
-            top: -1000px; /* Hidden but available for size calculation */
-            opacity: 0.8;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            position: fixed;
+            top: 0;
+            left: 0;
+            opacity: 0.9;
             pointer-events: none;
-            z-index: 1000;
+            z-index: 2000;
+            transform: translate(-1000px, -1000px);
         }
         
         /* Status indicator */
@@ -1535,24 +1749,50 @@ document.addEventListener('DOMContentLoaded', function() {
             margin-left: 8px;
         }
         
-        /* Style for the last updated info in footer */
-        .last-updated {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
+        /* Visualizer config section */
+        .visualizer-config {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        
+        .visualizer-config.open {
+            max-height: 1000px;
+            padding: 15px;
+            border-top: 1px solid rgba(97, 218, 251, 0.1);
+        }
+        
+        .visualizer-toggle {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            transition: transform 0.2s ease;
+        }
+        
+        .visualizer-toggle:hover {
+            color: #fff;
+        }
+        
+        .visualizer-toggle.open {
+            transform: rotate(180deg);
+        }
+
+        .composer-debug-btn {
+            background: rgba(97, 218, 251, 0.2);
+            color: #61dafb;
+            border: 1px solid rgba(97, 218, 251, 0.3);
+            border-radius: 4px;
+            padding: 3px 8px;
             font-size: 0.8rem;
-            color: #777;
+            cursor: pointer;
+            margin-left: 10px;
         }
         
         @media (max-width: 768px) {
-            .last-updated {
-                position: static;
-                display: block;
-                margin-top: 5px;
-                transform: none;
-            }
-            
             /* Make headers easier to tap on mobile */
             .visualizer-header {
                 min-height: 44px;
@@ -1561,21 +1801,13 @@ document.addEventListener('DOMContentLoaded', function() {
             
             .visualizer-drag-handle {
                 padding: 10px;
-                margin: -10px 0 -10px -10px;
+                margin: -5px 10px -5px -5px;
+                width: 44px;
+                height: 44px;
             }
             
             .layer-badge {
                 margin: 2px 0 0 8px;
-            }
-            
-            /* Add instruction text */
-            .composer-visualizers::before {
-                content: "Drag items to reorder layers. Top items appear on top.";
-                display: block;
-                margin-bottom: 15px;
-                color: #888;
-                font-size: 0.9rem;
-                text-align: center;
             }
         }
     `;
@@ -1590,11 +1822,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const year = now.getFullYear();
         
-        lastUpdatedElement.textContent = `v1.0.7 (${day}/${month}/${year})`;
+        lastUpdatedElement.textContent = `v1.0.8 (${day}/${month}/${year})`;
     }
     
-    // Initialize VisualComposer only once
-    if (!window.visualComposer) {
-        window.visualComposer = new VisualComposer();
+    // Initialize once we have keywords
+    if (window.keywordInfo) {
+        console.log("Keywords already available, initializing Visual Composer");
+        if (!window.visualComposer) {
+            window.visualComposer = new VisualComposer();
+        }
+    } else {
+        console.log("Keywords not yet loaded, will initialize when available");
+        const checkKeywords = setInterval(() => {
+            if (window.keywordInfo) {
+                clearInterval(checkKeywords);
+                console.log("Keywords now available, initializing Visual Composer");
+                if (!window.visualComposer) {
+                    window.visualComposer = new VisualComposer();
+                }
+            }
+        }, 200);
     }
 });
