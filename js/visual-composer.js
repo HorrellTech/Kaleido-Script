@@ -929,11 +929,40 @@ class VisualComposer {
         const visualizerColor = this.visualizerColors[visualizer.name];
         
         if (visualizerColor && visualizerColor !== '#ffffff') {
-            // Add fill command before the visualizer call
-            return `fill("${visualizerColor}"); ${visualizer.name}(${params});`;
+            // Convert hex color to r,g,b values
+            const rgb = this.hexToRgb(visualizerColor);
+            // Add fill command before the visualizer call with RGB values
+            return `fill(${rgb.r}, ${rgb.g}, ${rgb.b}); ${visualizer.name}(${params});`;
         } else {
             return `${visualizer.name}(${params});`;
         }
+    }
+
+    // Helper method to convert hex to RGB
+    hexToRgb(hex) {
+        // Remove the hash if it exists
+        hex = hex.replace(/^#/, '');
+        
+        // Parse the hex values
+        let r, g, b;
+        if (hex.length === 3) {
+            // For shorthand hex (#RGB)
+            r = parseInt(hex.charAt(0) + hex.charAt(0), 16);
+            g = parseInt(hex.charAt(1) + hex.charAt(1), 16);
+            b = parseInt(hex.charAt(2) + hex.charAt(2), 16);
+        } else {
+            // For standard hex (#RRGGBB)
+            r = parseInt(hex.substring(0, 2), 16);
+            g = parseInt(hex.substring(2, 4), 16);
+            b = parseInt(hex.substring(4, 6), 16);
+        }
+        
+        // Handle potential parsing errors
+        if (isNaN(r)) r = 255;
+        if (isNaN(g)) g = 255;
+        if (isNaN(b)) b = 255;
+        
+        return { r, g, b };
     }
     
     toggleVisualizerSelection(name, isSelected) {
@@ -1330,7 +1359,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const year = now.getFullYear();
         
-        lastUpdatedElement.textContent = `v1.0.4 (${day}/${month}/${year})`;
+        lastUpdatedElement.textContent = `v1.0.5 (${day}/${month}/${year})`;
     }
     
     // Initialize VisualComposer only once
