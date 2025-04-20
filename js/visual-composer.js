@@ -306,8 +306,16 @@ class VisualComposer {
                 // Update the item's appearance based on selection
                 item.classList.toggle('selected', isChecked);
                 
-                // Update draggability - only selected items should be draggable
-                item.setAttribute('draggable', isChecked);
+                // Set draggable attribute immediately and explicitly
+                if (isChecked) {
+                    console.log(`Setting ${visualizer.name} to draggable`);
+                    item.setAttribute('draggable', 'true');
+                    item.draggable = true; // Set both for cross-browser compatibility
+                } else {
+                    console.log(`Setting ${visualizer.name} to not draggable`);
+                    item.setAttribute('draggable', 'false');
+                    item.draggable = false;
+                }
                 
                 // Update drag handle color
                 const dragHandlePath = item.querySelector('.visualizer-drag-handle path');
@@ -374,6 +382,8 @@ class VisualComposer {
         
         // Update the layer badges to reflect current order
         this.updateLayerBadges();
+
+        this.setupContainerDragHandlers();
         
         console.log(`After population, selected visualizers: ${this.selectedVisualizers.join(', ')}`);
     }
@@ -399,11 +409,16 @@ class VisualComposer {
     }
 
     addDragAndDropListeners(element) {
-        // Store the original position when starting drag
-        let originalIndex = -1;
+        // Store a reference to the original drag handlers to prevent attaching duplicates
+        if (!element._dragHandlersAttached) {
+            element._dragHandlersAttached = true;
+        } else {
+            // Skip if handlers are already attached
+            return;
+        }
         
-        // Drag start - store the element being dragged
-        element.addEventListener('dragstart', (e) => {
+        // Drag start event handler
+        const handleDragStart = (e) => {
             // Only allow dragging if the element is selected (has a checkbox checked)
             const checkbox = element.querySelector('.visualizer-checkbox');
             if (!checkbox || !checkbox.checked) {
@@ -411,10 +426,7 @@ class VisualComposer {
                 return;
             }
             
-            // Store original position for better visual feedback
-            const container = document.getElementById('composer-visualizers-container');
-            const selectedItems = Array.from(container.querySelectorAll('.visualizer-item.selected'));
-            originalIndex = selectedItems.indexOf(element);
+            console.log(`Drag started for ${element.dataset.name}`);
             
             // Add a class to style the dragged element
             element.classList.add('dragging');
@@ -423,166 +435,85 @@ class VisualComposer {
             e.dataTransfer.setData('text/plain', element.dataset.name);
             e.dataTransfer.effectAllowed = 'move';
             
-            // Use a simpler drag ghost for better performance
+            // Create a drag ghost
             const dragImage = document.createElement('div');
             const title = element.querySelector('.visualizer-title').textContent;
             dragImage.textContent = `Moving: ${title}`;
             dragImage.className = 'drag-ghost';
             document.body.appendChild(dragImage);
+            
+            // Position the drag ghost off-screen initially
+            dragImage.style.position = 'absolute';
+            dragImage.style.top = '-1000px';
+            
+            // Use the custom drag image
             e.dataTransfer.setDragImage(dragImage, 0, 0);
             
-            // Clean up the drag image after a delay
+            // Clean up the drag image after a short delay
             setTimeout(() => {
                 if (dragImage.parentNode) {
                     document.body.removeChild(dragImage);
                 }
-            }, 10);
-        });
+            }, 100);
+        };
         
-        // Drag over the container instead of individual items
-        const container = document.getElementById('composer-visualizers-container');
-        if (container) {
-            container.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                // Find the closest visualizer item under the mouse
-                const closestItem = this.getClosestItemAtPosition(e.clientX, e.clientY);
-                if (!closestItem) return;
-                
-                // Only proceed if we have a dragged element
-                const dragging = document.querySelector('.dragging');
-                if (!dragging || dragging === closestItem) return;
-                
-                // Determine drop position (before or after)
-                const rect = closestItem.getBoundingClientRect();
-                const mouseY = e.clientY;
-                const threshold = rect.top + (rect.height / 2);
-                
-                // Clear all drop indicators
-                document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
-                    el.classList.remove('drop-before', 'drop-after');
-                });
-                
-                if (mouseY < threshold) {
-                    // Drop before
-                    closestItem.classList.add('drop-before');
-                } else {
-                    // Drop after
-                    closestItem.classList.add('drop-after');
-                }
-            });
-            
-            // Handle drop on container
-            container.addEventListener('drop', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                // Clear drop indicators
-                document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
-                    el.classList.remove('drop-before', 'drop-after');
-                });
-                
-                // Get the dragged element's name
-                const draggedName = e.dataTransfer.getData('text/plain');
-                if (!draggedName) {
-                    console.error('No data was transferred during drag');
-                    return;
-                }
-                
-                // Find the dragged element
-                const dragging = document.querySelector(`[data-name="${draggedName}"]`);
-                if (!dragging) return;
-                
-                // Find the closest visualizer item under the mouse
-                const closestItem = this.getClosestItemAtPosition(e.clientX, e.clientY);
-                if (!closestItem || dragging === closestItem) return;
-                
-                // Determine insertion position
-                const rect = closestItem.getBoundingClientRect();
-                const mouseY = e.clientY;
-                const threshold = rect.top + (rect.height / 2);
-                
-                // Insert at the correct position
-                if (mouseY < threshold) {
-                    // Insert before the target element
-                    container.insertBefore(dragging, closestItem);
-                    console.log(`Inserted ${draggedName} before ${closestItem.dataset.name}`);
-                } else {
-                    // Insert after the target element
-                    const nextSibling = closestItem.nextElementSibling;
-                    if (nextSibling) {
-                        container.insertBefore(dragging, nextSibling);
-                        console.log(`Inserted ${draggedName} before ${nextSibling.dataset.name}`);
-                    } else {
-                        container.appendChild(dragging);
-                        console.log(`Appended ${draggedName} to the end`);
-                    }
-                }
-                
-                // Update the order in the data model
-                this.updateVisualizerOrder();
-                // Update layer badges
-                this.updateLayerBadges();
-                
-                // Flash the moved element for feedback
-                dragging.classList.add('flash-position');
-                setTimeout(() => {
-                    dragging.classList.remove('flash-position');
-                }, 800);
-            });
-        }
-        
-        // Drag end - remove styling
-        element.addEventListener('dragend', (e) => {
+        // Drag end event handler
+        const handleDragEnd = (e) => {
+            console.log(`Drag ended for ${element.dataset.name}`);
             element.classList.remove('dragging');
-            this.updateVisualizerOrder();
             
-            // Update all layer badges after reordering
+            // Update the order and badge display
+            this.updateVisualizerOrder();
             this.updateLayerBadges();
             
-            // Generate visible feedback by flashing the newly positioned item
+            // Flash the item for visual feedback
             element.classList.add('flash-position');
             setTimeout(() => {
                 element.classList.remove('flash-position');
             }, 800);
-            
-            console.log('Drag ended, updated visualizer order');
-        });
+        };
         
-        // Clear drop markers when leaving
-        element.addEventListener('dragleave', () => {
-            element.classList.remove('drop-before', 'drop-after');
-        });
+        // Remove any existing handlers to avoid duplicates
+        element.removeEventListener('dragstart', element._handleDragStart);
+        element.removeEventListener('dragend', element._handleDragEnd);
         
-        // Make sure the drag handle is the only part that initiates drag
+        // Save references to the handlers
+        element._handleDragStart = handleDragStart;
+        element._handleDragEnd = handleDragEnd;
+        
+        // Add the event listeners
+        element.addEventListener('dragstart', element._handleDragStart);
+        element.addEventListener('dragend', element._handleDragEnd);
+        
+        // Make sure the drag handle activates dragging properly
         const dragHandle = element.querySelector('.visualizer-drag-handle');
         if (dragHandle) {
-            // Make only the drag handle initiate dragging
-            dragHandle.addEventListener('mousedown', (e) => {
+            const handleMouseDown = (e) => {
                 // Only enable dragging if the item is selected
                 const checkbox = element.querySelector('.visualizer-checkbox');
                 if (checkbox && checkbox.checked) {
-                    element.setAttribute('draggable', 'true');
-                    // Prevent text selection during drag
-                    e.preventDefault();
+                    console.log(`Setting draggable=true on mouse down for ${element.dataset.name}`);
+                    element.draggable = true;
+                    
+                    // Use browser event propagation to get to the drag event
+                    e.stopPropagation();
                 }
-            });
+            };
             
-            // Reset draggable state on mouseup anywhere in the document
-            document.addEventListener('mouseup', () => {
-                // We still want selected items to be draggable, 
-                // but ensure unselected ones are not draggable
-                const checkbox = element.querySelector('.visualizer-checkbox');
-                element.setAttribute('draggable', checkbox && checkbox.checked);
-            });
+            dragHandle.removeEventListener('mousedown', dragHandle._handleMouseDown);
+            dragHandle._handleMouseDown = handleMouseDown;
+            dragHandle.addEventListener('mousedown', dragHandle._handleMouseDown);
             
-            // Prevent other elements from initiating drag
-            element.addEventListener('mousedown', (e) => {
+            // Prevent dragging from initiating on other parts of the item
+            const itemMouseDown = (e) => {
                 if (e.target !== dragHandle && !dragHandle.contains(e.target)) {
-                    element.setAttribute('draggable', 'false');
+                    element.draggable = false;
                 }
-            });
+            };
+            
+            element.removeEventListener('mousedown', element._handleItemMouseDown);
+            element._handleItemMouseDown = itemMouseDown;
+            element.addEventListener('mousedown', element._handleItemMouseDown);
         }
     }
     
@@ -593,6 +524,128 @@ class VisualComposer {
         
         // Find the first visualizer item in the elements list
         return elements.find(el => el.classList.contains('visualizer-item'));
+    }
+
+    setupContainerDragHandlers() {
+        const container = document.getElementById('composer-visualizers-container');
+        if (!container) return;
+        
+        console.log('Setting up container drag handlers');
+        
+        // Clear any existing handlers
+        if (this._containerDragHandlersAttached) {
+            container.removeEventListener('dragover', this._handleDragOver);
+            container.removeEventListener('drop', this._handleDrop);
+            container.removeEventListener('dragleave', this._handleDragLeave);
+        }
+        
+        // Create the handler functions (using arrow functions to preserve 'this')
+        this._handleDragOver = (e) => {
+            e.preventDefault(); // Required to allow dropping
+            e.stopPropagation();
+            
+            // Find the target item
+            const closestItem = this.getClosestItemAtPosition(e.clientX, e.clientY);
+            if (!closestItem) return;
+            
+            // Get currently dragged element
+            const dragging = document.querySelector('.dragging');
+            if (!dragging || dragging === closestItem) return;
+            
+            // Clear existing drop indicators
+            document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
+                el.classList.remove('drop-before', 'drop-after');
+            });
+            
+            // Determine drop position based on mouse position relative to item
+            const rect = closestItem.getBoundingClientRect();
+            const mouseY = e.clientY;
+            const threshold = rect.top + (rect.height / 2);
+            
+            if (mouseY < threshold) {
+                closestItem.classList.add('drop-before');
+            } else {
+                closestItem.classList.add('drop-after');
+            }
+        };
+        
+        this._handleDrop = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log('Drop event detected');
+            
+            // Clear drop indicators
+            document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
+                el.classList.remove('drop-before', 'drop-after');
+            });
+            
+            // Get the data that was set during dragstart
+            const draggedName = e.dataTransfer.getData('text/plain');
+            if (!draggedName) {
+                console.error('No data was transferred during drag');
+                return;
+            }
+            
+            console.log(`Dropping element: ${draggedName}`);
+            
+            // Find the dragged element in the DOM
+            const dragging = document.querySelector(`[data-name="${draggedName}"]`);
+            if (!dragging) return;
+            
+            // Find where to drop it
+            const closestItem = this.getClosestItemAtPosition(e.clientX, e.clientY);
+            if (!closestItem || dragging === closestItem) return;
+            
+            // Determine where to insert based on mouse position
+            const rect = closestItem.getBoundingClientRect();
+            const mouseY = e.clientY;
+            const threshold = rect.top + (rect.height / 2);
+            
+            // Insert the element at the appropriate position
+            if (mouseY < threshold) {
+                // Insert before the target
+                container.insertBefore(dragging, closestItem);
+                console.log(`Inserted ${draggedName} before ${closestItem.dataset.name}`);
+            } else {
+                // Insert after the target
+                const nextSibling = closestItem.nextElementSibling;
+                if (nextSibling) {
+                    container.insertBefore(dragging, nextSibling);
+                    console.log(`Inserted ${draggedName} before ${nextSibling.dataset.name}`);
+                } else {
+                    container.appendChild(dragging);
+                    console.log(`Appended ${draggedName} to the end`);
+                }
+            }
+            
+            // Update the data model and UI
+            this.updateVisualizerOrder();
+            this.updateLayerBadges();
+            
+            // Visual feedback
+            dragging.classList.add('flash-position');
+            setTimeout(() => {
+                dragging.classList.remove('flash-position');
+            }, 800);
+        };
+        
+        this._handleDragLeave = (e) => {
+            // Clear drop indicators if we leave the container
+            if (e.target === container) {
+                document.querySelectorAll('.drop-before, .drop-after').forEach(el => {
+                    el.classList.remove('drop-before', 'drop-after');
+                });
+            }
+        };
+        
+        // Attach the handlers
+        container.addEventListener('dragover', this._handleDragOver);
+        container.addEventListener('drop', this._handleDrop);
+        container.addEventListener('dragleave', this._handleDragLeave);
+        
+        // Mark as attached
+        this._containerDragHandlersAttached = true;
     }
 
     // Mobile touch-based drag and drop
