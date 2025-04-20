@@ -208,6 +208,7 @@ class VisualComposer {
         
         // Add each visualizer as a collapsible item
         this.visualizers.forEach((visualizer, index) => {
+            // Check if this visualizer is already selected
             const isSelected = this.selectedVisualizers.includes(visualizer.name);
             
             const item = document.createElement('div');
@@ -251,8 +252,16 @@ class VisualComposer {
             // Add event listeners
             const checkbox = item.querySelector('.visualizer-checkbox');
             checkbox.addEventListener('change', (e) => {
-                this.toggleVisualizerSelection(visualizer.name, e.target.checked);
+                // Direct DOM access to ensure we get the current state
+                const isChecked = e.target.checked;
+                console.log(`Checkbox for ${visualizer.name} changed to: ${isChecked}`);
+                
+                // Update selection and preview
+                this.toggleVisualizerSelection(visualizer.name, isChecked);
                 this.updatePreview(item, visualizer);
+                
+                // Debug log the current selection state
+                console.log(`Current selections (${this.selectedVisualizers.length}): ${this.selectedVisualizers.join(', ')}`);
             });
             
             // Add color picker event listener
@@ -283,14 +292,20 @@ class VisualComposer {
                 });
             });
             
-            // Initialize config for this visualizer if selected
+            // Initialize config for this visualizer if already selected
             if (isSelected) {
                 this.updateConfig(visualizer.name);
+            }
+            
+            // Manually set the selection state - critical step!
+            if (checkbox.checked && !this.selectedVisualizers.includes(visualizer.name)) {
+                this.selectedVisualizers.push(visualizer.name);
             }
         });
         
         // After populating the visualizers, attach custom select listeners
         this.attachCustomSelectListeners();
+        console.log(`After population, selected visualizers: ${this.selectedVisualizers.join(', ')}`);
     }
     
     generateConfigFields(visualizer) {
@@ -676,18 +691,61 @@ class VisualComposer {
     }
     
     toggleVisualizerSelection(name, isSelected) {
+        console.log(`toggleVisualizerSelection called for ${name}, selected: ${isSelected}`);
+        
+        const prevSelections = [...this.selectedVisualizers]; // Clone for comparison
+        
         if (isSelected) {
+            // Only add if not already in the array
             if (!this.selectedVisualizers.includes(name)) {
                 this.selectedVisualizers.push(name);
+                console.log(`Added ${name} to selections. Now have ${this.selectedVisualizers.length} visualizers`);
             }
         } else {
+            // Remove from array
+            const beforeLength = this.selectedVisualizers.length;
             this.selectedVisualizers = this.selectedVisualizers.filter(v => v !== name);
+            const afterLength = this.selectedVisualizers.length;
+            
+            if (beforeLength !== afterLength) {
+                console.log(`Removed ${name} from selections. Now have ${afterLength} visualizers`);
+            }
         }
         
-        console.log("Selected visualizers:", this.selectedVisualizers); // Debug log
+        // Check if we actually changed anything
+        const changed = prevSelections.length !== this.selectedVisualizers.length || 
+                       prevSelections.some(v => !this.selectedVisualizers.includes(v)) ||
+                       this.selectedVisualizers.some(v => !prevSelections.includes(v));
+        
+        if (changed) {
+            console.log(`Selection changed: Now have ${this.selectedVisualizers.length} visualizers selected`);
+        }
     }
     
     generateCode() {
+        console.log(`Generate code called. Currently have ${this.selectedVisualizers.length} visualizers selected.`);
+        console.log(`Selected visualizers: ${this.selectedVisualizers.join(', ')}`);
+        
+        // Check all checkboxes to make sure selections are in sync
+        const checkboxes = document.querySelectorAll('.visualizer-checkbox');
+        let checkedCount = 0;
+        
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                checkedCount++;
+                const visualizerItem = checkbox.closest('.visualizer-item');
+                if (visualizerItem) {
+                    const name = visualizerItem.dataset.name;
+                    if (!this.selectedVisualizers.includes(name)) {
+                        console.log(`Found checked visualizer ${name} not in selections, adding it now`);
+                        this.selectedVisualizers.push(name);
+                    }
+                }
+            }
+        });
+        
+        console.log(`Found ${checkedCount} checked visualizers in the DOM`);
+        
         if (this.selectedVisualizers.length === 0) {
             alert('Please select at least one visualizer to generate code.');
             return;
