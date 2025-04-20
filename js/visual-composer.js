@@ -255,39 +255,68 @@ class VisualComposer {
             }
             
             item.innerHTML = `
-                <div class="visualizer-header">
-                    <div class="visualizer-drag-handle" title="Drag to reorder">
-                        <svg width="16" height="16" viewBox="0 0 16 16">
-                            <path fill="${isSelected ? '#61dafb' : '#888'}" d="M4 4h2v2H4V4zm0 6h2v2H4v-2zm0-3h2v2H4V7zm6 3h2v2h-2v-2zm0-3h2v2h-2V7zm0-3h2v2h-2V4z"></path>
-                        </svg>
-                    </div>
-                    <div class="visualizer-header-content">
-                        <input type="checkbox" class="visualizer-checkbox" 
-                               id="viz-${index}" ${isSelected ? 'checked' : ''}>
-                        <span class="visualizer-title">${visualizer.title}</span>
-                        ${isSelected ? `<span class="layer-badge">${layerPosition}</span>` : ''}
-                    </div>
-                    <div class="visualizer-color-picker">
-                        <input type="color" id="${colorId}" class="visualizer-color" 
-                               value="${defaultColor}" title="Set visualizer color">
-                    </div>
-                    <button class="visualizer-toggle" title="Toggle settings">
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
-                </div>
-                <div class="visualizer-config">
-                    <div class="config-description">
-                        ${visualizer.description}
-                    </div>
-                    <div class="config-fields">
-                        ${this.generateConfigFields(visualizer)}
-                    </div>
-                    <div class="config-preview">
-                        <code>${this.generatePreviewCode(visualizer)}</code>
-                    </div>
-                </div>
-            `;
-            
+        <div class="visualizer-header">
+            <div class="visualizer-drag-handle" title="Drag to reorder">
+                <svg width="16" height="16" viewBox="0 0 16 16">
+                    <path fill="${isSelected ? '#61dafb' : '#888'}" d="M4 4h2v2H4V4zm0 6h2v2H4v-2zm0-3h2v2H4V7zm6 3h2v2h-2v-2zm0-3h2v2h-2V7zm0-3h2v2h-2V4z"></path>
+                </svg>
+            </div>
+            <div class="visualizer-header-content">
+                <input type="checkbox" class="visualizer-checkbox" 
+                    id="viz-${index}" ${isSelected ? 'checked' : ''}>
+                <span class="visualizer-title">${visualizer.title}</span>
+                ${isSelected ? `<span class="layer-badge">${layerPosition}</span>` : ''}
+            </div>
+            <div class="visualizer-order-buttons">
+                <button class="visualizer-order-up" title="Move up" ${isSelected ? '' : 'disabled'}>
+                    <svg width="14" height="14" viewBox="0 0 24 24">
+                        <path fill="${isSelected ? '#61dafb' : '#555'}" d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"></path>
+                    </svg>
+                </button>
+                <button class="visualizer-order-down" title="Move down" ${isSelected ? '' : 'disabled'}>
+                    <svg width="14" height="14" viewBox="0 0 24 24">
+                        <path fill="${isSelected ? '#61dafb' : '#555'}" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="visualizer-color-picker">
+                <input type="color" id="${colorId}" class="visualizer-color" 
+                    value="${defaultColor}" title="Set visualizer color">
+            </div>
+            <button class="visualizer-toggle" title="Toggle settings">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="visualizer-config">
+            <div class="config-description">
+                ${visualizer.description}
+            </div>
+            <div class="config-fields">
+                ${this.generateConfigFields(visualizer)}
+            </div>
+            <div class="config-preview">
+                <code>${this.generatePreviewCode(visualizer)}</code>
+            </div>
+        </div>
+    `;
+
+            const upButton = item.querySelector('.visualizer-order-up');
+            const downButton = item.querySelector('.visualizer-order-down');
+
+            if (upButton) {
+                upButton.addEventListener('click', () => {
+                    if (!isSelected) return;
+                    this.moveVisualizer(visualizer.name, 'up');
+                });
+            }
+
+            if (downButton) {
+                downButton.addEventListener('click', () => {
+                    if (!isSelected) return;
+                    this.moveVisualizer(visualizer.name, 'down');
+                });
+            }
+                        
             container.appendChild(item);
             
             // Set draggable state based on selection
@@ -321,6 +350,20 @@ class VisualComposer {
                 const dragHandlePath = item.querySelector('.visualizer-drag-handle path');
                 if (dragHandlePath) {
                     dragHandlePath.setAttribute('fill', isChecked ? '#61dafb' : '#888');
+                }
+
+                // Update the order buttons
+                const upBtn = item.querySelector('.visualizer-order-up');
+                const downBtn = item.querySelector('.visualizer-order-down');
+                
+                if (upBtn) {
+                    upBtn.disabled = !isChecked;
+                    upBtn.querySelector('path').setAttribute('fill', isChecked ? '#61dafb' : '#555');
+                }
+                
+                if (downBtn) {
+                    downBtn.disabled = !isChecked;
+                    downBtn.querySelector('path').setAttribute('fill', isChecked ? '#61dafb' : '#555');
                 }
                 
                 // Update layer badges for all items
@@ -386,6 +429,102 @@ class VisualComposer {
         this.setupContainerDragHandlers();
         
         console.log(`After population, selected visualizers: ${this.selectedVisualizers.join(', ')}`);
+    }
+
+    moveVisualizer(name, direction) {
+        // Find the index in the data model
+        const itemIndex = this.selectedVisualizers.indexOf(name);
+        if (itemIndex === -1) return;
+        
+        // Calculate new index based on direction
+        let newIndex = itemIndex;
+        if (direction === 'up' && itemIndex > 0) {
+            newIndex = itemIndex - 1;
+        } else if (direction === 'down' && itemIndex < this.selectedVisualizers.length - 1) {
+            newIndex = itemIndex + 1;
+        } else {
+            // Already at the top/bottom or invalid direction
+            return;
+        }
+        
+        // Find the container and the item to move
+        const container = document.getElementById('composer-visualizers-container');
+        if (!container) return;
+        
+        const item = container.querySelector(`.visualizer-item[data-name="${name}"]`);
+        if (!item) return;
+        
+        // Rearrange the array
+        const newOrder = [...this.selectedVisualizers];
+        [newOrder[itemIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[itemIndex]];
+        this.selectedVisualizers = newOrder;
+        
+        // Re-render the visualizer order in the DOM
+        this.reorderVisualizerDom();
+        
+        // Visual feedback for the moved item
+        const updatedItem = container.querySelector(`.visualizer-item[data-name="${name}"]`);
+        if (updatedItem) {
+            updatedItem.classList.add('flash-position');
+            setTimeout(() => {
+                updatedItem.classList.remove('flash-position');
+            }, 800);
+        }
+        
+        console.log(`Moved visualizer ${name} ${direction} to position ${newIndex + 1}`);
+    }
+
+    reorderVisualizerDom() {
+        const container = document.getElementById('composer-visualizers-container');
+        if (!container) return;
+        
+        // Get all visualizer items
+        const allItems = Array.from(container.querySelectorAll('.visualizer-item'));
+        
+        // Create a document fragment to hold the reordered items
+        const fragment = document.createDocumentFragment();
+        
+        // Find all non-selected items to keep their relative positions
+        const nonSelectedItems = allItems.filter(item => !item.classList.contains('selected'));
+        
+        // Find the original positions of all items
+        const originalPositions = new Map();
+        allItems.forEach((item, index) => {
+            originalPositions.set(item.dataset.name, index);
+        });
+        
+        // First, add all non-instruction elements that appear before the first selected item
+        const firstSelectedPos = Math.min(...this.selectedVisualizers.map(name => {
+            return originalPositions.get(name) !== undefined ? originalPositions.get(name) : Infinity;
+        }));
+        
+        // Add the instructions element first if it exists
+        const instructionsElement = container.querySelector('.layer-instructions');
+        if (instructionsElement) {
+            fragment.appendChild(instructionsElement);
+        }
+        
+        // Add selected items in the order from the array
+        this.selectedVisualizers.forEach(name => {
+            const selectedItem = allItems.find(item => item.dataset.name === name);
+            if (selectedItem) {
+                fragment.appendChild(selectedItem);
+            }
+        });
+        
+        // Add any remaining non-selected items
+        nonSelectedItems.forEach(item => {
+            if (!fragment.contains(item)) {
+                fragment.appendChild(item);
+            }
+        });
+        
+        // Clear the container and append the fragment
+        container.innerHTML = '';
+        container.appendChild(fragment);
+        
+        // Update layer badges
+        this.updateLayerBadges();
     }
 
     updateLayerBadges() {
@@ -1843,6 +1982,50 @@ document.addEventListener('DOMContentLoaded', function() {
             font-size: 0.8rem;
             cursor: pointer;
             margin-left: 10px;
+        }
+
+        .visualizer-order-buttons {
+            display: flex;
+            flex-direction: column;
+            margin-right: 8px;
+        }
+        
+        .visualizer-order-up,
+        .visualizer-order-down {
+            background: none;
+            border: none;
+            padding: 3px;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.8;
+            transition: all 0.2s ease;
+        }
+        
+        .visualizer-order-up:hover,
+        .visualizer-order-down:hover {
+            background: rgba(97, 218, 251, 0.15);
+            opacity: 1;
+        }
+        
+        .visualizer-order-up:active,
+        .visualizer-order-down:active {
+            background: rgba(97, 218, 251, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .visualizer-order-up[disabled],
+        .visualizer-order-down[disabled] {
+            cursor: default;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        
+        /* Adjust the header spacing to accommodate the new buttons */
+        .visualizer-color-picker {
+            margin-right: 6px;
         }
         
         @media (max-width: 768px) {
