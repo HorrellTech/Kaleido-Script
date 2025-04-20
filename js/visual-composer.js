@@ -909,8 +909,42 @@ document.addEventListener('DOMContentLoaded', function() {
             position: relative;
             margin-bottom: 8px;
         }
+        
+        /* Style for the last updated info in footer */
+        .last-updated {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            color: #777;
+        }
+        
+        @media (max-width: 768px) {
+            .last-updated {
+                position: static;
+                display: block;
+                margin-top: 5px;
+                transform: none;
+            }
+        }
     `;
     document.head.appendChild(style);
     
-    window.visualComposer = new VisualComposer();
+    // Add build date information to the footer
+    const lastUpdatedElement = document.getElementById('last-updated');
+    if (lastUpdatedElement) {
+        // Format the current date as the build date
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = now.getFullYear();
+        
+        lastUpdatedElement.textContent = `v1.0.3 (${day}/${month}/${year})`;
+    }
+    
+    // Initialize VisualComposer only once
+    if (!window.visualComposer) {
+        window.visualComposer = new VisualComposer();
+    }
 });
