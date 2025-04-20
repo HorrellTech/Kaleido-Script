@@ -1,4 +1,5 @@
-# KaleidoScript 🎨
+# KaleidoScript 🎨 
+[Visit Website](https://horrelltech.github.io/Kaleido-Script/)
 
 KaleidoScript is an interactive web-based application for creating code-based animated visualizations and music-reactive graphics. It features a dedicated code editor with syntax highlighting, real-time preview, and tools for audio integration.
 
