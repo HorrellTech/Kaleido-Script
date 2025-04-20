@@ -294,15 +294,15 @@ const mathFunctions = {
 // Audio visualizer functions
 const visualizerFunctions = {
     visualBackgroundImage: {
-        name: 'visualBackgroundImage(imagePath, mode, reactivity, pulseColor)',
-        description: 'Sets a background image with options for sizing and audio reactivity. mode: "fill", "fit", "stretch", "tile". Reactivity: 0-1 (0 = no reactivity, 1 = full reactivity).',
-        example: 'backgroundImage("landscape.jpg", "fill", 0.3, "#FF5500");',
+        name: 'visualBackgroundImage(image, mode, reactivity, pulseColor)',
+        description: 'Sets a background image with options for sizing and audio reactivity. \nmode: "fill", "fit", "stretch", "tile". Reactivity: 0-1 (0 = no reactivity, 1 = full reactivity).',
+        example: 'var backgroundImage = loadImage("back.png"); \nvisualBackgroundImage(backgroundImage, "fill", 0.3, "#FF5500");',
         category: 'visualizer'
     },
     visualCenterImage: {
-        name: 'visualCenterImage(imagePath, size, reactivity, glowColor)',
-        description: 'Draws a circular image centered on the canvas that pulses with audio. The image is cropped to fit in a circle.',
-        example: 'visualCenterImage("album-cover.jpg", 200, 0.5, "#FFFFFF");',
+        name: 'visualCenterImage(image, size, reactivity, glowColor)',
+        description: 'Draws a circular image centered on the canvas that pulses with audio. The image is cropped to fit in a circle.\nMust load the image first',
+        example: 'var centerImage = loadImage("center.png"); \nvisualCenterImage(centerImage, 200, 0.5, "#FFFFFF");',
         category: 'visualizer'
     },
     visualCircular: {
