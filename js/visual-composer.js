@@ -47,12 +47,13 @@ class VisualComposer {
     
     extractParameters(info) {
         const signature = info.name || '';
+        const example = info.example || '';
         
         try {
             // Extract parameters from the function signature
             const paramStr = signature.match(/\(([^)]*)\)/);
             if (paramStr && paramStr[1]) {
-                return paramStr[1].split(',').map(param => {
+                const params = paramStr[1].split(',').map(param => {
                     // Parse parameter and default value
                     const [name, defaultVal] = param.trim().split('=').map(p => p.trim());
                     
@@ -86,6 +87,36 @@ class VisualComposer {
                         defaultValue: defaultVal ? eval(defaultVal) : null
                     };
                 });
+                
+                // Extract example values if available
+                if (example) {
+                    try {
+                        // Match the function call in the example
+                        const functionCall = example.match(new RegExp(`${info.name.split('(')[0]}\\(([^)]+)\\)`));
+                        if (functionCall && functionCall[1]) {
+                            const exampleParams = functionCall[1].split(',').map(p => p.trim());
+                            
+                            // Associate example values with params
+                            params.forEach((param, index) => {
+                                if (index < exampleParams.length) {
+                                    let exampleValue = exampleParams[index];
+                                    
+                                    // Clean up the example value
+                                    if (exampleValue.endsWith(';')) {
+                                        exampleValue = exampleValue.slice(0, -1);
+                                    }
+                                    
+                                    // Store example value
+                                    param.exampleValue = exampleValue;
+                                }
+                            });
+                        }
+                    } catch (exampleError) {
+                        console.error('Error parsing example for', info.name, exampleError);
+                    }
+                }
+                
+                return params;
             }
         } catch (e) {
             console.error('Error parsing parameters for', info.name, e);
@@ -257,6 +288,9 @@ class VisualComposer {
                 this.updateConfig(visualizer.name);
             }
         });
+        
+        // After populating the visualizers, attach custom select listeners
+        this.attachCustomSelectListeners();
     }
     
     generateConfigFields(visualizer) {
@@ -344,13 +378,25 @@ class VisualComposer {
     generateInputFields(params, visualizerName) {
         return params.map(param => {
             const id = `${visualizerName}-${param.name}`;
+            const customId = `${id}-custom`;
             let defaultValue = param.defaultValue;
             
-            // Special handling for commonly used parameters
-            if (param.name === 'x' && defaultValue === null) defaultValue = 'width/2';
-            if (param.name === 'y' && defaultValue === null) defaultValue = 'height/2';
-            if (param.name === 'width' && defaultValue === null) defaultValue = 'width';
-            if (param.name === 'height' && defaultValue === null) defaultValue = 'height';
+            // Use example value if available
+            if (param.exampleValue !== undefined) {
+                // Only use the example value if it's a sensible default
+                if (param.exampleValue && 
+                    !param.exampleValue.includes('time') && 
+                    !param.exampleValue.includes('Math.sin') &&
+                    !param.exampleValue.includes('Math.cos')) {
+                    defaultValue = param.exampleValue;
+                }
+            } else {
+                // Special handling for commonly used parameters when no example
+                if (param.name === 'x' && defaultValue === null) defaultValue = 'width/2';
+                if (param.name === 'y' && defaultValue === null) defaultValue = 'height/2';
+                if (param.name === 'width' && defaultValue === null) defaultValue = 'width';
+                if (param.name === 'height' && defaultValue === null) defaultValue = 'height';
+            }
             
             // Use existing config if available
             if (this.visualizerConfigs[visualizerName] && this.visualizerConfigs[visualizerName][param.name] !== undefined) {
@@ -362,87 +408,149 @@ class VisualComposer {
                     <div class="config-field">
                         <label for="${id}">${param.label}</label>
                         <select id="${id}" name="${param.name}">
-                            <option value="true" ${defaultValue === true ? 'selected' : ''}>Yes</option>
-                            <option value="false" ${defaultValue === false ? 'selected' : ''}>No</option>
+                            <option value="true" ${defaultValue === true || defaultValue === 'true' ? 'selected' : ''}>Yes</option>
+                            <option value="false" ${defaultValue === false || defaultValue === 'false' ? 'selected' : ''}>No</option>
                         </select>
                     </div>
                 `;
             } else if (param.type === 'color') {
+                let colorValue = defaultValue || '#61dafb';
+                // Extract color from example if it's in quotes
+                if (typeof colorValue === 'string' && colorValue.includes('"')) {
+                    colorValue = colorValue.replace(/"/g, '');
+                }
+                
                 return `
                     <div class="config-field">
                         <label for="${id}">${param.label}</label>
                         <input type="color" id="${id}" name="${param.name}" 
-                               value="${defaultValue || '#61dafb'}">
+                               value="${colorValue}">
                     </div>
                 `;
             } else if (param.name === 'x') {
+                // Use example value if available to determine the default selection
+                let selectedOption = 'width/2';
+                if (defaultValue === 0 || defaultValue === '0') selectedOption = '0';
+                else if (defaultValue === 'width' || defaultValue === 'width') selectedOption = 'width';
+                else if (defaultValue === 'width/2' || defaultValue === 'width/2') selectedOption = 'width/2';
+                else selectedOption = 'custom';
+                
                 return `
                     <div class="config-field">
                         <label for="${id}">${param.label}</label>
-                        <select id="${id}" name="${param.name}">
-                            <option value="0" ${defaultValue === 0 ? 'selected' : ''}>Left (0)</option>
-                            <option value="width/2" ${defaultValue === 'width/2' || defaultValue === null ? 'selected' : ''}>Center</option>
-                            <option value="width" ${defaultValue === 'width' ? 'selected' : ''}>Right</option>
-                            <option value="custom">Custom</option>
+                        <select id="${id}" name="${param.name}" class="custom-select" data-custom-id="${customId}">
+                            <option value="0" ${selectedOption === '0' ? 'selected' : ''}>Left (0)</option>
+                            <option value="width/2" ${selectedOption === 'width/2' ? 'selected' : ''}>Center</option>
+                            <option value="width" ${selectedOption === 'width' ? 'selected' : ''}>Right</option>
+                            <option value="custom" ${selectedOption === 'custom' ? 'selected' : ''}>Custom</option>
                         </select>
+                        <input type="text" id="${customId}" class="custom-value" 
+                               style="display: ${selectedOption === 'custom' ? 'block' : 'none'};" 
+                               value="${selectedOption === 'custom' ? defaultValue : ''}">
                     </div>
                 `;
             } else if (param.name === 'y') {
+                // Use example value to determine the default selection
+                let selectedOption = 'height/2';
+                if (defaultValue === 0 || defaultValue === '0') selectedOption = '0';
+                else if (defaultValue === 'height' || defaultValue === 'height') selectedOption = 'height';
+                else if (defaultValue === 'height/2' || defaultValue === 'height/2') selectedOption = 'height/2';
+                else selectedOption = 'custom';
+                
                 return `
                     <div class="config-field">
                         <label for="${id}">${param.label}</label>
-                        <select id="${id}" name="${param.name}">
-                            <option value="0" ${defaultValue === 0 ? 'selected' : ''}>Top (0)</option>
-                            <option value="height/2" ${defaultValue === 'height/2' || defaultValue === null ? 'selected' : ''}>Middle</option>
-                            <option value="height" ${defaultValue === 'height' ? 'selected' : ''}>Bottom</option>
-                            <option value="custom">Custom</option>
+                        <select id="${id}" name="${param.name}" class="custom-select" data-custom-id="${customId}">
+                            <option value="0" ${selectedOption === '0' ? 'selected' : ''}>Top (0)</option>
+                            <option value="height/2" ${selectedOption === 'height/2' ? 'selected' : ''}>Middle</option>
+                            <option value="height" ${selectedOption === 'height' ? 'selected' : ''}>Bottom</option>
+                            <option value="custom" ${selectedOption === 'custom' ? 'selected' : ''}>Custom</option>
                         </select>
+                        <input type="text" id="${customId}" class="custom-value" 
+                               style="display: ${selectedOption === 'custom' ? 'block' : 'none'};" 
+                               value="${selectedOption === 'custom' ? defaultValue : ''}">
                     </div>
                 `;
             } else if (param.name === 'width') {
+                let selectedOption = 'width';
+                if (defaultValue === 'width/2' || defaultValue === 'width/2') selectedOption = 'width/2';
+                else if (defaultValue === 'width' || defaultValue === 'width') selectedOption = 'width';
+                else selectedOption = 'custom';
+                
                 return `
                     <div class="config-field">
                         <label for="${id}">${param.label}</label>
-                        <select id="${id}" name="${param.name}">
-                            <option value="width" ${defaultValue === 'width' || defaultValue === null ? 'selected' : ''}>Full Width</option>
-                            <option value="width/2" ${defaultValue === 'width/2' ? 'selected' : ''}>Half Width</option>
-                            <option value="custom">Custom</option>
+                        <select id="${id}" name="${param.name}" class="custom-select" data-custom-id="${customId}">
+                            <option value="width" ${selectedOption === 'width' ? 'selected' : ''}>Full Width</option>
+                            <option value="width/2" ${selectedOption === 'width/2' ? 'selected' : ''}>Half Width</option>
+                            <option value="custom" ${selectedOption === 'custom' ? 'selected' : ''}>Custom</option>
                         </select>
+                        <input type="text" id="${customId}" class="custom-value" 
+                               style="display: ${selectedOption === 'custom' ? 'block' : 'none'};" 
+                               value="${selectedOption === 'custom' ? defaultValue : ''}">
                     </div>
                 `;
             } else if (param.name === 'height') {
+                let selectedOption = 'height';
+                if (defaultValue === 'height/2' || defaultValue === 'height/2') selectedOption = 'height/2';
+                else if (defaultValue === 'height' || defaultValue === 'height') selectedOption = 'height';
+                else selectedOption = 'custom';
+                
                 return `
                     <div class="config-field">
                         <label for="${id}">${param.label}</label>
-                        <select id="${id}" name="${param.name}">
-                            <option value="height" ${defaultValue === 'height' || defaultValue === null ? 'selected' : ''}>Full Height</option>
-                            <option value="height/2" ${defaultValue === 'height/2' ? 'selected' : ''}>Half Height</option>
-                            <option value="custom">Custom</option>
+                        <select id="${id}" name="${param.name}" class="custom-select" data-custom-id="${customId}">
+                            <option value="height" ${selectedOption === 'height' ? 'selected' : ''}>Full Height</option>
+                            <option value="height/2" ${selectedOption === 'height/2' ? 'selected' : ''}>Half Height</option>
+                            <option value="custom" ${selectedOption === 'custom' ? 'selected' : ''}>Custom</option>
                         </select>
+                        <input type="text" id="${customId}" class="custom-value" 
+                               style="display: ${selectedOption === 'custom' ? 'block' : 'none'};" 
+                               value="${selectedOption === 'custom' ? defaultValue : ''}">
                     </div>
                 `;
             } else if (param.name.includes('freq') && param.name.includes('Start')) {
+                const freqValue = typeof defaultValue === 'number' ? defaultValue : 20;
+                let selectedOption = '20';
+                if (freqValue === 200) selectedOption = '200';
+                else if (freqValue === 500) selectedOption = '500';
+                else if (freqValue === 20) selectedOption = '20';
+                else selectedOption = 'custom';
+                
                 return `
                     <div class="config-field">
                         <label for="${id}">${param.label}</label>
-                        <select id="${id}" name="${param.name}">
-                            <option value="20" ${defaultValue === 20 || defaultValue === null ? 'selected' : ''}>Bass (20Hz)</option>
-                            <option value="200" ${defaultValue === 200 ? 'selected' : ''}>Mid-Low (200Hz)</option>
-                            <option value="500" ${defaultValue === 500 ? 'selected' : ''}>Mid (500Hz)</option>
-                            <option value="custom">Custom</option>
+                        <select id="${id}" name="${param.name}" class="custom-select" data-custom-id="${customId}">
+                            <option value="20" ${selectedOption === '20' ? 'selected' : ''}>Bass (20Hz)</option>
+                            <option value="200" ${selectedOption === '200' ? 'selected' : ''}>Mid-Low (200Hz)</option>
+                            <option value="500" ${selectedOption === '500' ? 'selected' : ''}>Mid (500Hz)</option>
+                            <option value="custom" ${selectedOption === 'custom' ? 'selected' : ''}>Custom</option>
                         </select>
+                        <input type="number" id="${customId}" class="custom-value" 
+                               style="display: ${selectedOption === 'custom' ? 'block' : 'none'};" 
+                               value="${selectedOption === 'custom' ? freqValue : ''}">
                     </div>
                 `;
             } else if (param.name.includes('freq') && param.name.includes('End')) {
+                const freqValue = typeof defaultValue === 'number' ? defaultValue : 2000;
+                let selectedOption = '2000';
+                if (freqValue === 5000) selectedOption = '5000';
+                else if (freqValue === 1000) selectedOption = '1000';
+                else if (freqValue === 2000) selectedOption = '2000';
+                else selectedOption = 'custom';
+                
                 return `
                     <div class="config-field">
                         <label for="${id}">${param.label}</label>
-                        <select id="${id}" name="${param.name}">
-                            <option value="2000" ${defaultValue === 2000 || defaultValue === null ? 'selected' : ''}>High (2000Hz)</option>
-                            <option value="5000" ${defaultValue === 5000 ? 'selected' : ''}>Very High (5000Hz)</option>
-                            <option value="1000" ${defaultValue === 1000 ? 'selected' : ''}>Mid-High (1000Hz)</option>
-                            <option value="custom">Custom</option>
+                        <select id="${id}" name="${param.name}" class="custom-select" data-custom-id="${customId}">
+                            <option value="2000" ${selectedOption === '2000' ? 'selected' : ''}>High (2000Hz)</option>
+                            <option value="5000" ${selectedOption === '5000' ? 'selected' : ''}>Very High (5000Hz)</option>
+                            <option value="1000" ${selectedOption === '1000' ? 'selected' : ''}>Mid-High (1000Hz)</option>
+                            <option value="custom" ${selectedOption === 'custom' ? 'selected' : ''}>Custom</option>
                         </select>
+                        <input type="number" id="${customId}" class="custom-value" 
+                               style="display: ${selectedOption === 'custom' ? 'block' : 'none'};" 
+                               value="${selectedOption === 'custom' ? freqValue : ''}">
                     </div>
                 `;
             } else {
@@ -463,9 +571,10 @@ class VisualComposer {
         const item = document.querySelector(`.visualizer-item[data-name="${visualizerName}"]`);
         if (!item) return;
         
-        const inputs = item.querySelectorAll('input, select');
         const config = this.visualizerConfigs[visualizerName] || {};
         
+        // Process regular inputs
+        const inputs = item.querySelectorAll('input:not(.custom-value), select:not(.custom-select)');
         inputs.forEach(input => {
             const paramName = input.name;
             let value = input.value;
@@ -477,6 +586,24 @@ class VisualComposer {
                 value = input.checked;
             } else if (input.type === 'select-one' && (value === 'true' || value === 'false')) {
                 value = value === 'true';
+            }
+            
+            config[paramName] = value;
+        });
+        
+        // Process custom-select elements
+        const customSelects = item.querySelectorAll('.custom-select');
+        customSelects.forEach(select => {
+            const paramName = select.name;
+            let value = select.value;
+            
+            // If "custom" is selected, use the value from the associated custom input
+            if (value === 'custom') {
+                const customId = select.dataset.customId;
+                const customInput = document.getElementById(customId);
+                if (customInput && customInput.value) {
+                    value = customInput.value;
+                }
             }
             
             config[paramName] = value;
@@ -556,6 +683,8 @@ class VisualComposer {
         } else {
             this.selectedVisualizers = this.selectedVisualizers.filter(v => v !== name);
         }
+        
+        console.log("Selected visualizers:", this.selectedVisualizers); // Debug log
     }
     
     generateCode() {
@@ -673,6 +802,44 @@ ${visualizerCode}}`;
             this.overlay.style.display = 'none';
         }
     }
+    
+    // Add event listener to handle "custom" select option changes
+    attachCustomSelectListeners() {
+        const customSelects = document.querySelectorAll('.custom-select');
+        customSelects.forEach(select => {
+            select.addEventListener('change', function() {
+                const customId = this.dataset.customId;
+                const customInput = document.getElementById(customId);
+                
+                if (customInput) {
+                    if (this.value === 'custom') {
+                        customInput.style.display = 'block';
+                        customInput.focus();
+                    } else {
+                        customInput.style.display = 'none';
+                    }
+                }
+            });
+        });
+        
+        // Add listener for custom value changes
+        const customInputs = document.querySelectorAll('.custom-value');
+        customInputs.forEach(input => {
+            input.addEventListener('change', () => {
+                // Find the visualizer this input belongs to
+                const configField = input.closest('.config-field');
+                const configGroup = configField ? configField.closest('.config-group') : null;
+                const visualizerConfig = configGroup ? configGroup.closest('.visualizer-config') : null;
+                const visualizerItem = visualizerConfig ? visualizerConfig.closest('.visualizer-item') : null;
+                
+                if (visualizerItem) {
+                    const visualizerName = visualizerItem.dataset.name;
+                    this.updateConfig(visualizerName);
+                    this.updatePreview(visualizerItem, this.visualizers.find(v => v.name === visualizerName));
+                }
+            });
+        });
+    }
 }
 
 // Initialize the component when the document is ready
@@ -727,6 +894,20 @@ document.addEventListener('DOMContentLoaded', function() {
         .visualizer-color::-webkit-color-swatch {
             border: none;
             border-radius: 50%;
+        }
+        
+        .custom-value {
+            margin-top: 5px;
+            width: 100%;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        
+        .config-field {
+            position: relative;
+            margin-bottom: 8px;
         }
     `;
     document.head.appendChild(style);
