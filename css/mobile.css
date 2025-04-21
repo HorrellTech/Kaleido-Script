@@ -1,289 +1,197 @@
 /* Mobile-specific styling for KaleidoScript */
 
 @media screen and (max-width: 768px) {
-    /* Overall layout adjustments */
-    body {
-        overflow: auto;
-        height: auto;
-    }
-    
+    /* General mobile layout adjustments */
     .app-container {
-        height: auto;
-        min-height: 100vh;
-        overflow: auto;
+        flex-direction: column;
     }
     
-    /* Header adjustments */
-    header {
+    .main-content {
         flex-direction: column;
-        padding: 10px;
     }
     
     header h1 {
-        margin-bottom: 10px;
+        font-size: 1.5rem;
     }
     
     .control-panel {
-        width: 100%;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 8px;
+        gap: 5px;
     }
     
-    /* Simplify controls for mobile */
-    .separator {
-        display: none;
-    }
-    
-    #fps-input, .duration-input {
-        width: 40px;
-        font-size: 14px;
-    }
-    
-    .animation-controls {
-        flex-basis: 100%;
-        justify-content: center;
-        margin: 5px 0;
-    }
-    
-    /* Main content area */
-    .main-content {
-        flex-direction: column;
-        height: auto;
-        overflow: visible;
-    }
-    
-    /* Side panel becomes a slide-in drawer */
+    /* Make the side panel collapse to the left */
     .side-panel {
         position: fixed;
-        left: -250px;
+        left: -280px;
         top: 0;
         bottom: 0;
-        width: 250px;
+        width: 280px;
         z-index: 1000;
         transition: left 0.3s ease;
         box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
     }
     
-    .side-panel.mobile-visible {
+    .side-panel.open {
         left: 0;
     }
     
-    .collapse-button {
-        right: -15px;
-        top: 50px;
-        transform: none;
-    }
-    
+    /* Show the mobile menu button */
     .mobile-menu-button {
-        display: none; /* Hidden by default, will be shown via JS when needed */
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        width: 40px;
-        height: 40px;
-        background: #333;
-        border: none;
-        border-radius: 4px;
-        color: white;
-        font-size: 20px;
-        z-index: 1001;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        display: flex;
     }
     
-    /* Add an overlay to capture clicks outside the drawer */
-    .mobile-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 999;
-    }
-    
-    .mobile-overlay.visible {
+    /* Show mobile overlay when menu is open */
+    .mobile-overlay.active {
         display: block;
     }
     
-    /* Workspace takes full width */
-    .workspace {
-        flex-direction: column;
-        width: 100%;
-    }
-    
-    /* Editor panel */
-    .editor-panel {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid #333;
-        min-height: 250px;
-        height: 40vh;
-        max-height: 50vh;
-        flex: none;
-    }
-    
-    .CodeMirror {
-        max-height: calc(40vh - 80px) !important;
-    }
-    
-    .editor-hints {
-        height: 80px;
-        max-height: 100px;
-    }
-    
-    /* Vertical resizer becomes horizontal */
-    .vertical-resizer {
-        width: 100%;
-        height: 8px;
-        cursor: row-resize;
-        flex: 0 0 8px;
-    }
-    
-    /* Output panel */
+    /* Make canvas container take more space */
     .output-panel {
-        width: 100%;
-        height: auto;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 60vh;
     }
     
     .canvas-container {
-        height: 40vh;
+        flex: 1;
+        min-height: 50vh;
     }
     
-    #output-canvas {
-        max-width: 100%;
-        max-height: 100%;
-    }
-    
+    /* Adjust console size */
     .console-container {
-        height: 100px;
+        height: 120px;
+        min-height: 120px;
     }
     
-    /* Footer */
-    .app-footer {
-        display: block !important; /* Force display */
-        position: relative;
-        text-align: center;
-        padding: 1px 0;
-        margin-top: 12px;
-        font-size: 0.9rem;
-        color: #888;
-        border-top: 1px solid #444;
+    /* NEW: Collapsible editor panel for mobile */
+    .workspace {
+        flex-direction: column;
+    }
+    
+    /* Add toggle button for code editor */
+    .editor-toggle {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 40px;
+        background-color: #2d2d2d;
+        border-bottom: 1px solid #444;
+        cursor: pointer;
+    }
+    
+    .editor-toggle i {
+        margin-right: 8px;
+        transition: transform 0.3s ease;
+    }
+    
+    .editor-toggle.collapsed i {
+        transform: rotate(180deg);
+    }
+    
+    /* Code editor container that can collapse */
+    .editor-container {
+        position: fixed;
+        right: 0;
+        bottom: 0;
         width: 100%;
-        z-index: 100;
+        height: 50%;
+        background-color: #1e1e1e;
+        z-index: 900;
+        transition: transform 0.3s ease;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
     }
     
-    .app-footer p {
+    .editor-container.collapsed {
+        transform: translateY(calc(100% - 40px));
+    }
+    
+    /* Put editor panel inside the container */
+    .editor-container .editor-panel {
+        height: calc(100% - 40px);
+        width: 100%;
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 5px;
     }
     
-    .donate-link {
-        margin-left: 0;
-        font-size: 0.8rem;
+    .editor-container .editor-panel #code-editor {
+        flex: 1;
     }
     
-    /* Adjust modal/dropdown positioning */
-    .dropdown-menu {
-        right: auto;
-        left: 0;
+    .editor-container .editor-hints {
+        height: 100px !important;
     }
     
-    /* Make buttons bigger for touch */
-    button {
-        min-height: 36px;
-        min-width: 36px;
+    /* Hide normal resizers in mobile view */
+    .vertical-resizer, 
+    .horizontal-resizer,
+    .hint-resizer {
+        display: none;
     }
     
-    /* Function reference modal */
-    .reference-modal {
-        flex-direction: column;
-        padding: 10px;
+    /* Remove horizontal scrolling */
+    body {
+        overflow-x: hidden;
     }
     
-    .reference-content {
-        width: 100%;
-        max-width: 100%;
-        height: 90vh;
+    /* Adjust footer */
+    .app-footer {
+        padding: 10px 0;
+    }
+
+    /* Make editor panel fill full width in mobile view */
+    .editor-panel {
+        width: 100% !important;
+        max-width: 100% !important;
     }
     
-    .reference-body {
-        flex-direction: column;
+    /* Ensure CodeMirror editor expands properly */
+    .CodeMirror {
+        width: 100% !important;
+        height: auto !important;
     }
     
-    .reference-sidebar {
-        width: 100%;
-        max-height: 30vh;
-        overflow-y: auto;
+    /* Fix workspace layout in mobile view */
+    .workspace {
+        flex-direction: column !important;
     }
     
-    .reference-details {
-        max-height: 50vh;
-        overflow-y: auto;
-    }
-    
-    /* Touch-friendly tab buttons */
-    .tab-button {
-        padding: 12px 8px;
-        font-size: 13px;
-    }
-    
-    /* Form controls */
-    .form-group input, .form-group select {
-        height: 36px;
+    /* Make output panel full width */
+    .output-panel {
+        width: 100% !important;
+        max-width: 100% !important;
     }
 }
 
 /* Additional tweaks for very small screens */
-@media screen and (max-width: 380px) {
+@media screen and (max-width: 480px) {
+    .control-panel {
+        padding: 5px 0;
+    }
+    
     header h1 {
-        font-size: 1.2rem;
+        font-size: 1.3rem;
     }
     
-    .control-panel button {
-        width: 28px;
-        height: 28px;
+    #fps-input {
+        width: 40px;
     }
     
-    .dropdown-toggle {
-        padding: 4px 8px;
-    }
-
-    .app-footer {
-        padding: 10px 0;
-        margin-top: 5px;
-    }
-
-    .app-container {
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
-    }
-
-    /* Ensure main content doesn't push footer off screen */
-    .main-content {
-        flex: 1 0 auto; /* Don't allow to shrink below content size */
+    .duration-input {
+        width: 40px;
     }
     
-    /* Footer styling for mobile */
-    .app-footer p {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 5px;
+    .canvas-container {
+        min-height: 40vh;
     }
     
-    .donate-link {
-        margin-left: 0;
-        font-size: 0.8rem;
-        padding: 5px 10px;
-        background: rgba(97, 218, 251, 0.1);
-        border-radius: 15px;
-        margin-top: 5px;
+    .console-container {
+        height: 100px;
+        min-height: 100px;
+    }
+    
+    .editor-container {
+        height: 60%;
     }
 }

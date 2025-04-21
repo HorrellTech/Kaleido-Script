@@ -2205,7 +2205,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const year = now.getFullYear();
         
-        lastUpdatedElement.textContent = `v1.0.8 (${day}/${month}/${year})`;
+        lastUpdatedElement.textContent = `v1.0.9 (${day}/${month}/${year})`;
     }
     
     // Initialize once we have keywords
