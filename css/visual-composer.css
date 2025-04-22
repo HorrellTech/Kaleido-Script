@@ -1,7 +1,7 @@
 .composer-button {
     position: absolute;
     top: 5px;
-    right: 10px;
+    left: 10px;  /* Changed from 'right: 10px' to 'left: 10px' */
     background-color: #61dafb;
     color: #1e1e1e;
     border: none;

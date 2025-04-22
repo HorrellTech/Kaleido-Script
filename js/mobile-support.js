@@ -50,32 +50,66 @@
                 setTimeout(updateMenuButtonVisibility, 100);
             });
         }
-
+    
         const mobileStyles = document.createElement('style');
-    mobileStyles.textContent = `
-        @media (max-width: 768px) {
-            #side-panel.mobile-visible {
-                left: 0 !important;
-                visibility: visible !important;
-                transform: translateX(0) !important;
-                z-index: 2000;
+        mobileStyles.textContent = `
+            @media (max-width: 768px) {
+                #side-panel.mobile-visible {
+                    left: 0 !important;
+                    visibility: visible !important;
+                    transform: translateX(0) !important;
+                    z-index: 2000;
+                }
+                
+                #mobile-overlay.visible {
+                    display: block;
+                    opacity: 1;
+                    z-index: 1999;
+                }
+                
+                .mobile-menu-open {
+                    overflow: hidden;
+                }
+    
+                .editor-action-buttons {
+                    position: absolute;
+                    top: 2px;
+                    right: 10px;
+                    z-index: 100;
+                    display: flex;
+                    gap: 8px;
+                }
+                
+                .editor-action-btn {
+                    background-color: #61dafb;
+                    border: none;
+                    border-radius: 4px;
+                    color: #000;
+                    padding: 2px 8px;
+                    font-size: 12px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                }
+                
+                .editor-action-btn:hover {
+                    background-color: #4db8e5;
+                }
+                
+                .editor-action-btn i {
+                    margin-right: 4px;
+                }
             }
-            
-            #mobile-overlay.visible {
-                display: block;
-                opacity: 1;
-                z-index: 1999;
-            }
-            
-            .mobile-menu-open {
-                overflow: hidden;
-            }
-        }
-    `;
-    document.head.appendChild(mobileStyles);
+        `;
+        document.head.appendChild(mobileStyles);
         
         // Add editor toggle button for mobile
         addMobileEditorToggle();
+        
+        // Add editor action buttons (clear & paste)
+        addEditorActionButtons();
     }
     
     function addMobileEditorToggle() {
@@ -179,6 +213,83 @@
         if (workspaceEl) {
             workspaceEl.style.flexDirection = 'column';
         }
+        
+        // Update position of editor action buttons
+        positionEditorActionButtons();
+    }
+
+    function positionEditorActionButtons() {
+        const buttonContainer = document.querySelector('.editor-action-buttons');
+        if (!buttonContainer) return;
+        
+        // For mobile-editor.js fullscreen mode
+        if (window.isEditorVisible && window.isEditorVisible()) {
+            const mobileContainer = document.getElementById('mobile-editor-container');
+            if (mobileContainer) {
+                const wrapper = mobileContainer.querySelector('.mobile-editor-wrapper');
+                if (wrapper) {
+                    wrapper.appendChild(buttonContainer);
+                    return;
+                }
+            }
+        }
+        
+        // Default placement in regular editor
+        const editorPanel = document.querySelector('.editor-panel');
+        if (editorPanel) {
+            editorPanel.appendChild(buttonContainer);
+        }
+    }
+
+    function addEditorActionButtons() {
+        // Find the editor container or editor header where we'll place buttons
+        const editorContainer = document.querySelector('.editor-panel');
+        if (!editorContainer) return;
+        
+        // Create button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'editor-action-buttons';
+        
+        // Create clear button
+        const clearButton = document.createElement('button');
+        clearButton.className = 'editor-action-btn';
+        clearButton.title = 'Clear editor';
+        clearButton.innerHTML = '<i class="fas fa-trash"></i> Clear';
+        
+        // Create paste button 
+        const pasteButton = document.createElement('button');
+        pasteButton.className = 'editor-action-btn';
+        pasteButton.title = 'Paste from clipboard';
+        pasteButton.innerHTML = '<i class="fas fa-paste"></i> Paste';
+        
+        // Add event listeners
+        clearButton.addEventListener('click', function() {
+            if (confirm('Are you sure you want to clear the editor?')) {
+                if (window.editor) {
+                    window.editor.setValue('');
+                }
+            }
+        });
+        
+        pasteButton.addEventListener('click', async function() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (window.editor) {
+                    window.editor.replaceSelection(text);
+                    window.editor.focus();
+                }
+            } catch (err) {
+                console.error('Failed to read clipboard:', err);
+                alert('Could not access clipboard. Please check browser permissions.');
+            }
+        });
+        
+        // Add buttons to container
+        buttonContainer.appendChild(clearButton);
+        buttonContainer.appendChild(pasteButton);
+        
+        // Add container to editor
+        editorContainer.appendChild(buttonContainer);
     }
     
     function setupMobileLayout() {
@@ -224,6 +335,8 @@
                 window.editor.refresh();
             }, 100);
         }
+
+        positionEditorActionButtons();
     }
     
     function handleResize() {
@@ -287,6 +400,9 @@
         
         // Update footer visibility
         updateFooterVisibility();
+
+        // Position editor action buttons
+        positionEditorActionButtons();
     }
 
     function updateFooterVisibility() {
