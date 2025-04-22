@@ -50,6 +50,29 @@
                 setTimeout(updateMenuButtonVisibility, 100);
             });
         }
+
+        const mobileStyles = document.createElement('style');
+    mobileStyles.textContent = `
+        @media (max-width: 768px) {
+            #side-panel.mobile-visible {
+                left: 0 !important;
+                visibility: visible !important;
+                transform: translateX(0) !important;
+                z-index: 2000;
+            }
+            
+            #mobile-overlay.visible {
+                display: block;
+                opacity: 1;
+                z-index: 1999;
+            }
+            
+            .mobile-menu-open {
+                overflow: hidden;
+            }
+        }
+    `;
+    document.head.appendChild(mobileStyles);
         
         // Add editor toggle button for mobile
         addMobileEditorToggle();
@@ -275,8 +298,30 @@
     
     function toggleMobileMenu() {
         if (sidePanel && mobileOverlay) {
+            // Toggle the 'mobile-visible' class on the side panel 
             const isVisible = sidePanel.classList.toggle('mobile-visible');
+            
+            // Toggle the 'visible' class on the mobile overlay
             mobileOverlay.classList.toggle('visible');
+            
+            // Ensure the side panel has the proper inline style to make it visible
+            if (isVisible) {
+                // Show the panel by setting explicit styles
+                sidePanel.style.left = '0';
+                sidePanel.style.visibility = 'visible';
+                sidePanel.style.transform = 'translateX(0)';
+                
+                // Add a class to body to prevent scrolling while menu is open
+                document.body.classList.add('mobile-menu-open');
+            } else {
+                // Hide the panel
+                sidePanel.style.left = '';
+                sidePanel.style.visibility = '';
+                sidePanel.style.transform = '';
+                
+                // Remove the body class
+                document.body.classList.remove('mobile-menu-open');
+            }
             
             // Hide the menu button when sidebar is visible
             if (mobileMenuButton) {
@@ -289,6 +334,14 @@
         if (sidePanel && mobileOverlay) {
             sidePanel.classList.remove('mobile-visible');
             mobileOverlay.classList.remove('visible');
+            
+            // Reset panel styles
+            sidePanel.style.left = '';
+            sidePanel.style.visibility = '';
+            sidePanel.style.transform = '';
+            
+            // Remove the body class
+            document.body.classList.remove('mobile-menu-open');
             
             // Show the button again
             if (mobileMenuButton && window.innerWidth <= 768) {
