@@ -327,85 +327,50 @@ allowfullscreen
                 // Make sure we have code to evaluate
                 const editorCode = window.editor ? window.editor.getValue() : '';
                 if (!editorCode) {
-                    if (window.logToConsole) window.logToConsole('No code to execute', 'warning');
+                    window.logToConsole('No code to run', 'warning');
                     return;
                 }
                 
                 // Initialize the interpreter if needed
                 if (!window.interpreter) {
+                    window.logToConsole('Initializing interpreter...', 'info');
                     if (window.renderer) {
                         window.interpreter = new Interpreter(window.renderer);
-                        window.renderer.interpreter = window.interpreter;
                     } else {
-                        if (window.logToConsole) window.logToConsole('Renderer not available', 'error');
+                        window.logToConsole('Renderer not available', 'error');
                         return;
                     }
                 }
 
-                if (window.renderer) window.renderer.stop();
-            
-                // Stop any playing audio
-                if (window.audioProcessor) {
-                    window.audioProcessor.stop();
-                }
-                
-                // Also stop recording if active
-                if (window.isRecording && typeof toggleRecording === 'function' && window.renderer) {
-                    console.log('Stopping recording due to stop button');
-                    toggleRecording(window.renderer);
+                if (window.renderer) {
+                    window.renderer.play();
                 }
                 
                 // Reset the interpreter and evaluate the code
                 if (window.interpreter) {
+                    // Instead of explicitly stopping audio here, let the reset handle it
+                    // and then let the interpreter handle loading/playing audio
                     window.interpreter.reset();
                     const success = window.interpreter.evaluate(editorCode);
                     
                     if (success) {
-                        // First, ensure audio processor is properly initialized even if no audio file is loaded
-                        if (window.audioProcessor) {
-                            // Initialize audio context if it doesn't exist
-                            if (!window.audioProcessor.audioContext) {
-                                window.audioProcessor.initAudioContext();
-                            }
-                            
-                            // Resume audio context if it's suspended (needed by browsers)
-                            if (window.audioProcessor.audioContext && 
-                                window.audioProcessor.audioContext.state === 'suspended') {
-                                window.audioProcessor.audioContext.resume();
-                            }
-                            
-                            // If there's an audio element and audio file, try to play it
-                            if (window.audioProcessor.audioElement && 
-                                window.audioProcessor.audioElement.src) {
-                                window.audioProcessor.play();
-                                
-                                // Important: If we're recording, we need to ensure the cloned audio stays in sync
-                                if (window.isRecording && typeof ensureAudioSync === 'function') {
-                                    ensureAudioSync();
-                                }
-                            }
-                        }
+                        window.logToConsole('Script started successfully', 'success');
                         
-                        // Start the animation
-                        if (window.renderer) window.renderer.start();
-                        
-                        // Dispatch an event to signal that playback has started
-                        window.dispatchEvent(new Event('play-animation'));
-                        
-                        // If we're recording, show a notification
-                        if (window.isRecording && window.mediaRecorder && window.logToConsole) {
-                            window.logToConsole('Recording animation with audio...', 'info');
-                        }
-                    } else if (window.logToConsole) {
-                        window.logToConsole('Failed to evaluate code', 'error');
+                        // We don't need to manually call playAudio here - the interpreter
+                        // will handle loading and playing audio if needed
+                    } else {
+                        window.logToConsole('Script evaluation failed', 'error');
                     }
                 }
             } catch (error) {
                 console.error('Error starting animation:', error);
-                if (window.logToConsole) window.logToConsole(`Error: ${error.message}`, 'error');
+                if (window.logToConsole) {
+                    window.logToConsole(`Error: ${error.message}`, 'error');
+                }
             }
         });
     }
+    
     
     // Continue with the rest of the initialization with null checks for each element
 

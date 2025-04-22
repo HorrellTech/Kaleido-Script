@@ -13,6 +13,7 @@ class AudioProcessor {
         this.isPlaying = false;
         this.audioElement = document.getElementById('audio-preview');
         this.audioFiles = {}; // Store loaded audio files
+        this.currentAudioName = null; // Track the name of the currently loaded audio
         
         this.setupEventListeners();
     }
@@ -239,6 +240,9 @@ class AudioProcessor {
                         sampleRate: audioBuffer.sampleRate,
                         name: name
                     };
+                    
+                    // Save the current audio name
+                    this.currentAudioName = name;
                     
                     // Set up the audio element with the loaded audio
                     if (this.audioElement) {

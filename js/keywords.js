@@ -62,6 +62,48 @@ const drawingFunctions = {
         example: 'circle(400, 300, 50); // Draw filled circle at center',
         category: 'shapes'
     },
+    random: {
+        name: 'random(min, max, seed)',
+        description: 'Returns a random number between min and max.',
+        example: 'random(0, 100, 90210); // Random number between 0 and 100 | Can also just say random(32) and get random from 0 - 32',
+        category: 'math'
+    },
+    map: {
+        name: 'map(value, start1, stop1, start2, stop2)',
+        description: 'Maps a value from one range to another.',
+        example: 'map(50, 0, 100, 0, 255); // Maps 50 from range 0-100 to range 0-255',
+        category: 'math'
+    },
+    constrain: {
+        name: 'constrain(value, min, max)',
+        description: 'Constrains a value to be within a specified range.',
+        example: 'constrain(150, 0, 100); // Constrains 150 to 100',
+        category: 'math'
+    },
+    noise: {
+        name: 'noise(x, y, z)',
+        description: 'Generate Perlin noise at coordinates. Returns value between -1 and 1.',
+        example: 'const noiseVal = noise(x * 0.01, y * 0.01); // Smooth noise pattern',
+        category: 'math'
+    },
+    noiseMap: {
+        name: 'noiseMap(nx, ny, scale, octaves, persistence, lacunarity)',
+        description: 'Generate multi-octave noise map at normalized coordinates. Returns value between 0 and 1.',
+        example: 'const terrain = noiseMap(x/width, y/height, 5, 4, 0.5, 2.0);',
+        category: 'math'
+    },
+    noiseSeed: {
+        name: 'noiseSeed(seed)',
+        description: 'Set the seed for the noise generator for consistent patterns.',
+        example: 'noiseSeed(42); // Initialize noise with specific seed',
+        category: 'math'
+    },
+    ellipse: {
+        name: 'ellipse(x, y, radiusX, radiusY, [rotation], [outline])',
+        description: 'Draws an ellipse at position (x,y) with horizontal and vertical radii and optional rotation.',
+        example: 'ellipse(400, 300, 100, 50, Math.PI/4); // Rotated ellipse',
+        category: 'shapes'
+    },
     rect: {
         name: 'rect(x, y, width, height, [outline])',
         description: 'Draws a rectangle with top-left corner at (x,y).',

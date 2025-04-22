@@ -25,6 +25,189 @@ function draw(time) {
   visualVortex(width/2, height/2, 350, 3, 30, 60, 5000, time * 0.2);
 }`},
 {
+  name: "Lava Lamp Visualizer",
+  group: "Minimal",
+  description: "A mesmerizing lava lamp visualization with fluid bubbles that react to music.",
+  code: `/**
+* Lava Lamp Visualizer
+* Flowing liquid bubbles that respond to the music
+*/
+
+// Bubble collection
+let bubbles = [];
+
+function setup() {
+  loadAudio("ambient_chill.mp3");
+  playAudio();
+  
+  // Create initial bubbles
+  for (let i = 0; i < 15; i++) {
+    createBubble();
+  }
+}
+
+function draw(time) {
+  // Background with slight fade for smooth motion
+  background(20, 0, 30, 0.2);
+  
+  // Get audio levels
+  const bass = audiohz(60);
+  const mids = audiohz(500);
+  
+  // Create lamp base
+  drawLampBase();
+  
+  // Enable motion blur for smooth movement
+  motionBlurStart(0.7, "lighter");
+  
+  // Update and draw bubbles
+  updateBubbles(time, bass, mids);
+  
+  // End motion blur
+  motionBlurEnd();
+  
+  // Add occasional new bubbles based on bass drops
+  if (bass > 0.7 && Math.random() < 0.1) {
+    createBubble();
+  }
+  
+  // Draw lamp glass
+  drawLampGlass();
+}
+
+function createBubble() {
+  // Random positioning within lamp bounds
+  const x = width/2 + (Math.random() - 0.5) * width * 0.4;
+  const y = height * (0.6 + Math.random() * 0.3);
+  
+  bubbles.push({
+    x: x,
+    y: y,
+    radiusX: 15 + Math.random() * 40,
+    radiusY: 20 + Math.random() * 50,
+    speed: 0.2 + Math.random() * 0.8,
+    wobble: Math.random() * Math.PI * 2,
+    wobbleSpeed: 0.01 + Math.random() * 0.03,
+    hue: Math.random() * 60 + 280, // Purple to pink range
+    opacity: 0.4 + Math.random() * 0.4,
+    rotation: Math.random() * Math.PI * 0.25
+  });
+}
+
+function updateBubbles(time, bass, mids) {
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const bubble = bubbles[i];
+    
+    // Move upward
+    bubble.y -= bubble.speed * (1 + bass * 2);
+    
+    // Add side-to-side wobble
+    bubble.wobble += bubble.wobbleSpeed;
+    bubble.x += Math.sin(bubble.wobble) * 0.5;
+    
+    // Adjust bubble size with audio
+    const pulseX = 1 + mids * 0.2;
+    const pulseY = 1 + bass * 0.3;
+    
+    // Slowly rotate
+    bubble.rotation += 0.005 + bass * 0.01;
+    
+    // Draw the bubble
+    fill(\`hsla(\${bubble.hue}, 90%, 60%, \${bubble.opacity})\`);
+    glowStart(\`hsla(\${bubble.hue}, 90%, 70%, 0.5)\`, 15);
+    
+    // Use ellipse for more interesting organic shapes
+    ellipse(
+      bubble.x, 
+      bubble.y, 
+      bubble.radiusX * pulseX, 
+      bubble.radiusY * pulseY,
+      bubble.rotation
+    );
+    
+    glowEnd();
+    
+    // Remove bubbles that reach the top
+    if (bubble.y < height * 0.15) {
+      bubbles.splice(i, 1);
+    }
+  }
+}
+
+function drawLampBase() {
+  // Base platform
+  fill(40, 30, 50);
+  ellipse(width/2, height * 0.95, width * 0.3, height * 0.05);
+  
+  // Base cylinder
+  fill(30, 20, 40);
+  rect(width/2 - width * 0.05, height * 0.8, width * 0.1, height * 0.15);
+  
+  // Top cap
+  fill(40, 30, 50);
+  ellipse(width/2, height * 0.15, width * 0.2, height * 0.03);
+}
+
+function drawLampGlass() {
+  // Create a gradient for the glass
+  const ctx = context;
+  const gradient = ctx.createLinearGradient(0, height * 0.2, 0, height * 0.8);
+  gradient.addColorStop(0, 'rgba(255, 220, 255, 0.1)');
+  gradient.addColorStop(1, 'rgba(180, 150, 200, 0.15)');
+  
+  // Draw glass shape (slightly transparent)
+  ctx.fillStyle = gradient;
+  
+  // Left side
+  ctx.beginPath();
+  ctx.moveTo(width/2 - width * 0.15, height * 0.15);
+  ctx.quadraticCurveTo(
+    width/2 - width * 0.25,
+    height * 0.5,
+    width/2 - width * 0.15,
+    height * 0.8
+  );
+  
+  // Bottom curve
+  ctx.lineTo(width/2 + width * 0.15, height * 0.8);
+  
+  // Right side
+  ctx.quadraticCurveTo(
+    width/2 + width * 0.25,
+    height * 0.5,
+    width/2 + width * 0.15,
+    height * 0.15
+  );
+  
+  ctx.closePath();
+  ctx.fill();
+  
+  // Add subtle outline to the glass
+  stroke('rgba(255, 255, 255, 0.2)');
+  lineWidth(1);
+  
+  ctx.beginPath();
+  ctx.moveTo(width/2 - width * 0.15, height * 0.15);
+  ctx.quadraticCurveTo(
+    width/2 - width * 0.25,
+    height * 0.5,
+    width/2 - width * 0.15,
+    height * 0.8
+  );
+  ctx.stroke();
+  
+  ctx.beginPath();
+  ctx.moveTo(width/2 + width * 0.15, height * 0.15);
+  ctx.quadraticCurveTo(
+    width/2 + width * 0.25,
+    height * 0.5,
+    width/2 + width * 0.15,
+    height * 0.8
+  );
+  ctx.stroke();
+}`
+},
+{
   name: "Classic Music Player",
   group: "Beginner",
   description: "A complete visualizer with background, center image, circular visualizer, and responsive bars",

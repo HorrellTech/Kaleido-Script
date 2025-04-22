@@ -294,82 +294,6 @@ class Interpreter {
     }
 
     evaluate(code) {
-        /*try {
-            // Process KScript code if available before JavaScript code
-            if (code && code.trim().startsWith('#kscript')) {
-                if (window.kscriptParser) {
-                    try {
-                        if (window.logToConsole) window.logToConsole("Parsing KScript code...");
-                        const parsedCode = window.kscriptParser.parse(code);
-                        
-                        // Debug - log the generated code to console to help identify issues
-                        console.log("Generated JavaScript code:", parsedCode);
-                        
-                        // Add explicit function handling for the renderer
-                        const wrappedCode = `
-                            try {
-                                ${parsedCode}
-                                
-                                // Expose functions to window to ensure they're accessible
-                                if (typeof setup === 'function') window.setup = setup;
-                                if (typeof draw === 'function') window.draw = draw;
-                                
-                                // Register the draw function with the renderer
-                                if (typeof draw === 'function') {
-                                    window._kscriptDraw = draw; // Store for safe access
-                                }
-                            } catch(e) {
-                                console.error("Error in KScript execution:", e);
-                            }
-                        `;
-                        
-                        if (window.logToConsole) window.logToConsole("KScript parsed successfully!");
-                        code = wrappedCode;
-                    } catch (parseError) {
-                        const errorMessage = `KScript Parse Error: ${parseError.message}`;
-                        console.error(errorMessage);
-                        if (window.logToConsole) window.logToConsole(errorMessage, 'error');
-                        return false;
-                    }
-                } else {
-                    if (window.logToConsole) window.logToConsole("KScript parser not available, running as JavaScript", "warning");
-                }
-            }
-            
-            // Execute the JavaScript code
-            try {
-                const executeFunc = new Function('interpreter', `
-                    with(interpreter) {
-                        ${code}
-                    }
-                    return true;
-                `);
-                
-                const result = executeFunc(this);
-                
-                // Set up renderer callback after successful execution
-                if (window._kscriptDraw && typeof window._kscriptDraw === 'function') {
-                    this.renderer.drawFunction = (time) => {
-                        window._kscriptDraw(time);
-                    };
-                    console.log("KScript draw function registered successfully");
-                }
-                
-                return result;
-            } catch (jsError) {
-                const errorMessage = `KScript Error: ${jsError.message}`;
-                console.error(errorMessage);
-                console.error(jsError.stack);
-                if (window.logToConsole) window.logToConsole(errorMessage, 'error');
-                return false;
-            }
-        } catch (error) {
-            const errorMessage = `KScript Error: ${error.message}`;
-            console.error(errorMessage);
-            if (window.logToConsole) window.logToConsole(errorMessage, 'error');
-            return false;
-        }*/
-
         // Now process javascript code
         try {
             // Store current settings if they exist
@@ -377,6 +301,9 @@ class Interpreter {
 
             // Clear previous state
             this.reset();
+
+            // Setup Math shortcuts to make math functions available without Math. prefix
+            this.setupMathShortcuts();
 
             // Restore settings if they existed
             if (previousSettings) {
@@ -420,6 +347,8 @@ class Interpreter {
             window.getHeight = () => this.renderer.canvas.height;
     
             window.circle = (x, y, radius, outline = false) => this.circle(x, y, radius, outline);
+            window.ellipse = (x, y, radiusX, radiusY, rotation = 0, outline = false) => 
+                this.ellipse(x, y, radiusX, radiusY, rotation, outline);
             window.rect = (x, y, width, height, outline = false) => this.rect(x, y, width, height, outline);
             window.line = (x1, y1, x2, y2) => this.line(x1, y1, x2, y2);
             window.background = (r, g, b) => this.background(r, g, b);
@@ -429,6 +358,11 @@ class Interpreter {
             window.brush = (r, g, b, a = 1) => this.brush(r, g, b, a);
             window.color = (r, g, b, a = 1) => this.color(r, g, b, a);
             window.lineWidth = (width) => this.lineWidth(width);
+
+            window.noise = (x, y, z) => this.noise(x, y, z);
+            window.noiseMap = (nx, ny, scale, octaves, persistence, lacunarity) => 
+                this.noiseMap(nx, ny, scale, octaves, persistence, lacunarity);
+            window.noiseSeed = (seed) => this.initNoise(seed);
 
             window.visualCenterImage = (imagePath, size = 200, reactivity = 0.5, glowColor = null) =>
                 this.visualCenterImage(imagePath, size, reactivity, glowColor);
@@ -530,14 +464,19 @@ class Interpreter {
             window.audioPlay = () => this.playAudio();
             window.audioPause = () => this.pauseAudio();
             window.audiohz = (freq) => this.getAudioFrequency(freq);
-            window.audioVolume = (volume) => this.audioVolume(volume);
-            window.getAudioVolume = () => this.getAudioVolume();
+            window.audioVolume = () => this.audioVolume();
+            window.setAudioVolume = (volume) => this.setAudioVolume(volume);
 
             window.audioFromMic = (enable = true) => this.audioFromMic(enable);
             window.audioFromDevice = (enable = true) => this.audioFromDevice(enable);
 
             window.mouseX = () => this.mouseX;
             window.mouseY = () => this.mouseY;
+
+            window.map = (value, inMin, inMax, outMin, outMax) => 
+                this.map(value, inMin, inMax, outMin, outMax);
+
+            window.constrain = (value, min, max) => this.constrain(value, min, max);
 
             // 3D functions
             window.cameraPosition = (x, y, z) => this.cameraPosition(x, y, z);
@@ -562,6 +501,9 @@ class Interpreter {
             window.getFps = () => this.getFps();
 
             window.generateSeededRandom = (seed) => this.generateSeededRandom(seed);
+            window.random = (min = 0, max = 1, seed = null) => this.random(min, max, seed);
+            window.randomInt = (min, max, seed = null) => this.randomInt(min, max, seed);
+            
     
             // Bind logToConsole to the renderer instance
             window.log = (message, type = 'info') => {
@@ -981,6 +923,89 @@ class Interpreter {
         };
     }
 
+    // If seed is provided, generates deterministic random numbers
+    // Otherwise uses Math.random for true randomness
+    random(min = 0, max = 1, seed = null) {
+        // If only one argument is provided, treat it as max with min=0
+        if (arguments.length === 1) {
+            max = min;
+            min = 0;
+        }
+        
+        if (seed !== null) {
+            // Use seeded random for deterministic output
+            const randomFunc = this.generateSeededRandom(seed);
+            return min + randomFunc() * (max - min);
+        } else {
+            // Use standard Math.random for true randomness
+            return min + Math.random() * (max - min);
+        }
+    }
+
+    randomInt(min, max, seed = null) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(this.random(min, max + 1, seed));
+    }
+
+    /**
+     * Constrains a value between a minimum and maximum value.
+     * @param {number} value - The value to constrain
+     * @param {number} min - The minimum limit
+     * @param {number} max - The maximum limit
+     * @returns {number} The constrained value
+     */
+    constrain(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    /**
+     * Automatically wraps common Math functions so they can be used without the Math. prefix
+     * This augments the global scope with direct access to mathematical functions
+     */
+    setupMathShortcuts() {
+        // List of common Math functions to expose globally
+        const mathFunctions = [
+            'abs', 'acos', 'acosh', 'asin', 'asinh', 'atan', 'atanh', 'atan2',
+            'cbrt', 'ceil', 'clz32', 'cos', 'cosh', 'exp', 'expm1', 'floor',
+            'fround', 'hypot', 'imul', 'log', 'log10', 'log1p', 'log2',
+            'max', 'min', 'pow', 'round', 'sign', 'sin', 'sinh', 'sqrt',
+            'tan', 'tanh', 'trunc'
+        ];
+        
+        // Create window-level aliases for each Math function
+        mathFunctions.forEach(funcName => {
+            if (typeof Math[funcName] === 'function' && !window[funcName]) {
+                window[funcName] = (...args) => Math[funcName](...args);
+            }
+        });
+        
+        // Also expose common Math constants
+        if (!window.PI) window.PI = Math.PI;
+        if (!window.E) window.E = Math.E;
+        if (!window.TAU) window.TAU = Math.PI * 2; // Useful constant for circular calculations
+    }
+
+    /**
+     * Maps a value from one range to another.
+     * @param {number} value - The value to map
+     * @param {number} inMin - The minimum of the input range
+     * @param {number} inMax - The maximum of the input range
+     * @param {number} outMin - The minimum of the output range
+     * @param {number} outMax - The maximum of the output range
+     * @returns {number} The mapped value
+     */
+    map(value, inMin, inMax, outMin, outMax) {
+        // First constrain the value to the input range
+        const constrainedValue = Math.max(inMin, Math.min(inMax, value));
+        
+        // Calculate how far (proportionally) the value is in the input range
+        const percentage = (constrainedValue - inMin) / (inMax - inMin);
+        
+        // Apply that percentage to the output range
+        return outMin + percentage * (outMax - outMin);
+    }
+
     setColor(color) {
         if (!color) return;
         
@@ -1145,6 +1170,16 @@ class Interpreter {
         }
     }
 
+    ellipse(x, y, radiusX, radiusY, rotation = 0, outline = false) {
+        this.context.beginPath();
+        this.context.ellipse(x, y, radiusX, radiusY, rotation, 0, Math.PI * 2);
+        if (outline) {
+            this.context.stroke();
+        } else {
+            this.context.fill();
+        }
+    }
+
     rect(x, y, width, height, outline = false) {
         if (outline) {
             this.context.strokeRect(x, y, width, height);
@@ -1245,6 +1280,148 @@ class Interpreter {
         window.logToConsole("Turtle ended");
     }
 
+    // Perlin Noise implementation
+    initNoise(seed = Math.random()) {
+        // Initialize noise with optional seed
+        this.noiseSeed = seed;
+        this.noisePermutation = new Array(512);
+        this.noiseGrad = [
+            [1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],
+            [1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],
+            [0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]
+        ];
+        
+        // Create permutation table
+        const p = new Array(256);
+        for (let i = 0; i < 256; i++) p[i] = i;
+        
+        // Fisher-Yates shuffle
+        for (let i = 255; i > 0; i--) {
+            const seededRandom = Math.abs(Math.sin(i * this.noiseSeed * 43758.5453123)) % 1;
+            const j = Math.floor(seededRandom * (i + 1));
+            [p[i], p[j]] = [p[j], p[i]];
+        }
+        
+        // Extend with a copy of the array
+        for (let i = 0; i < 256; i++) {
+            this.noisePermutation[i] = p[i];
+            this.noisePermutation[i + 256] = p[i];
+        }
+        
+        window.logToConsole("Noise initialized with seed: " + this.noiseSeed);
+    }
+
+    noise(x, y = 0, z = 0) {
+        // Initialize noise if not already
+        if (!this.noisePermutation) {
+            this.initNoise();
+        }
+        
+        // Find unit cube that contains point
+        const X = Math.floor(x) & 255;
+        const Y = Math.floor(y) & 255;
+        const Z = Math.floor(z) & 255;
+        
+        // Find relative x, y, z of point in cube
+        x -= Math.floor(x);
+        y -= Math.floor(y);
+        z -= Math.floor(z);
+        
+        // Compute fade curves for each x, y, z
+        const u = this.noiseFade(x);
+        const v = this.noiseFade(y);
+        const w = this.noiseFade(z);
+        
+        // Hash coordinates of the 8 cube corners
+        const A = this.noisePermutation[X] + Y;
+        const AA = this.noisePermutation[A] + Z;
+        const AB = this.noisePermutation[A + 1] + Z;
+        const B = this.noisePermutation[X + 1] + Y;
+        const BA = this.noisePermutation[B] + Z;
+        const BB = this.noisePermutation[B + 1] + Z;
+        
+        // Add blended results from 8 corners of cube
+        const result = this.noiseLerp(w, 
+            this.noiseLerp(v, 
+                this.noiseLerp(u, 
+                    this.noiseGrad3(this.noisePermutation[AA], x, y, z),
+                    this.noiseGrad3(this.noisePermutation[BA], x-1, y, z)
+                ),
+                this.noiseLerp(u, 
+                    this.noiseGrad3(this.noisePermutation[AB], x, y-1, z),
+                    this.noiseGrad3(this.noisePermutation[BB], x-1, y-1, z)
+                )
+            ),
+            this.noiseLerp(v, 
+                this.noiseLerp(u, 
+                    this.noiseGrad3(this.noisePermutation[AA+1], x, y, z-1),
+                    this.noiseGrad3(this.noisePermutation[BA+1], x-1, y, z-1)
+                ),
+                this.noiseLerp(u, 
+                    this.noiseGrad3(this.noisePermutation[AB+1], x, y-1, z-1),
+                    this.noiseGrad3(this.noisePermutation[BB+1], x-1, y-1, z-1)
+                )
+            )
+        );
+        
+        // Return in range [-1, 1]
+        return result;
+    }
+    
+    noiseFade(t) {
+        // Fade function as defined by Ken Perlin
+        return t * t * t * (t * (t * 6 - 15) + 10);
+    }
+    
+    noiseLerp(t, a, b) {
+        // Linear interpolation
+        return a + t * (b - a);
+    }
+    
+    noiseGrad3(hash, x, y, z) {
+        // Convert low 4 bits of hash code into 12 gradient directions
+        const h = hash & 15;
+        const grad = this.noiseGrad[h % 12];
+        return grad[0] * x + grad[1] * y + grad[2] * z;
+    }
+    
+    noiseMap(nx, ny, scale, octaves = 1, persistence = 0.5, lacunarity = 2.0) {
+        // Get noise but map to [0,1] range with multiple octaves
+        // nx, ny: normalized coordinates (0-1)
+        // scale: feature size scale factor
+        // octaves: number of detail layers
+        // persistence: how much each octave contributes to the overall shape
+        // lacunarity: how much detail is added at each octave
+        
+        let amplitude = 1;
+        let frequency = 1;
+        let noiseSum = 0;
+        let amplitudeSum = 0; // Used for normalizing result to [0, 1]
+        
+        // Add successively smaller, higher-frequency details
+        for (let i = 0; i < octaves; i++) {
+            // Get noise value
+            const sampleX = nx * scale * frequency;
+            const sampleY = ny * scale * frequency;
+            const noiseVal = this.noise(sampleX, sampleY);
+            
+            noiseSum += noiseVal * amplitude;
+            
+            // Keep track of the maximum possible amplitude sum
+            amplitudeSum += amplitude;
+            
+            // Update values for next octave
+            amplitude *= persistence;
+            frequency *= lacunarity;
+        }
+        
+        // Normalize to [0, 1]
+        let normalizedNoise = (noiseSum / amplitudeSum) * 0.5 + 0.5;
+        
+        // Ensure we stay in [0, 1] range
+        return Math.max(0, Math.min(1, normalizedNoise));
+    }
+
     // Audio reactive functions
     loadAudio(path) {
         const defaultAudio = "sounds/default-music.mp3";
@@ -1252,10 +1429,18 @@ class Interpreter {
     
         // First try the provided path
         return this.tryLoadAudio(path)
+            .then(audioData => {
+                window.logToConsole(`Successfully loaded audio: ${path}`, 'info');
+                return audioData;
+            })
             .catch(error => {
                 window.logToConsole(`Failed to load audio ${path}, trying default...`, 'warning');
                 // Try default audio
                 return this.tryLoadAudio(defaultAudio)
+                    .then(audioData => {
+                        window.logToConsole(`Loaded default audio instead`, 'info');
+                        return audioData;
+                    })
                     .catch(error => {
                         window.logToConsole(`Failed to load default audio, using fallback...`, 'warning');
                         // Finally try fallback URL
@@ -1606,14 +1791,14 @@ class Interpreter {
         }
     }
 
-    audioVolume(value) {
+    setAudioVolume(value) {
         if (window.audioProcessor && window.audioProcessor.audioElement) {
             window.audioProcessor.audioElement.volume = value;
             return true;
         }
     }
 
-    getAudioVolume() {
+    audioVolume() {
         if (window.audioProcessor && window.audioProcessor.audioElement) {
             return window.audioProcessor.audioElement.volume;
         }
@@ -1695,10 +1880,57 @@ class Interpreter {
         return false;
     }
     
-    playAudio() {
+    playAudio(requestedFile = null) {
         // Try to use audioProcessor if available
         if (window.audioProcessor) {
-            console.log("Playing audio through audioProcessor");
+            console.log("Playing audio through audioProcessor", requestedFile ? `(requested: ${requestedFile})` : '');
+            
+            // If a specific file was requested, make sure it's loaded
+            if (requestedFile && requestedFile !== window.audioProcessor.currentAudioName) {
+                window.logToConsole(`Loading requested audio: ${requestedFile}`, 'info');
+                
+                // Load the requested audio file and then play it
+                this.loadAudio(requestedFile)
+                    .then(() => {
+                        // Make sure audio processor has clean connections before playing
+                        if (window.audioProcessor.ensureAudioConnections) {
+                            window.audioProcessor.ensureAudioConnections();
+                        }
+                        
+                        window.audioProcessor.play();
+                        this.isPlayingAudio = true;
+                        window.logToConsole(`Now playing: ${requestedFile}`, 'success');
+                    })
+                    .catch(err => {
+                        window.logToConsole(`Failed to load requested audio: ${err.message}`, 'error');
+                    });
+                
+                return true;
+            }
+            
+            // Check if we have audio loaded already
+            if (!window.audioProcessor.audioBuffer && !window.audioProcessor.audioElement.src) {
+                window.logToConsole("No audio loaded, loading default audio...", 'info');
+                
+                // Load default audio and then play it
+                this.loadAudio("sounds/default-music.mp3")
+                    .then(() => {
+                        // Make sure audio processor has clean connections before playing
+                        if (window.audioProcessor.ensureAudioConnections) {
+                            window.audioProcessor.ensureAudioConnections();
+                        }
+                        
+                        window.audioProcessor.play();
+                        this.isPlayingAudio = true;
+                        window.logToConsole("Default audio loaded and playing", 'success');
+                    })
+                    .catch(err => {
+                        window.logToConsole(`Failed to load and play audio: ${err.message}`, 'error');
+                    });
+                
+                return true;
+            }
+            
             this.isPlayingAudio = true;
             
             // Make sure audio processor has clean connections before playing
@@ -1721,8 +1953,26 @@ class Interpreter {
         }
         
         // Fall back to original implementation
-        if (!this.audioBuffer) return false;
+        if (!this.audioBuffer) {
+            // Try to load default audio
+            window.logToConsole("No audio loaded, loading default audio...", 'info');
+            
+            this.loadAudio("sounds/default-music.mp3")
+                .then(() => {
+                    // Now play the audio
+                    this.playAudioInternal();
+                })
+                .catch(err => {
+                    window.logToConsole(`Failed to load and play audio: ${err.message}`, 'error');
+                });
+                
+            return true;
+        }
         
+        return this.playAudioInternal();
+    }
+
+    playAudioInternal() {
         // Disconnect any existing audio source
         if (this.audioSource) {
             try {
@@ -2251,78 +2501,6 @@ class Interpreter {
             this.depthBuffer.clear();
         }
     }
-    
-    // Draw all 3D points with depth testing
-    /*draw3D() {
-        if (!this.context || !this.renderer || !this.renderer.canvas) return;
-        
-        // Update depth buffer if needed
-        this.updateDepthBuffer();
-        
-        // Clear depth buffer
-        this.depthBuffer.clear();
-        
-        // Create an array of renderable objects for sorting
-        const renderables = [];
-        
-        // Process points
-        for (const point of this.points3D) {
-            const projected = this.projectPoint(point);
-            
-            // Only include points that are in front of the camera and within view
-            if (projected.visible) {
-                renderables.push({
-                    type: 'point',
-                    point: point,
-                    projected: projected,
-                    z: projected.z // For depth sorting
-                });
-            }
-        }
-        
-        // Sort renderables by z-depth (far to near)
-        renderables.sort((a, b) => b.z - a.z);
-        
-        // Now draw in sorted order (back to front)
-        const ctx = this.context;
-        ctx.save();
-        
-        for (const renderable of renderables) {
-            if (renderable.type === 'point') {
-                const { point, projected } = renderable;
-                
-                // Calculate size based on z-distance (closer points appear larger)
-                const size = point.size * (this.camera.far / (projected.z + this.camera.near));
-                
-                // Calculate buffer position for depth check
-                const x = Math.floor(projected.x);
-                const y = Math.floor(projected.y);
-                
-                // Only draw if in bounds and passes depth test
-                if (x >= 0 && x < this.depthBuffer.width && 
-                    y >= 0 && y < this.depthBuffer.height) {
-                    
-                    const bufferIndex = y * this.depthBuffer.width + x;
-                    
-                    // If this point is closer than what's already drawn at this pixel
-                    if (projected.z < this.depthBuffer.data[bufferIndex]) {
-                        // Update depth buffer
-                        this.depthBuffer.data[bufferIndex] = projected.z;
-                        
-                        // Set color if specified, otherwise use current fill style
-                        if (point.color) ctx.fillStyle = point.color;
-                        
-                        // Draw the point as a circle
-                        ctx.beginPath();
-                        ctx.arc(projected.x, projected.y, size, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                }
-            }
-        }
-        
-        ctx.restore();
-    }*/
 
     draw3D() {
         if (!this.context || !this.renderer || !this.renderer.canvas) return;

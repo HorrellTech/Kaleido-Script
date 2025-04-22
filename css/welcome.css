@@ -261,3 +261,35 @@
         margin-top: 10px;
     }
 }
+
+.tertiary-button {
+    background-color: transparent;
+    color: #999;
+    border: 1px solid #444;
+}
+
+.tertiary-button:hover {
+    background-color: rgba(150, 150, 150, 0.1);
+    color: #ccc;
+}
+
+.small-button {
+    padding: 5px 10px;
+    font-size: 0.85rem;
+    font-weight: normal;
+}
+
+.show-prompt-button {
+    background-color: #444;
+    color: #fff;
+    border: 1px solid #666;
+    padding: 3px 8px;
+    font-size: 0.8rem;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.show-prompt-button:hover {
+    opacity: 1;
+    background-color: #555;
+}

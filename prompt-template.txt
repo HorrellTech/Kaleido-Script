@@ -1,71 +1,57 @@
-# Audio Visualizer Request Template
+Prompt for AI Chatbots to Create Visualizers for KaleidoScript
 
-I'm using a JavaScript canvas-based audio visualization framework that provides these key features:
+You are helping to create a new audio-reactive visualizer for the KaleidoScript app. This app lets users write JavaScript code to draw and animate visualizations that react to music or microphone input. The app provides a set of drawing and audio functions, and each visualizer is a function (or set of functions) that uses these APIs.
 
-## Core Functions
-- `audiohz(freq)`: Returns amplitude (0-1) at specified frequency
-- `glowStart(color, size)` / `glowEnd()`: Add glow effects
-- Global `time` variable for animations (seconds elapsed)
-- Canvas dimensions available as `width` and `height`
+How the App Works:
 
-## Available Visualizer Building Blocks:
-```javascript
-// Basic Drawing
-circle(x, y, radius, outline?)           // Draw circle
-line(x1, y1, x2, y2)                    // Draw line
-fill(r, g, b, alpha?)                   // Set fill color
-stroke(r, g, b, alpha?)                 // Set stroke color
-lineWidth(width)                        // Set line width
+The main functions are setup() (runs once) and draw(time) (runs every animation frame, with time in ms).
+You can use drawing functions like circle(x, y, radius), rect(x, y, w, h), line(x1, y1, x2, y2), fill(r, g, b, a), stroke(r, g, b, a), and more.
+The canvas size is available as width and height.
+Audio-reactive data is available via:
+audioVolume() – returns the current audio volume (0 to 1).
+audiohz(freq) – returns the amplitude at a specific frequency (e.g., audiohz(60) for bass).
+You can load images with loadImage(path) and audio with loadAudio(path).
+To play audio: playAudio().
+There are built-in visualizer helpers like visualCircular(...), visualBar(...), etc.
 
-// Effects
-glowStart(color, size)                  // Start glow effect
-glowEnd()                              // End glow effect
-motionBlurStart(alpha, composite)       // Start motion blur
-motionBlurEnd()                        // End motion blur
-```
+Math functions should have 'Math.' before them.
 
-## Example Structure:
-```javascript
+You can also define a `const settings = {}` object at the top of your code to store easily changeable parameters, such as colors, sizes, or other options. Use these settings throughout your visualizer for easy customization.
+
+Example Visualizer:
+
 const settings = {
-    settings1: 0,
-    settings2: 2
-}
+    bgColor: [10, 10, 30],
+    circleColor: [255, 100, 200, 0.7],
+    bassFreq: 60,
+    baseRadius: 100,
+    radiusScale: 200
+};
 
-function setup()
-{
-    loadAudio("audio.mp3");
+function setup() {
+    loadAudio("Music/song.mp3");
     playAudio();
 }
 
 function draw(time) {
-    // Clear previous frame
-    clear();
-    
-    // Get audio data
-    const bassAmplitude = audiohz(60);  // Low frequencies
-    const midAmplitude = audiohz(500);  // Mid frequencies
-    const highAmplitude = audiohz(2000); // High frequencies
-    
-    // Draw visualization
-    // Your visualization code here
+    background(...settings.bgColor);
+
+    let bass = audiohz(settings.bassFreq);
+
+    fill(...settings.circleColor);
+    circle(width/2, height/2, settings.baseRadius + bass * settings.radiusScale);
 }
-```
 
-## My Request:
-I want to create a visualizer that [describe your desired visualization]. The visualization should react to [specify which frequencies] and should [describe the desired behavior/effect].
+Instructions:
 
-Key elements I want to include:
-1. [List specific visual elements]
-2. [List audio reactive behaviors]
-3. [List any special effects desired]
-
-Please generate the code using this framework's functions.
+Write a new visualizer by defining setup() and draw(time).
+Use the provided drawing and audio functions.
+Make the visualization react to the audio.
+Optionally, use images or advanced effects.
+Define a `const settings = {}` object for easy customization of parameters.
 
 
 
 
-
-Can you look at the keywords and interpreter and this prompt tempate, and make some audio visualizers for me? 
-Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. 
-Ready yourself for the requests, you are now a kaleido-script master
-CaCan you look at the keywords and interpreter and this prompt tempate, and make some audio visualizers for me? Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. Ready yourself for the requests, you are now a kaleido-script mastern you look at the keywoCan you look at the keywords and interpreter anCan you look at the keywords and interpreter and this prompt tempate, and make some audio visualizers for me? Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. Ready yourself for the requests, you are now a kaleido-script masterd this prompt tempate, and make some audio visualizers for me? Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. Ready yourself for the requests, you are now a kaleido-script masterrds and interpreter and this prompt tempate, and make some audio visualizers for me? Keywords holds extra visualizers etc you may be able to use instead of recreating any you might need. Ready yourself for the requests, you are now a kaleido-script master
+You can copy and paste this prompt into ChatGPT or another AI chatbot to generate new visualizer code for your app.
+// ...existing code...

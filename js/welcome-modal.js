@@ -69,6 +69,10 @@ class WelcomeModal {
                                     that respond to sound.
                                 </p>
                             </div>
+
+                            <button id="show-prompt-button" class="welcome-button secondary-button">
+                                Show AI Visualizer Prompt (Paste into AI then request a visualizer)
+                            </button>
                         </div>
                     </div>
                     
@@ -127,6 +131,8 @@ class WelcomeModal {
         const getStartedButton = document.getElementById('get-started-button');
         const visualComposerButton = document.getElementById('open-visual-composer');
         const dontShowCheckbox = document.getElementById('dont-show-welcome');
+        const showPromptButton = document.getElementById('show-prompt-button');  // This was missing
+
         
         if (closeButton) {
             closeButton.addEventListener('click', () => this.close());
@@ -154,6 +160,175 @@ class WelcomeModal {
                 this.dontShowAgain = e.target.checked;
             });
         }
+
+        if (showPromptButton) {
+            showPromptButton.addEventListener('click', () => {
+                this.showPromptModal();
+            });
+        }
+    }
+
+    async showPromptModal() {
+        // Fetch the prompt template from the file
+        let promptText = '';
+        try {
+            const response = await fetch('prompt-template.txt');
+            promptText = await response.text();
+        } catch (e) {
+            promptText = `Prompt for AI Chatbots to Create Visualizers for KaleidoScript
+    
+    You are helping to create a new audio-reactive visualizer for the KaleidoScript app. This app lets users write JavaScript code to draw and animate visualizations that react to music or microphone input. The app provides a set of drawing and audio functions, and each visualizer is a function (or set of functions) that uses these APIs.
+    
+    The best AI for generating visualizers is Claude 3.7 Sonnet, but you can also use ChatGPT or other AI chatbots. But may
+    take a few tries to get the right code.
+
+    How the App Works:
+    
+    The main functions are setup() (runs once) and draw(time) (runs every animation frame, with time in ms).
+    You can use drawing functions like circle(x, y, radius), rect(x, y, w, h), line(x1, y1, x2, y2), fill(r, g, b, a), stroke(r, g, b, a), and more.
+    The canvas size is available as width and height.
+    Audio-reactive data is available via:
+    audioVolume() – returns the current audio volume (0 to 1).
+    audiohz(freq) – returns the amplitude at a specific frequency (e.g., audiohz(60) for bass).
+    You can load images with loadImage(path) and audio with loadAudio(path).
+    To play audio: playAudio().
+    There are built-in visualizer helpers like visualCircular(...), visualBar(...), etc.
+
+    Math functions should have 'Math.' prefix (e.g., Math.sin, Math.cos).
+    You can use the built-in color functions like color(r, g, b) and color(r, g, b, a) for RGBA colors.
+
+    You can use the built-in random(min, max) function to generate random numbers.
+
+    You can use the built-in noise(x, y) function to generate Perlin noise.
+    You can use the built-in map(value, start1, stop1, start2, stop2) function to map a value from one range to another.
+    
+    You can also define a const settings = {} object at the top of your code to store easily changeable parameters, such as colors, sizes, or other options. Use these settings throughout your visualizer for easy customization.
+    
+    Example Visualizer:
+    
+    const settings = {
+        bgColor: [10, 10, 30],
+        circleColor: [255, 100, 200, 0.7],
+        bassFreq: 60,
+        baseRadius: 100,
+        radiusScale: 200
+    };
+    
+    function setup() {
+        loadAudio("Music/song.mp3");
+        playAudio();
+    }
+    
+    function draw(time) {
+        background(...settings.bgColor);
+        let bass = audiohz(settings.bassFreq);
+        fill(...settings.circleColor);
+        circle(width/2, height/2, settings.baseRadius + bass * settings.radiusScale);
+    }
+    
+    Instructions:
+    
+    Write a new visualizer by defining setup() and draw(time).
+    Use the provided drawing and audio functions.
+    Make the visualization react to the audio.
+    Optionally, use images or advanced effects.
+    Define a const settings = {} object for easy customization of parameters.
+    You can copy and paste this prompt into ChatGPT or another AI chatbot to generate new visualizer code for your app.`;
+        }
+    
+        // Add CSS for the prompt modal if it doesn't exist
+        if (!document.getElementById('prompt-modal-styles')) {
+            const style = document.createElement('style');
+            style.id = 'prompt-modal-styles';
+            style.textContent = `
+                .prompt-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-color: rgba(0, 0, 0, 0.7);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10000;
+                }
+                
+                .prompt-modal-content {
+                    background-color: #202330;
+                    color: #fff;
+                    width: 80%;
+                    max-width: 800px;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+                }
+                
+                .prompt-modal-content h3 {
+                    margin-top: 0;
+                    color: #61dafb;
+                }
+                
+                #ai-prompt-textarea {
+                    background-color: #11121b;
+                    color: #f0f0f0;
+                    font-family: monospace;
+                    border: 1px solid #444;
+                    padding: 10px;
+                    border-radius: 4px;
+                    outline: none;
+                }
+                
+                .prompt-modal .welcome-button {
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-left: 10px;
+                    border: none;
+                    font-weight: bold;
+                }
+                
+                .prompt-modal .primary-button {
+                    background-color: #61dafb;
+                    color: #202330;
+                }
+                
+                .prompt-modal .secondary-button {
+                    background-color: #3d3d3d;
+                    color: #ffffff;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    
+        // Create the modal
+        const modal = document.createElement('div');
+        modal.className = 'prompt-modal';
+        modal.innerHTML = `
+            <div class="prompt-modal-content">
+                <h3>AI Visualizer Prompt</h3>
+                <p>Copy this prompt and paste it into ChatGPT or another AI chatbot, then ask it to create a visualization for you.</p>
+                <textarea id="ai-prompt-textarea" style="width:100%;height:300px;resize:vertical;">${promptText}</textarea>
+                <div style="margin-top:10px;text-align:right;">
+                    <button id="copy-prompt-btn" class="welcome-button primary-button">Copy Prompt</button>
+                    <button id="close-prompt-btn" class="welcome-button secondary-button">Close</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    
+        // Copy to clipboard
+        modal.querySelector('#copy-prompt-btn').onclick = () => {
+            const textarea = modal.querySelector('#ai-prompt-textarea');
+            textarea.select();
+            document.execCommand('copy');
+            alert('Prompt copied to clipboard! Paste it into ChatGPT or another AI chatbot.');
+        };
+    
+        // Close modal
+        modal.querySelector('#close-prompt-btn').onclick = () => {
+            document.body.removeChild(modal);
+        };
     }
     
     show() {
