@@ -1682,10 +1682,30 @@ ${visualizerCode}}`;
     }
     
     openComposer() {
-        if (this.overlay) {
-            this.overlay.style.display = 'block';
-        }
+    // Add mobile handling
+    if (window.innerWidth <= 768 && typeof window.closeEditorPanel === 'function') {
+        // Close the editor panel if it's visible on mobile
+        window.closeEditorPanel();
     }
+
+    if (this.overlay) {
+        this.overlay.style.display = 'block';
+    }
+    
+    // Rest of your existing openComposer code...
+    this.overlay.style.visibility = 'visible';
+    this.overlay.style.opacity = '1';
+    
+    // Make sure the overlay takes full width on mobile
+    if (window.innerWidth <= 768) {
+        this.overlay.style.width = '100%';
+        this.overlay.style.height = '100%';
+        this.overlay.style.paddingBottom = '60px'; // Make room for the footer
+    }
+    
+    // Force a refresh of the visualizers
+    this.populateVisualizers();
+}
     
     closeComposer() {
         if (this.overlay) {

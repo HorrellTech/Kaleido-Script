@@ -73,15 +73,11 @@
         toggleBtn.innerHTML = '<i class="fas fa-code"></i> Show Editor';
         toggleBtn.title = 'Toggle editor panel';
         
-        // Calculate footer height for proper positioning
-        const footer = document.querySelector('.app-footer');
-        const footerHeight = footer ? footer.offsetHeight : 0;
-        const bottomMargin = footerHeight + 60; // 60px above the footer for better visibility
-        
-        // Style the button
+        // Position above the fixed footer
+        // Fixed position 50px from bottom to account for footer height
         Object.assign(toggleBtn.style, {
             position: 'fixed',
-            bottom: bottomMargin + 'px', // Position well above the footer
+            bottom: '50px',
             right: '15px',
             zIndex: '1000',
             padding: '8px 12px',

@@ -109,10 +109,21 @@
     
     /* Put editor panel inside the container */
     .editor-container .editor-panel {
-        height: calc(100% - 40px);
-        width: 100%;
-        display: flex;
-        flex-direction: column;
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+        width: 100% !important;
+        overflow: hidden !important;
+    }
+
+    .editor-container .CodeMirror {
+        flex: 1 1 auto !important;
+        height: auto !important;
+        position: absolute !important;
+        left: 0 !important;
+        right: 0 !important;
+        top: 0 !important;
+        bottom: 0 !important;
     }
     
     .editor-container .editor-panel #code-editor {
@@ -120,7 +131,9 @@
     }
     
     .editor-container .editor-hints {
-        height: 100px !important;
+        flex: 0 0 auto !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
     }
     
     /* Hide normal resizers in mobile view */
@@ -193,5 +206,75 @@
     
     .editor-container {
         height: 60%;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    /* Ensure footer is visible and properly positioned */
+    .app-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background-color: #1e1e1e;
+        z-index: 1050; /* Above most elements but below modals */
+        padding: 8px 0;
+        margin-top: 0;
+    }
+    
+    /* Add padding to main content to account for fixed footer */
+    .main-content {
+        padding-bottom: 40px;
+    }
+    
+    /* Adjust the vertical positioning of the mobile editor toggle */
+    #mobile-editor-toggle {
+        bottom: 50px !important; /* Position above the fixed footer */
+    }
+    
+    /* Ensure canvas container has some margin at the bottom */
+    .canvas-container {
+        margin-bottom: 40px;
+    }
+    
+    /* Make sure the visual composer has proper padding for footer */
+    #visual-composer-overlay {
+        padding-bottom: 50px !important;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    #mobile-editor-container {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        min-height: 100vh !important;
+    }
+
+    .mobile-editor-wrapper {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 !important;
+        min-height: 0 !important; /* Critical for nested flex containers */
+    }
+
+    .editor-panel {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+    }
+
+    .CodeMirror {
+        flex: 1 1 auto !important;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+
+    .editor-hints {
+        flex: 0 0 auto !important;
+        overflow-y: auto !important;
     }
 }

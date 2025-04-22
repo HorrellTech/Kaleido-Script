@@ -48,17 +48,19 @@
             left: '0',
             right: '0',
             bottom: '0',
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.92)', // Nearly opaque dark background
+            width: '100vw',  // Use viewport width instead of %
+            height: '100vh', // Use viewport height instead of %
+            backgroundColor: 'rgba(0, 0, 0, 0.95)', // Nearly opaque dark background
             zIndex: '2000', // Very high z-index to be on top of everything
             display: 'flex',
             flexDirection: 'column',
-            transition: 'opacity 0.3s ease',
+            transition: 'opacity 0.3s ease, visibility 0.3s ease',
             opacity: '0',
             visibility: 'hidden', // Initially hidden
             padding: '10px',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            overflowX: 'hidden', // Prevent horizontal scrolling
+            overflowY: 'hidden'  // Control vertical scrolling
         });
         
         // Create a close button for the editor
@@ -101,7 +103,8 @@
             paddingTop: '40px', // Leave room for close button
             boxSizing: 'border-box',
             width: '100%',
-            height: 'calc(100% - 40px)',
+            height: 'calc(100vh - 60px)', // Account for padding and button
+            minHeight: '0', // Important for nested flex containers
             overflow: 'hidden',
             position: 'relative' // For absolute positioning of the resize handle
         });
@@ -170,7 +173,6 @@
             const deltaY = y - startY;
             
             // Convert to percentage (negative deltaY means make hints area bigger)
-            // Reversed from previous logic for more intuitive control
             const deltaPercent = (-deltaY / editorHeight) * 100;
             let newPercent = startPercentage + deltaPercent;
             
@@ -195,7 +197,6 @@
     }
     
     function updateEditorLayout() {
-        // Find the editor container's direct children
         if (!editorPanel) return;
         
         const cmContainer = editorPanel.querySelector('.CodeMirror');
@@ -209,23 +210,74 @@
         // Calculate percentages
         const editorPercentage = 100 - hintsPercentage;
         
-        // Update heights with !important to override any inline styles
-        cmContainer.style.cssText += `height: ${editorPercentage}% !important; width: 100% !important; display: block !important;`;
-        hintsPanel.style.cssText += `height: ${hintsPercentage}% !important; width: 100% !important; display: block !important;`;
+        // First, ensure editor panel takes full height
+        editorPanel.style.cssText = `
+            height: 100% !important;
+            min-height: 100% !important;
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            position: relative !important;
+            flex: 1 !important;
+        `;
+        
+        // Update CodeMirror container
+        cmContainer.style.cssText = `
+            height: ${editorPercentage}% !important;
+            min-height: ${editorPercentage}% !important;
+            width: 100% !important;
+            display: flex !important;
+            flex: ${editorPercentage} 0 0 !important;
+            position: relative !important;
+            overflow: hidden !important;
+        `;
+        
+        // Update hints panel
+        hintsPanel.style.cssText = `
+            height: ${hintsPercentage}% !important;
+            min-height: ${hintsPercentage}% !important;
+            width: 100% !important;
+            display: flex !important;
+            flex: ${hintsPercentage} 0 0 !important;
+            position: relative !important;
+            overflow: auto !important;
+        `;
+        
+        // Ensure the CodeMirror editor itself fills its container
+        const cmElement = cmContainer.querySelector('.CodeMirror-wrap');
+        if (cmElement) {
+            cmElement.style.cssText = `
+                height: 100% !important;
+                min-height: 100% !important;
+                width: 100% !important;
+                position: absolute !important;
+                left: 0 !important;
+                right: 0 !important;
+                top: 0 !important;
+                bottom: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+            `;
+        }
         
         // Position the resize handle
         if (resizeHandle) {
-            // The handle should appear at the boundary between editor and hints
-            const editorHeight = editorPanel.clientHeight * (editorPercentage / 100);
-            resizeHandle.style.top = `${editorHeight - 16}px`;
+            const editorRect = cmContainer.getBoundingClientRect();
+            const bottomY = editorRect.bottom;
+            resizeHandle.style.top = `${bottomY - 16}px`;
         }
         
         // Force CodeMirror to refresh its layout
         if (window.editor) {
-            setTimeout(() => window.editor.refresh(), 10);
+            window.editor.refresh();
+            // Double refresh to ensure proper rendering
+            setTimeout(() => {
+                window.editor.refresh();
+                // Force a redraw by accessing offsetHeight
+                editorPanel.offsetHeight;
+            }, 50);
         }
-        
-        console.log(`Updated layout - Editor: ${editorPercentage}%, Hints: ${hintsPercentage}%`);
     }
     
     function checkViewportSize() {
@@ -245,51 +297,53 @@
     
     function activateMobileLayout() {
         // Make sure workspace is in column layout
-        workspace.style.flexDirection = 'column';
+        if (workspace) workspace.style.flexDirection = 'column';
         
         // Move editor panel to the new container
         if (editorPanel && editorPanel.parentNode === workspace) {
-            // Get the editor wrapper
             const editorWrapper = editorContainer.querySelector('.mobile-editor-wrapper');
             if (!editorWrapper) return;
             
             console.log("Activating mobile layout");
             
-            // Make sure editorPanel is visible before moving
-            editorPanel.style.display = 'flex';
+            // Ensure editor panel is properly styled before moving
+            editorPanel.style.cssText = `
+                width: 100% !important;
+                height: 100% !important;
+                max-height: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                position: relative !important;
+            `;
             
             // Move the editor panel into the wrapper
             editorWrapper.appendChild(editorPanel);
-            
-            // Add resize handle directly to editor wrapper for absolute positioning
             editorWrapper.appendChild(resizeHandle);
             
             // Set output panel to take full width
             if (outputPanel) {
                 outputPanel.style.width = '100%';
+                outputPanel.style.maxWidth = '100%';
             }
             
-            // Make sure it's initially hidden
+            // Initially hidden
             isEditorCollapsed = true;
             setVisibility(false);
             
-            // Make editor panel take full width and height
-            editorPanel.style.width = '100%';
-            editorPanel.style.height = '100%';
-            editorPanel.style.display = 'flex';
-            editorPanel.style.flexDirection = 'column';
+            // Force layout updates
+            setTimeout(() => {
+                updateEditorLayout();
+                if (window.editor) window.editor.refresh();
+            }, 50);
             
-            // Force a layout update to correctly position elements
-            setTimeout(updateEditorLayout, 50);
-            
-            // Update the toggle button state
             updateToggleButtonState(false);
         }
     }
     
     function restoreDesktopLayout() {
         // Restore original layout
-        if (editorContainer && editorPanel && editorContainer.contains(editorPanel)) {
+        if (editorContainer && editorPanel) {
             // Find the wrapper
             const editorWrapper = editorContainer.querySelector('.mobile-editor-wrapper');
             
@@ -305,13 +359,19 @@
                 editorWrapper.removeChild(editorPanel);
                 
                 // Insert back into workspace before output panel
-                workspace.insertBefore(editorPanel, outputPanel);
+                if (workspace && outputPanel) {
+                    workspace.insertBefore(editorPanel, outputPanel);
+                } else if (workspace) {
+                    workspace.appendChild(editorPanel);
+                }
                 
                 // Reset editor panel styles
                 editorPanel.style.width = '';
                 editorPanel.style.height = '';
+                editorPanel.style.maxHeight = '';
                 editorPanel.style.display = 'flex';
                 editorPanel.style.flexDirection = '';
+                editorPanel.style.overflow = '';
                 
                 // Reset CodeMirror and hints panel
                 const cmElement = editorPanel.querySelector('.CodeMirror');
@@ -327,13 +387,18 @@
             }
             
             // Reset styles
-            workspace.style.flexDirection = '';
+            if (workspace) workspace.style.flexDirection = '';
             if (outputPanel) {
                 outputPanel.style.width = '';
+                outputPanel.style.maxWidth = '';
             }
             
             // Reset state
             isEditorCollapsed = true;
+            
+            // Make sure container is hidden
+            editorContainer.style.visibility = 'hidden';
+            editorContainer.style.opacity = '0';
             
             // Refresh editor in desktop mode
             if (window.editor) {
@@ -358,6 +423,7 @@
             console.log("Showing mobile editor");
             editorContainer.style.opacity = '1';
             editorContainer.style.visibility = 'visible';
+            document.body.style.overflow = 'hidden'; // Prevent body scrolling
             
             // Make sure editor panel is visible when showing container
             if (editorPanel) {
@@ -379,6 +445,7 @@
             console.log("Hiding mobile editor");
             editorContainer.style.opacity = '0';
             editorContainer.style.visibility = 'hidden';
+            document.body.style.overflow = ''; // Restore body scrolling
             updateToggleButtonState(false);
         }
     }
@@ -414,4 +481,5 @@
     window.isEditorVisible = function() {
         return isMobileView && !isEditorCollapsed;
     };
+    window.closeEditorPanel = closeEditor;  // Add this function for external access
 })();
