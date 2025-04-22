@@ -455,6 +455,11 @@ class Interpreter {
 
             window.visual3DSphere = (x, y, z, minRadius, maxRadius, particleCount, freqStart, freqEnd, glow) => 
                 this.visualizers.sphere3DAudioVisualizer(x, y, z, minRadius, maxRadius, particleCount, freqStart, freqEnd, glow);
+
+            window.visualLavaLamp = (x, y, width, height, blobCount = 8, minSize = 30, maxSize = 100, freqStart = 40, freqEnd = 200, 
+                colorStart = '#FF2200', colorEnd = '#FF9900', glow = true) =>
+                this.visualizers.visualLavaLamp(x, y, width, height, blobCount, minSize, maxSize, freqStart, freqEnd, 
+                    colorStart, colorEnd, glow);
         
             // Audio functions
             window.loadAudio = (url) => this.loadAudio(url);
@@ -2456,6 +2461,10 @@ class Interpreter {
 
     visual3DCircularBars(...args) {
         return this.visualizers.visualCircularBar3D(...args);
+    }
+
+    visualLavaLamp(...args) {
+        return this.visualizers.visualLavaLamp(...args);
     }
 
     // 3D FUNCTIONS

@@ -193,6 +193,272 @@ class Visualizers {
         }
     }
 
+    visualLavaLamp(x, y, width, height, blobCount = 8, minSize = 30, maxSize = 100, freqStart = 40, freqEnd = 200, 
+        colorStart = '#FF2200', colorEnd = '#FF9900', glow = true) {
+        const ctx = this.interpreter.context;
+        if (!ctx) return;
+        
+        // Save the original context state
+        ctx.save();
+        
+        // Create an offscreen canvas for rendering metaballs
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = width;
+        offCanvas.height = height;
+        const offCtx = offCanvas.getContext('2d');
+        
+        // Create a second canvas for the threshold step
+        const thresholdCanvas = document.createElement('canvas');
+        thresholdCanvas.width = width;
+        thresholdCanvas.height = height;
+        const thresholdCtx = thresholdCanvas.getContext('2d');
+        
+        // Get bass and mid frequencies for animation and size modulation
+        const bassFreq = this.interpreter.getAudioFrequency(freqStart) || 0;
+        const midFreq = this.interpreter.getAudioFrequency(freqEnd) || 0;
+        
+        // Store or create blob objects
+        if (!this._lavaBlobs || !this._lavaBlobsTime) {
+            this._lavaBlobs = [];
+            this._lavaBlobsTime = 0;
+            
+            // Initialize blobs with random positions
+            for (let i = 0; i < blobCount; i++) {
+                const size = minSize + Math.random() * (maxSize - minSize);
+                this._lavaBlobs.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    size: size,
+                    baseSize: size,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: (Math.random() - 0.5) * 0.8 - 0.5, // Bias upward movement
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+        
+        // Update blob positions and sizes
+        const time = Date.now() / 1000;
+        const deltaTime = Math.min(0.1, time - this._lavaBlobsTime); // Limit deltaTime for stability
+        this._lavaBlobsTime = time;
+        
+        // Clear the offscreen canvas
+        offCtx.clearRect(0, 0, width, height);
+        
+        // Draw each metaball
+        offCtx.fillStyle = 'rgb(255, 0, 0)'; // Use pure red for the metaball field
+        
+        for (let i = 0; i < this._lavaBlobs.length; i++) {
+            const blob = this._lavaBlobs[i];
+            
+            // Add a sine wave motion in addition to velocity
+            const wave = Math.sin(blob.phase + time * 0.8) * 0.5;
+            
+            // Audio-responsive size
+            const audioScale = 1 + bassFreq * 1.5;
+            const currentSize = blob.baseSize * audioScale;
+            
+            // Update blob position with damped physics
+            blob.vy += -0.05 - midFreq * 0.1; // Buoyancy force, enhanced by audio
+            blob.vy *= 0.98; // Damping
+            blob.vx *= 0.98; // Damping
+            
+            blob.x += blob.vx * 20 * deltaTime;
+            blob.y += (blob.vy + wave) * 25 * deltaTime;
+            blob.phase += deltaTime * 0.8;
+            
+            // Keep inside container with bounce
+            if (blob.x < currentSize) {
+                blob.x = currentSize;
+                blob.vx *= -0.7;
+            } else if (blob.x > width - currentSize) {
+                blob.x = width - currentSize;
+                blob.vx *= -0.7;
+            }
+            
+            // Handle top and bottom bounds
+            if (blob.y < currentSize) {
+                blob.y = currentSize;
+                blob.vy = Math.abs(blob.vy) * 0.5; // Bounce off ceiling
+            } else if (blob.y > height - currentSize) {
+                // Bottom bounce has more friction
+                blob.y = height - currentSize;
+                blob.vy = -Math.abs(blob.vy) * 0.25;
+                
+                // Sometimes merge blobs at the bottom - occasionally split
+                if (Math.random() < 0.002) {
+                    // Pick two random blobs that are close to the bottom
+                    const bottomBlobs = this._lavaBlobs.filter(b => b.y > height - b.baseSize * 2);
+                    
+                    if (bottomBlobs.length >= 2 && this._lavaBlobs.length > 5) {
+                        // Choose two to merge
+                        const mergeIdx1 = this._lavaBlobs.indexOf(bottomBlobs[Math.floor(Math.random() * bottomBlobs.length)]);
+                        const mergeIdx2 = this._lavaBlobs.indexOf(bottomBlobs[Math.floor(Math.random() * bottomBlobs.length)]);
+                        
+                        if (mergeIdx1 !== mergeIdx2) {
+                            // Combine size into the first blob
+                            const b1 = this._lavaBlobs[mergeIdx1];
+                            const b2 = this._lavaBlobs[mergeIdx2];
+                            const totalVolume = Math.pow(b1.baseSize, 3) + Math.pow(b2.baseSize, 3);
+                            b1.baseSize = Math.cbrt(totalVolume);
+                            b1.size = b1.baseSize * audioScale;
+                            
+                            // Position at weighted average
+                            b1.x = (b1.x + b2.x) / 2;
+                            b1.y = (b1.y + b2.y) / 2;
+                            
+                            // Remove the second blob
+                            this._lavaBlobs.splice(mergeIdx2, 1);
+                        }
+                    }
+                } else if (Math.random() < 0.001 && blob.baseSize > minSize * 2.5) {
+                    // Split this blob
+                    const newSize1 = blob.baseSize * 0.75;
+                    const newSize2 = blob.baseSize * Math.sqrt(1 - 0.75*0.75); // Conserve volume
+                    
+                    blob.baseSize = newSize1;
+                    blob.size = blob.baseSize * audioScale;
+                    
+                    // Create new blob with remaining volume
+                    this._lavaBlobs.push({
+                        x: blob.x + (Math.random() - 0.5) * 20,
+                        y: blob.y - Math.random() * 15,
+                        size: newSize2 * audioScale,
+                        baseSize: newSize2,
+                        vx: blob.vx + (Math.random() - 0.5) * 0.5,
+                        vy: blob.vy - Math.random() * 1.5,
+                        phase: Math.random() * Math.PI * 2
+                    });
+                }
+            }
+            
+            // Random forces for organic movement
+            if (Math.random() < 0.05) {
+                blob.vx += (Math.random() - 0.5) * 0.15;
+                blob.vy += (Math.random() - 0.5) * 0.15;
+            }
+            
+            // Draw the metaball as a radial gradient for smooth transitions
+            const gradient = offCtx.createRadialGradient(blob.x, blob.y, 0, blob.x, blob.y, currentSize);
+            gradient.addColorStop(0, 'rgba(255, 0, 0, 1)');
+            gradient.addColorStop(0.85, 'rgba(255, 0, 0, 0.5)');
+            gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+            
+            offCtx.fillStyle = gradient;
+            offCtx.beginPath();
+            offCtx.arc(blob.x, blob.y, currentSize * 1.5, 0, Math.PI * 2);
+            offCtx.fill();
+        }
+        
+        // Threshold and colorize the metaballs
+        const imgData = offCtx.getImageData(0, 0, width, height);
+        const pixels = imgData.data;
+        
+        // Threshold and apply color gradient to the metaballs
+        thresholdCtx.clearRect(0, 0, width, height);
+        
+        // Parse start and end colors
+        const startRGB = this._hexToRgb(colorStart);
+        const endRGB = this._hexToRgb(colorEnd);
+        
+        // Create lava lamp gradient
+        const gradient = thresholdCtx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, colorEnd);   // Top color
+        gradient.addColorStop(1, colorStart); // Bottom color
+        
+        thresholdCtx.fillStyle = gradient;
+        
+        // Apply the threshold mask to the gradient
+        thresholdCtx.globalCompositeOperation = 'source-in';
+        thresholdCtx.fillRect(0, 0, width, height);
+        
+        // Apply glow effect if enabled
+        if (glow) {
+            this.interpreter.glowStart(colorStart, 15 + bassFreq * 20);
+        }
+        
+        // Draw the container (glass tube)
+        const bottleTop = height * 0.05;
+        const bottleBottom = height * 0.95;
+        const bottleNeck = width * 0.2;
+        const bottleBase = width * 0.25;
+        const bottleWidth = width * 0.7;
+        
+        // Draw the outer glass container with reflection
+        ctx.save();
+        
+        // Subtle glass base
+        ctx.fillStyle = 'rgba(200, 200, 220, 0.2)';
+        ctx.beginPath();
+        ctx.ellipse(x + width/2, y + bottleBottom, bottleBase, bottleBase * 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw the metaballs inside the container
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(thresholdCanvas, x, y);
+        
+        // Draw glass reflections on top
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.beginPath();
+        
+        // Left side reflection
+        const leftGradient = ctx.createLinearGradient(
+            x + width * 0.2, y + height * 0.5, 
+            x + width * 0.4, y + height * 0.5
+        );
+        leftGradient.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+        leftGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        
+        ctx.fillStyle = leftGradient;
+        ctx.beginPath();
+        ctx.moveTo(x + width * 0.2, y + bottleTop);
+        ctx.lineTo(x + width * 0.3, y + bottleTop + bottleNeck);
+        ctx.lineTo(x + width * 0.3, y + bottleBottom - bottleBase);
+        ctx.lineTo(x + width * 0.2, y + bottleBottom);
+        ctx.closePath();
+        ctx.fill();
+        
+        // White highlight line down the side
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + width * 0.25, y + bottleTop + 5);
+        ctx.lineTo(x + width * 0.25, y + bottleBottom - 5);
+        ctx.stroke();
+        
+        ctx.restore();
+        
+        // End glow effect if applied
+        if (glow) {
+            this.interpreter.glowEnd();
+        }
+        
+        // Restore the original context state
+        ctx.restore();
+        
+        return true;
+    }
+    
+    // Helper method to convert hex to RGB
+    _hexToRgb(hex) {
+        // Remove # if present
+        hex = hex.replace('#', '');
+        
+        // Convert short hex format
+        if (hex.length === 3) {
+            hex = hex.charAt(0) + hex.charAt(0) +
+                  hex.charAt(1) + hex.charAt(1) +
+                  hex.charAt(2) + hex.charAt(2);
+        }
+        
+        // Parse the hex values
+        return {
+            r: parseInt(hex.substring(0, 2), 16),
+            g: parseInt(hex.substring(2, 4), 16),
+            b: parseInt(hex.substring(4, 6), 16)
+        };
+    }
+
     particleVisualizer(x, y, width, height, particleCount = 100, freqStart = 20, freqEnd = 2000, glow = false) {
         if (!this.context) return;
     
