@@ -1664,9 +1664,9 @@ class BlockComposer {
         
         // Get the current code content
         const currentCode = content.textContent;
-
+    
         this.currentCode = content.textContent;
-
+    
         
         // Create editor modal
         const modal = document.createElement('div');
@@ -1831,6 +1831,7 @@ class BlockComposer {
                 paramInputs.forEach(input => {
                     input.addEventListener('input', () => {
                         // Update preview with current parameter values
+                        // FIX: Use correct method to generate code from inputs
                         preview.textContent = this.generateCodeFromParamInputs(blockName, modal);
                     });
                 });
@@ -1840,6 +1841,9 @@ class BlockComposer {
         // Handle toggle between form and code mode
         const toggleButton = modal.querySelector('.toggle-editor-mode');
         if (toggleButton) {
+            // Store the original code to preserve it during mode switches
+            modal._originalCode = currentCode;
+            
             toggleButton.addEventListener('click', () => {
                 const editorContent = modal.querySelector('.block-editor-content');
                 const isFormMode = editorContent.querySelector('.structured-form');
@@ -1849,7 +1853,9 @@ class BlockComposer {
                     let codeValue = '';
                     
                     if (blockType === 'function') {
-                        codeValue = this.generateCodeFromParamInputs(blockName, modal);
+                        // FIX: Get code from the preview element
+                        const preview = editorContent.querySelector('#function-preview');
+                        codeValue = preview ? preview.textContent : this.generateCodeFromParamInputs(blockName, modal);
                     } else if (isControlBlock) {
                         // Get values from form for control blocks
                         if (blockName === 'if' || blockName === 'else if') {
@@ -1867,6 +1873,9 @@ class BlockComposer {
                         }
                     }
                     
+                    // Save the current form-based code for switching back
+                    modal._lastFormCode = codeValue;
+                    
                     // Replace with code editor
                     editorContent.innerHTML = `
                         <textarea class="block-editor-textarea">${codeValue}</textarea>
@@ -1882,11 +1891,12 @@ class BlockComposer {
                     const textarea = editorContent.querySelector('.block-editor-textarea');
                     if (!textarea) return;
                     
+                    // Get the current code value
                     const codeValue = textarea.value;
                     
                     if (blockType === 'function') {
-                        // Create parameter form for this function - FIX HERE
-                        const paramForm = this.createParamForm(blockName);  // Use this.createParamForm instead
+                        // Create parameter form for this function
+                        const paramForm = this.createParamForm(blockName);
                         
                         editorContent.innerHTML = `
                             <div class="structured-form">
@@ -1904,17 +1914,30 @@ class BlockComposer {
                         // Store the current code for parameter extraction
                         this.currentCode = codeValue;
                         
-                        // Set up parameter change handlers
-                        const preview = editorContent.querySelector('#function-preview');
-                        if (preview) {
-                            const paramInputs = editorContent.querySelectorAll('.params-form input');
-                            paramInputs.forEach(input => {
-                                input.addEventListener('input', () => {
-                                    // Update preview
-                                    preview.textContent = this.generateCodeFromParamInputs(blockName, editorContent);
-                                });
+                        // FIX: Extract values from the code and apply to form
+                        const paramValues = this.extractParamValuesFromCode(blockName, codeValue);
+                        setTimeout(() => {
+                            // Update the form fields with the extracted values
+                            Object.entries(paramValues).forEach(([paramName, value]) => {
+                                const paramId = `param-${blockName}-${paramName}`;
+                                const input = editorContent.querySelector(`#${paramId}`);
+                                if (input) {
+                                    input.value = value;
+                                }
                             });
-                        }
+                            
+                            // Set up parameter change handlers
+                            const preview = editorContent.querySelector('#function-preview');
+                            if (preview) {
+                                const paramInputs = editorContent.querySelectorAll('.params-form input');
+                                paramInputs.forEach(input => {
+                                    input.addEventListener('input', () => {
+                                        // Update preview
+                                        preview.textContent = this.generateCodeFromParamInputs(blockName, editorContent);
+                                    });
+                                });
+                            }
+                        }, 0);
                     } else if (isControlBlock) {
                         // Create form for control blocks
                         let formHtml = '';
@@ -2015,7 +2038,8 @@ class BlockComposer {
             if (structuredForm) {
                 // Form mode - get code from preview
                 if (blockType === 'function') {
-                    content.textContent = this.generateCodeFromParamInputs(blockName, modal);
+                    const preview = structuredForm.querySelector('#function-preview');
+                    content.textContent = preview ? preview.textContent : this.generateCodeFromParamInputs(blockName, modal);
                 } else if (isControlBlock) {
                     // Control blocks
                     if (blockName === 'if' || blockName === 'else if') {
@@ -2048,15 +2072,29 @@ class BlockComposer {
     generateCodeFromParamInputs(functionName, container) {
         // Get function info for parameter structure
         const functionInfo = (window.keywordInfo || {})[functionName];
-        if (!functionInfo || !functionInfo.params) {
+        if (!functionInfo || !functionInfo.name) {
             return `${functionName}();`;
         }
         
         // Collect parameter values
         const paramValues = [];
         
-        functionInfo.params.forEach(param => {
-            const paramId = `param-${functionName}-${param.name}`;
+        // Try to get parameter names from the function signature
+        let paramNames = [];
+        if (functionInfo.name && functionInfo.name.includes('(')) {
+            const paramMatch = functionInfo.name.match(/\(([^)]+)\)/);
+            if (paramMatch && paramMatch[1]) {
+                // Extract param names, removing optional brackets
+                paramNames = paramMatch[1].split(',').map(p => {
+                    p = p.trim();
+                    return p.startsWith('[') && p.endsWith(']') ? p.slice(1, -1) : p;
+                });
+            }
+        }
+        
+        // Get values from form inputs
+        paramNames.forEach(paramName => {
+            const paramId = `param-${functionName}-${paramName}`;
             const input = container.querySelector(`#${paramId}`);
             
             if (input) {
@@ -2064,30 +2102,24 @@ class BlockComposer {
                 
                 // Skip empty parameters unless they're required
                 if (!value) {
-                    if (param.required) {
-                        // Use default value if available
-                        value = param.defaultValue || '';
-                    } else if (paramValues.length > 0) {
+                    if (paramValues.length > 0) {
                         // Only add empty placeholders if we already have values
                         // (to maintain parameter position)
                         paramValues.push('');
-                        return;
-                    } else {
-                        // Skip completely if it's the first parameters and they're empty
-                        return;
                     }
+                    return;
                 }
                 
                 // Format special types
-                if (param.name.includes('color') || param.name.includes('Color')) {
+                if (paramName.includes('color') || paramName.includes('Color')) {
                     if (value.startsWith('#') && !value.startsWith('"')) {
                         value = `"${value}"`;
                     }
-                } else if (param.name === 'text' || param.name.includes('message')) {
+                } else if (paramName === 'text' || paramName.includes('message')) {
                     if (!value.startsWith('"') && !value.startsWith("'")) {
                         value = `"${value}"`;
                     }
-                } else if (param.name === 'url' || param.name === 'src' || param.name === 'path') {
+                } else if (paramName === 'url' || paramName === 'src' || paramName === 'path') {
                     if (!value.startsWith('"') && !value.startsWith("'")) {
                         value = `"${value}"`;
                     }
@@ -2098,6 +2130,11 @@ class BlockComposer {
                 }
                 
                 paramValues.push(value);
+            } else {
+                // Input not found, add empty placeholder to maintain position
+                if (paramValues.length > 0) {
+                    paramValues.push('');
+                }
             }
         });
         
