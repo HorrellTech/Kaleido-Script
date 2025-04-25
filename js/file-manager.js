@@ -468,62 +468,39 @@ class FileManager {
     }
     
     getDefaultMainJS() {
-        return `/**
- * KaleidoScript
- * A creative coding environment for audio-reactive visualizations
- */
+        return `/*
+* Main.js
+* Created: ${new Date().toLocaleString()}
+* Description: This is the main entry point for the application.
+* You can add your code here.
+*/
 
-// Global variables
-const settings = {
-  colorScheme: {
-    background: [20, 20, 30], // Background color
-    primary: [0, 150, 255], // Primary color
-  },
-  
-  intensity: 20.0, // How intense the audio visualizer (audiohz(amount)) extends
-  speed: 1.0 // Speed for the radius
-};
+var cImage = null;
 
-/**
- * Setup runs once when the script starts
- * Use it to initialize variables and configurations
- */
 function setup() {
-  // Set initial background color
-  background(...settings.colorScheme.background);
+    loadAudio("Music/Be My Moon.wav");
+    playAudio();
   
-  // Uncomment to load and play audio
-  loadAudio("your_audio_file.mp3");
-  playAudio();
-  
-  // Log a message to show setup is complete
-  log("Setup complete!");
+    cImage = loadImage("Images/MoonBroken.png");
 }
 
-/**
- * Draw runs on every animation frame
- * @param {number} time - Elapsed time in milliseconds
- */
 function draw(time) {
-  // Clear with background color
-  background(...settings.colorScheme.background);
+    // Dark background
+    background(5, 5, 10);
+  	
+  	fill(220, 16, 128, 1);
+    
+  	visualCircular(width / 2, height / 2, 150, 250, 64, 20, 2000, time * 0.001, true);
   
-  // Example: draw a circle that moves with time
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const radius = 100 + Math.sin(time * 0.001 * settings.speed) * 50;
+    // Add album art in the center with glow that responds to bass
+    visualCenterImage(cImage, 200, 0.6, "#FF33AA");
+    
+  	stroke(220 + (audiohz(200) * 500), 16, 128, .6);
   
-  // Use the primary color
-  fill(settings.colorScheme.primary[0], 
-       settings.colorScheme.primary[1], 
-       settings.colorScheme.primary[2]);
-  
-  // Draw the circle
-  circle(centerX, centerY, radius + audiohz(1000) * settings.intensity);
-  
-  // Add some text
-  fill(255, 255, 255);
-  text("KaleidoScript is ready!", centerX - 80, centerY, 16 + audiohz(1000) * settings.intensity);
+  	visualBar(0, height, width, 60, 128, 2, 5, 0, true, true);
+    
+  	// Overlay some particles for additional visual interest
+    visualParticle(0, 0, width, height, 40, 500, 4000, true);
 }`;
     }
     

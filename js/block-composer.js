@@ -923,6 +923,12 @@ class BlockComposer {
                 // First apply current indentation to this block
                 block.dataset.indentLevel = this.indentation[section];
                 
+                // Format the content to ensure proper indentation
+                const indent = '  '.repeat(this.indentation[section]);
+                content.textContent = content.textContent.split('\n').map(line => 
+                    indent + line.trim()
+                ).join('\n');
+                
                 // Then increase indentation for blocks that follow
                 this.controlStack[section].push(blockName);
                 this.indentation[section]++;
@@ -930,23 +936,38 @@ class BlockComposer {
             else if (blockName === 'else if' || blockName === 'else') {
                 // Maintain indentation level of the matching 'if'
                 // (indentation is already decreased by one)
+                const indent = '  '.repeat(Math.max(0, this.indentation[section] - 1));
+                content.textContent = content.textContent.split('\n').map(line => 
+                    indent + line.trim()
+                ).join('\n');
+                
                 block.dataset.indentLevel = Math.max(0, this.indentation[section] - 1);
             }
             else if (blockName === 'end if' || blockName === 'end' || blockName === 'end for') {
-                // Decrease indentation
+                // Decrease indentation before applying it to this block
                 if (this.indentation[section] > 0) {
                     this.indentation[section]--;
                 }
+                
                 if (this.controlStack[section].length > 0) {
                     this.controlStack[section].pop();
                 }
+                
+                // Apply the reduced indentation
+                const indent = '  '.repeat(this.indentation[section]);
+                content.textContent = content.textContent.split('\n').map(line => 
+                    indent + line.trim()
+                ).join('\n');
+                
                 block.dataset.indentLevel = this.indentation[section];
             }
             else {
                 // Regular block - apply current indentation
                 const indent = '  '.repeat(this.indentation[section]);
+                
+                // Clean up any existing indentation first
                 content.textContent = content.textContent.split('\n').map((line, i) => {
-                    return i === 0 ? line.trimStart() : line.trim();
+                    return line.trim();
                 }).join('\n');
                 
                 // Now add proper indentation
@@ -1043,7 +1064,7 @@ class BlockComposer {
             } else if (name === 'for') {
                 codeContent = 'for (let i = 0; i < 10; i++) {';
                 isControlBlock = true;
-                // Push to control stack
+                // Push to control stack - exactly like if statements
                 this.controlStack[section].push('for');
                 // Increase indentation for next items
                 this.indentation[section]++;
@@ -1075,7 +1096,7 @@ class BlockComposer {
             }
         } else if (targetListId === 'global-list') {
             // Handle global list items
-            // Code for global list remains the same as before...
+            // Code for global list remains the same...
             if (type === 'keyword' && ['var', 'let', 'const'].includes(name)) {
                 blockContent = `
                     <div class="block-header">
