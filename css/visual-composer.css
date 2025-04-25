@@ -1,7 +1,7 @@
 .composer-button {
     position: absolute;
     top: 5px;
-    left: 10px;  /* Changed from 'right: 10px' to 'left: 10px' */
+    left: 1px;  /* Changed from 'right: 10px' to 'left: 10px' */
     background-color: #61dafb;
     color: #1e1e1e;
     border: none;
@@ -307,5 +307,493 @@
     
     .config-field {
         min-width: 100%;
+    }
+}
+/* Sidebar toggle for mobile */
+.sidebar-toggle-btn {
+    display: none;
+    width: 100%;
+    padding: 12px;
+    background: #282a36;
+    border: none;
+    border-bottom: 1px solid #44475a;
+    color: #61dafb;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: center;
+}
+
+/* Collapsible sidebar on mobile */
+.block-composer-sidebar.collapsed {
+    display: none;
+}
+
+/* Structured editor form styles */
+.structured-form {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 0 5px;
+}
+
+.form-description {
+    color: #aaa;
+    margin-bottom: 15px;
+    font-style: italic;
+    line-height: 1.4;
+}
+
+.form-group {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #44475a;
+}
+
+.form-group h4 {
+    color: #61dafb;
+    margin: 0 0 10px 0;
+    font-size: 16px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.form-field {
+    margin-bottom: 10px;
+}
+
+.form-field label {
+    display: block;
+    margin-bottom: 5px;
+    color: #f8f8f2;
+    font-size: 14px;
+}
+
+.form-field input[type="text"],
+.form-field input[type="number"] {
+    width: 100%;
+    padding: 8px;
+    background: #282a36;
+    border: 1px solid #44475a;
+    border-radius: 4px;
+    color: #f8f8f2;
+}
+
+.form-field input:focus {
+    border-color: #61dafb;
+    outline: none;
+}
+
+/* Color input field with picker */
+.color-field {
+    margin-bottom: 15px;
+}
+
+.color-inputs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.color-picker {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 2px solid #44475a;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.color-inputs input[type="text"] {
+    flex: 1;
+}
+
+/* Range input with number */
+.range-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.range-field input[type="range"] {
+    flex: 1;
+    background: #44475a;
+    border-radius: 5px;
+    height: 5px;
+    -webkit-appearance: none;
+}
+
+.range-field input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #61dafb;
+    cursor: pointer;
+}
+
+.range-field input[type="number"] {
+    width: 80px;
+}
+
+/* Checkbox styling */
+.checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-field label {
+    margin: 0;
+    cursor: pointer;
+}
+
+.checkbox-field input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #61dafb;
+}
+
+/* Code preview area */
+.form-preview {
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #44475a;
+}
+
+.form-preview h4 {
+    color: #61dafb;
+    margin: 0 0 10px 0;
+    font-size: 16px;
+}
+
+.preview-code {
+    background: #1e1e2e;
+    padding: 10px;
+    border-radius: 4px;
+    color: #f8f8f2;
+    font-family: "Consolas", monospace;
+    font-size: 14px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+/* Toggle editor mode button */
+.toggle-mode {
+    margin-top: 15px;
+    text-align: right;
+}
+
+.toggle-editor-mode {
+    background: transparent;
+    border: 1px solid #61dafb;
+    color: #61dafb;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.toggle-editor-mode:hover {
+    background: rgba(97, 218, 251, 0.1);
+}
+
+/* Mobile specific adjustments */
+@media (max-width: 768px) {
+    .sidebar-toggle-btn {
+        display: block;
+    }
+    
+    .block-composer-container {
+        width: 95%;
+        height: 90%;
+        margin: 5% auto;
+    }
+    
+    .block-composer-content {
+        flex-direction: column;
+    }
+    
+    .block-composer-sidebar {
+        width: 100%;
+        max-height: 40vh;
+    }
+    
+    .block-composer-main {
+        width: 100%;
+    }
+    
+    .block-composer-header h2 {
+        font-size: 18px;
+    }
+    
+    .form-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .structured-form {
+        padding: 0 10px;
+    }
+}
+
+@media (max-width: 768px) {
+    .block-composer-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1001; /* Higher than mobile editor toggle */
+        margin: 0;
+        padding: 8px 10px;
+        font-size: 12px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* When editor is hidden in mobile view */
+    .editor-panel[style*="display: none"] ~ .output-panel .block-composer-btn {
+        bottom: 100px; /* Position above the mobile editor toggle */
+        top: auto;
+        right: 15px;
+        position: fixed;
+    }
+    
+    /* Ensure the mobile editor toggle and block composer button don't overlap */
+    #mobile-editor-toggle {
+        margin-right: 50px;
+    }
+}
+
+/* Mobile layout styles */
+.block-composer-container.mobile-layout {
+    border-radius: 12px;
+    overflow: hidden;
+    max-height: 85vh;
+}
+
+/* Add Variable Button */
+.add-variable-btn {
+    background: none;
+    border: 1px solid #61dafb;
+    color: #61dafb;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.add-variable-btn:hover {
+    background: rgba(97, 218, 251, 0.1);
+}
+
+.add-variable-btn i {
+    font-size: 10px;
+}
+
+/* Form Help Text */
+.form-help {
+    color: #8f8f8f;
+    font-size: 12px;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+/* Parameter Info Display */
+.param-info {
+    background: #21222c;
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+}
+
+.param-info h4 {
+    color: #61dafb;
+    margin: 0 0 8px 0;
+    font-size: 14px;
+}
+
+.param-info ul {
+    padding-left: 20px;
+    margin: 8px 0;
+    color: #f8f8f2;
+    font-size: 13px;
+}
+
+.param-example {
+    font-family: "Consolas", monospace;
+    background: #282a36;
+    padding: 6px 8px;
+    border-radius: 3px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #f8f8f2;
+}
+
+/* Preview field */
+.preview-field {
+    margin-top: 15px;
+    border-top: 1px solid #44475a;
+    padding-top: 10px;
+}
+
+.preview-field label {
+    display: block;
+    color: #61dafb;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.preview-field pre {
+    background: #1e1e2e;
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin: 0;
+    font-family: "Consolas", monospace;
+    color: #f8f8f2;
+}
+
+/* Fix for mobile UI issues */
+@media (max-width: 768px) {
+    .block-editor-container,
+    .settings-editor-container {
+        width: 92%;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+    
+    .block-editor-content {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+    
+    /* Make buttons bigger on mobile */
+    .block-actions button {
+        font-size: 18px;
+        padding: 4px 8px;
+    }
+    
+    /* Better spacing for form fields */
+    .form-field {
+        margin-bottom: 15px;
+    }
+    
+    /* Ensure toggle button is visible */
+    .toggle-mode {
+        margin-top: 20px;
+        text-align: center;
+    }
+    
+    .toggle-editor-mode {
+        width: 100%;
+        padding: 10px;
+        font-size: 14px;
+    }
+    
+    /* Fix z-index issue with mobile editor button */
+    #mobile-editor-toggle {
+        z-index: 1001 !important;
+    }
+}
+
+/* Additional styles for function parameter forms */
+.function-description {
+    background: #21222c;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+    color: #f8f8f2;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.params-form {
+    margin-bottom: 15px;
+}
+
+.params-form .form-group {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed #44475a;
+}
+
+.params-form .form-group:last-child {
+    border-bottom: none;
+}
+
+.params-form label {
+    display: block;
+    margin-bottom: 5px;
+    color: #61dafb;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.params-form input[type="text"],
+.params-form input[type="number"],
+.params-form select {
+    width: 100%;
+    padding: 8px 10px;
+    background-color: #1e1e2e;
+    color: #f8f8f2;
+    border: 1px solid #44475a;
+    border-radius: 4px;
+}
+
+.params-form input[type="text"]:focus,
+.params-form input[type="number"]:focus,
+.params-form select:focus {
+    border-color: #61dafb;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.2);
+}
+
+.params-form .param-desc {
+    margin-top: 5px;
+    color: #8f8f8f;
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* Make the parameter editing form look better on mobile */
+@media (max-width: 768px) {
+    .block-editor-container {
+        width: 90%;
+        max-height: 80vh;
+    }
+    
+    .block-editor-content {
+        max-height: 60vh;
+        overflow-y: auto;
+        padding-bottom: 20px;
+    }
+    
+    .params-form label {
+        font-size: 16px;  /* Larger font for mobile */
+    }
+    
+    .params-form input[type="text"],
+    .params-form input[type="number"],
+    .params-form select {
+        padding: 10px;    /* Larger touch targets */
+        font-size: 16px;  /* Prevent zoom on mobile */
+    }
+    
+    .toggle-mode {
+        margin-top: 15px;
+        text-align: center;
+    }
+    
+    .toggle-editor-mode {
+        width: 100%;
+        padding: 10px;
+        font-size: 16px;
     }
 }

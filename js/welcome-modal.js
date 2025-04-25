@@ -109,6 +109,9 @@ class WelcomeModal {
                         <button id="open-visual-composer" class="welcome-button secondary-button">
                             Open Visual Composer
                         </button>
+                        <button id="open-block-composer" class="welcome-button secondary-button">
+                            Open Block Composer
+                        </button>
                         <button id="get-started-button" class="welcome-button primary-button">
                             Get Started
                         </button>
@@ -130,6 +133,7 @@ class WelcomeModal {
         const closeButton = document.getElementById('welcome-close');
         const getStartedButton = document.getElementById('get-started-button');
         const visualComposerButton = document.getElementById('open-visual-composer');
+        const blockComposerButton = document.getElementById('open-block-composer');
         const dontShowCheckbox = document.getElementById('dont-show-welcome');
         const showPromptButton = document.getElementById('show-prompt-button');  // This was missing
 
@@ -150,6 +154,19 @@ class WelcomeModal {
                         window.openVisualComposer();
                     } else {
                         console.error('openVisualComposer function not available');
+                    }
+                }, 100);
+            });
+        }
+
+        if (blockComposerButton) {
+            blockComposerButton.addEventListener('click', () => {
+                this.close();
+                setTimeout(() => {
+                    if (window.openBlockComposer && typeof window.openBlockComposer === 'function') {
+                        window.openBlockComposer();
+                    } else {
+                        console.error('openBlockComposer function not available');
                     }
                 }, 100);
             });
@@ -175,12 +192,7 @@ class WelcomeModal {
             const response = await fetch('prompt-template.txt');
             promptText = await response.text();
         } catch (e) {
-            promptText = `Prompt for AI Chatbots to Create Visualizers for KaleidoScript
-    
-    You are helping to create a new audio-reactive visualizer for the KaleidoScript app. This app lets users write JavaScript code to draw and animate visualizations that react to music or microphone input. The app provides a set of drawing and audio functions, and each visualizer is a function (or set of functions) that uses these APIs.
-    
-    The best AI for generating visualizers is Claude 3.7 Sonnet, but you can also use ChatGPT or other AI chatbots. But may
-    take a few tries to get the right code.
+            promptText = `You are helping to create a new audio-reactive visualizer for the KaleidoScript app. This app lets users write JavaScript code to draw and animate visualizations that react to music or microphone input. The app provides a set of drawing and audio functions, and each visualizer is a function (or set of functions) that uses these APIs.
 
     How the App Works:
     
@@ -224,16 +236,7 @@ class WelcomeModal {
         let bass = audiohz(settings.bassFreq);
         fill(...settings.circleColor);
         circle(width/2, height/2, settings.baseRadius + bass * settings.radiusScale);
-    }
-    
-    Instructions:
-    
-    Write a new visualizer by defining setup() and draw(time).
-    Use the provided drawing and audio functions.
-    Make the visualization react to the audio.
-    Optionally, use images or advanced effects.
-    Define a const settings = {} object for easy customization of parameters.
-    You can copy and paste this prompt into ChatGPT or another AI chatbot to generate new visualizer code for your app.`;
+    }`;
         }
     
         // Add CSS for the prompt modal if it doesn't exist

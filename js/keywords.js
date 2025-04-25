@@ -9,13 +9,13 @@ const canvasFunctions = {
         name: 'width',
         description: 'Returns the current canvas width in pixels.',
         example: 'const w = width; // Get canvas width',
-        category: 'canvas'
+        category: 'variables'
     },
     height: {
         name: 'height',
         description: 'Returns the current canvas height in pixels.',
         example: 'const h = height; // Get canvas height',
-        category: 'canvas'
+        category: 'variables'
     },
     size: {
         name: 'size(width, height)',
@@ -27,13 +27,13 @@ const canvasFunctions = {
         name: 'context',
         description: 'Returns the canvas 2D rendering context.',
         example: 'const ctx = context; // Get raw drawing context',
-        category: 'canvas'
+        category: 'variables'
     },
     canvas: {
         name: 'canvas',
         description: 'Returns the canvas DOM element.',
         example: 'const cnv = canvas; // Get canvas element',
-        category: 'canvas'
+        category: 'variables'
     }
 };
 
@@ -166,6 +166,12 @@ const drawingFunctions = {
         description: 'Clears the entire canvas.',
         example: 'clear(); // Clear everything',
         category: 'utility'
+    },
+    drawImage: {
+        name: 'drawImage(image, x, y, width, height)',
+        description: 'Draws an image at the specified position and size.',
+        example: 'drawImage(myImage, 100, 100, 200, 150); // Draw image at (100,100) with size (200x150)',
+        category: 'color'
     },
 
     // Gglow and motion blur functions

@@ -82,20 +82,36 @@ function addVisualComposerButton() {
     const editorHeader = document.querySelector('.editor-header');
     if (!editorHeader) return;
     
-    const composerBtn = document.createElement('button');
-    composerBtn.className = 'composer-button';
-    composerBtn.id = 'visual-composer-btn';
-    composerBtn.innerHTML = '<i class="fas fa-magic"></i> Visual Composer';
-    composerBtn.title = 'Create visualizations without coding';
+    const visualComposerBtn = document.createElement('button');
+    visualComposerBtn.className = 'composer-button';
+    visualComposerBtn.id = 'visual-composer-btn';
+    visualComposerBtn.innerHTML = '<i class="fas fa-magic"></i> Visual Composer';
+    visualComposerBtn.title = 'Create visualizations without coding';
     
-    editorHeader.appendChild(composerBtn);
+    const blockComposerBtn = document.createElement('button');
+    blockComposerBtn.className = 'composer-button block-composer-btn';
+    blockComposerBtn.id = 'block-composer-btn';
+    blockComposerBtn.innerHTML = '<i class="fas fa-cubes"></i> Block Composer';
+    blockComposerBtn.title = 'Create code using blocks';
     
-    composerBtn.addEventListener('click', function() {
+    editorHeader.appendChild(visualComposerBtn);
+    editorHeader.appendChild(blockComposerBtn);
+    
+    visualComposerBtn.addEventListener('click', function() {
         if (window.openVisualComposer) {
             window.openVisualComposer();
         } else {
             console.error('Visual Composer not loaded or initialized');
             alert('Visual Composer is not available. Please make sure visual-composer.js is loaded properly.');
+        }
+    });
+    
+    blockComposerBtn.addEventListener('click', function() {
+        if (window.openBlockComposer) {
+            window.openBlockComposer();
+        } else {
+            console.error('Block Composer not loaded or initialized');
+            alert('Block Composer is not available. Please make sure block-composer.js is loaded properly.');
         }
     });
 }

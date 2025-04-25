@@ -358,6 +358,7 @@ class Interpreter {
             window.brush = (r, g, b, a = 1) => this.brush(r, g, b, a);
             window.color = (r, g, b, a = 1) => this.color(r, g, b, a);
             window.lineWidth = (width) => this.lineWidth(width);
+            window.drawImage = (image, x, y, width, height) => this.drawImage(image, x, y, width, height);
 
             window.noise = (x, y, z) => this.noise(x, y, z);
             window.noiseMap = (nx, ny, scale, octaves, persistence, lacunarity) => 
@@ -2155,6 +2156,33 @@ class Interpreter {
         
         if (window.logToConsole) {
             window.logToConsole('Animation paused');
+        }
+    }
+
+    drawImage(image, x, y, width = null, height = null) {
+        if (!this.context) return;
+
+        if (image) {
+            // Load the image if it's a path
+            if (typeof image === 'string') {
+                image = this.loadImage(image);
+            }
+
+            if (image) {
+                // Calculate dimensions if not provided
+                if (!width) {
+                    width = image.width;
+                }
+                if (!height) {
+                    height = image.height;
+                }
+                // Draw the image at the specified position and size
+                this.context.drawImage(image, x, y, width, height);
+            } else {
+                window.logToConsole(`Failed to load image: ${image}`, 'error');
+            }
+        } else {
+            window.logToConsole(`Invalid image path: ${image}`, 'error');
         }
     }
 
