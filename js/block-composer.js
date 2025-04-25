@@ -3216,6 +3216,7 @@ class BlockComposer {
                 // Clear all blocks in setup and draw lists
                 document.querySelectorAll('#setup-list .block').forEach(block => block.remove());
                 document.querySelectorAll('#draw-list .block').forEach(block => block.remove());
+                document.querySelectorAll('#global-list .block:not(.settings-block)').forEach(block => block.remove());
                 
                 // Show empty messages
                 document.querySelectorAll('.block-list-empty').forEach(msg => {
@@ -3239,6 +3240,9 @@ class BlockComposer {
                     // Update the settings block with parsed settings
                     this.updateSettingsBlock();
                 }
+                
+                // Process global variables
+                this.processGlobalVariables(sections.globals);
             }
             
             // Clear existing blocks in the lists
@@ -3270,6 +3274,7 @@ class BlockComposer {
             // Show/hide empty messages as appropriate
             const setupList = document.getElementById('setup-list');
             const drawList = document.getElementById('draw-list');
+            const globalList = document.getElementById('global-list');
             
             if (setupList) {
                 const setupEmpty = setupList.querySelector('.block-list-empty');
@@ -3282,6 +3287,13 @@ class BlockComposer {
                 const drawEmpty = drawList.querySelector('.block-list-empty');
                 if (drawEmpty) {
                     drawEmpty.style.display = drawList.querySelectorAll('.block').length > 0 ? 'none' : 'block';
+                }
+            }
+            
+            if (globalList) {
+                const globalEmpty = globalList.querySelector('.block-list-empty');
+                if (globalEmpty) {
+                    globalEmpty.style.display = globalList.querySelectorAll('.block').length > 0 ? 'none' : 'block';
                 }
             }
             
@@ -3410,6 +3422,40 @@ class BlockComposer {
             console.error('Error parsing settings:', err);
             // Don't reset settings on error
         }
+    }
+
+    processGlobalVariables(globalCode) {
+        if (!globalCode) return;
+    
+        // Clear existing global variables (but keep settings block)
+        document.querySelectorAll('#global-list .block:not(.settings-block)').forEach(block => block.remove());
+        
+        // Split the global section into individual statements
+        const statements = this.splitIntoStatements(globalCode);
+        
+        statements.forEach(statement => {
+            statement = statement.trim();
+            if (!statement) return;
+            
+            // Skip comments
+            if (statement.startsWith('//')) return;
+            
+            // Check if this is a settings object
+            if (statement.match(/^const\s+settings\s*=\s*{/)) {
+                // This will be handled separately by parseSettings
+                return;
+            }
+            
+            // Check if this is a variable declaration
+            const varMatch = statement.match(/^(var|let|const)\s+(\w+)\s*=\s*(.+);$/);
+            if (varMatch) {
+                const [, varType, varName, varValue] = varMatch;
+                this.addGlobalVariable(varName, varType, varValue);
+            } else {
+                // If not a standard variable, add as custom code block
+                this.addCustomCodeBlock('global', 'Custom Global', statement);
+            }
+        });
     }
 
     processSettingValue(settingsObj, key, valueStr) {
