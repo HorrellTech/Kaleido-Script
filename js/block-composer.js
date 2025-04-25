@@ -2157,9 +2157,9 @@ class BlockComposer {
 
     // Helper to extract for loop parts
     extractForLoopParts(code) {
-        // Match the three parts of a for loop
-        const match = code.match(/for\s*\((.*?);(.*?);(.*?)\)\s*{/);
-        if (match) {
+        // Improved regex that handles more variations in for loop syntax
+        const match = code.match(/for\s*\(\s*(.*?)(?:;)\s*(.*?)(?:;)\s*(.*?)\s*\)\s*{?/);
+        if (match && match.length >= 4) {
             return [
                 match[1].trim(), // initialization
                 match[2].trim(), // condition
@@ -3722,23 +3722,242 @@ class BlockComposer {
         // Skip if the section is empty
         if (!codeSection || !codeSection.trim()) return;
         
-        // Split into statements, preserving multi-line blocks
-        const statements = this.splitIntoStatements(codeSection);
+        // First, normalize the code by ensuring proper spacing around braces
+        const normalizedCode = codeSection
+            .replace(/\{/g, ' { ')
+            .replace(/\}/g, ' } ');
         
-        // Process each statement
-        for (let statement of statements) {
-            statement = statement.trim();
-            if (!statement || statement.startsWith('//')) continue;
-            
-            // Create block for statement
-            this.createBlockFromStatement(statement, listId);
-        }
+        // Parse the code using a more sophisticated approach to handle control structures
+        this.parseControlStructures(normalizedCode, listId);
         
         // Hide the empty message since we've added blocks
         const emptyMsg = list.querySelector('.block-list-empty');
         if (emptyMsg) {
             emptyMsg.style.display = 'none';
         }
+    }
+    
+    parseControlStructures(code, listId) {
+        // Track nesting levels and control structures
+        const controlStack = [];
+        let currentCode = '';
+        let braceLevel = 0;
+        let inString = false;
+        let stringChar = '';
+        let inForLoopDeclaration = false;
+        
+        // Process the code character by character
+        for (let i = 0; i < code.length; i++) {
+            const char = code[i];
+            
+            // Handle string literals to avoid parsing braces inside strings
+            if ((char === '"' || char === "'") && (i === 0 || code[i-1] !== '\\')) {
+                if (!inString) {
+                    inString = true;
+                    stringChar = char;
+                } else if (char === stringChar) {
+                    inString = false;
+                }
+            }
+            
+            // Only process special characters when not inside a string
+            if (!inString) {
+                // Check for for loop signature to prevent breaking on semicolons within for declaration
+                if (char === '(' && currentCode.trim().match(/^for\s*$/)) {
+                    inForLoopDeclaration = true;
+                } else if (char === ')' && inForLoopDeclaration) {
+                    inForLoopDeclaration = false;
+                }
+                
+                if (char === '{') {
+                    braceLevel++;
+                    
+                    // If this is the opening brace of a control structure
+                    if (currentCode.trim()) {
+                        // Check if it's a control structure
+                        const trimmedCode = currentCode.trim();
+                        
+                        if (trimmedCode.match(/^for\s*\(.*\)$/)) {
+                            // Create the for loop block
+                            this.createBlockFromStatement(trimmedCode + ' {', listId);
+                            
+                            // Push to control stack
+                            controlStack.push('for');
+                            
+                            // Reset current code for next statement
+                            currentCode = '';
+                            continue;
+                        } 
+                        else if (trimmedCode.match(/^if\s*\(.*\)$/)) {
+                            // Create the if statement block
+                            this.createBlockFromStatement(trimmedCode + ' {', listId);
+                            
+                            // Push to control stack
+                            controlStack.push('if');
+                            
+                            // Reset current code for next statement
+                            currentCode = '';
+                            continue;
+                        }
+                        else if (trimmedCode.match(/^else if\s*\(.*\)$/)) {
+                            // Create the else if statement block
+                            this.createBlockFromStatement('} ' + trimmedCode + ' {', listId);
+                            
+                            // Update control stack
+                            if (controlStack.length > 0) {
+                                controlStack[controlStack.length - 1] = 'else if';
+                            } else {
+                                controlStack.push('else if');
+                            }
+                            
+                            // Reset current code for next statement
+                            currentCode = '';
+                            continue;
+                        }
+                        else if (trimmedCode === 'else') {
+                            // Create the else statement block
+                            this.createBlockFromStatement('} else {', listId);
+                            
+                            // Update control stack
+                            if (controlStack.length > 0) {
+                                controlStack[controlStack.length - 1] = 'else';
+                            } else {
+                                controlStack.push('else');
+                            }
+                            
+                            // Reset current code for next statement
+                            currentCode = '';
+                            continue;
+                        }
+                    }
+                } 
+                else if (char === '}') {
+                    braceLevel--;
+                    
+                    // If we have a closing brace and there are structures in our stack
+                    if (controlStack.length > 0) {
+                        // Process any accumulated code before the closing brace
+                        if (currentCode.trim()) {
+                            // Split by semicolons to get individual statements, but only if we're not in a for loop declaration
+                            const statements = this.splitIntoIndividualStatements(currentCode);
+                            
+                            // Create blocks for each statement
+                            statements.forEach(stmt => {
+                                if (stmt.trim()) {
+                                    this.createBlockFromStatement(stmt, listId);
+                                }
+                            });
+                        }
+                        
+                        // Only close the control structure if the brace levels match
+                        // For nested loops, we only want to close when we're back at the appropriate level
+                        if (braceLevel === controlStack.length - 1) {
+                            const controlType = controlStack.pop();
+                            if (controlType === 'for') {
+                                this.createBlockFromStatement('end for', listId);
+                            } else {
+                                this.createBlockFromStatement('end if', listId);
+                            }
+                        }
+                        
+                        // Reset current code for next statement
+                        currentCode = '';
+                        continue;
+                    }
+                }
+                else if (braceLevel === 0 && char === ';' && !inForLoopDeclaration) {
+                    // At top level, semicolons terminate statements (but not in for loop declaration)
+                    currentCode += char;
+                    
+                    const trimmedCode = currentCode.trim();
+                    if (trimmedCode) {
+                        this.createBlockFromStatement(trimmedCode, listId);
+                        currentCode = '';
+                        continue;
+                    }
+                }
+            }
+            
+            // Add character to current code
+            currentCode += char;
+        }
+        
+        // Process any remaining code
+        if (currentCode.trim()) {
+            const statements = this.splitIntoIndividualStatements(currentCode);
+            statements.forEach(stmt => {
+                if (stmt.trim()) {
+                    this.createBlockFromStatement(stmt, listId);
+                }
+            });
+        }
+    }
+
+    splitIntoIndividualStatements(code) {
+        const statements = [];
+        let currentStatement = '';
+        let braceLevel = 0;
+        let parenLevel = 0;
+        let inString = false;
+        let stringChar = '';
+        let forLoopParamCount = 0;
+        
+        for (let i = 0; i < code.length; i++) {
+            const char = code[i];
+            
+            // Handle string literals
+            if ((char === '"' || char === "'") && (i === 0 || code[i-1] !== '\\')) {
+                if (!inString) {
+                    inString = true;
+                    stringChar = char;
+                } else if (char === stringChar) {
+                    inString = false;
+                }
+            }
+            
+            // Track brace and parenthesis level
+            if (!inString) {
+                if (char === '{') braceLevel++;
+                if (char === '}') braceLevel--;
+                
+                // Handle for loop detection and special semicolon handling
+                if (char === '(') {
+                    parenLevel++;
+                    // Check if we're entering a for loop declaration
+                    const prefix = currentStatement.trim();
+                    if (prefix.match(/^for\s*$/)) {
+                        forLoopParamCount = 0; // Reset the semicolon counter
+                    }
+                }
+                else if (char === ')') {
+                    parenLevel--;
+                }
+                // Count semicolons inside parentheses which could be for loop params
+                else if (char === ';' && parenLevel > 0) {
+                    forLoopParamCount++;
+                }
+                
+                // Split on semicolons at the top level, but never inside for loop declarations
+                // Regular for loop has exactly 2 semicolons in its declaration
+                if (braceLevel === 0 && parenLevel === 0 && char === ';') {
+                    currentStatement += char;
+                    if (currentStatement.trim()) {
+                        statements.push(currentStatement.trim());
+                    }
+                    currentStatement = '';
+                    continue;
+                }
+            }
+            
+            currentStatement += char;
+        }
+        
+        // Add any remaining statement
+        if (currentStatement.trim()) {
+            statements.push(currentStatement.trim());
+        }
+        
+        return statements;
     }
 
     // Split code into individual statements
@@ -3808,35 +4027,61 @@ class BlockComposer {
             const list = document.getElementById(listId);
             if (!list) return;
             
+            // Clean up the statement
+            const cleanStatement = statement.trim();
+            
+            // Check for empty or comment-only statements
+            if (!cleanStatement || cleanStatement.startsWith('//')) {
+                return;
+            }
+            
             // Try to determine what kind of statement this is
-            let blockType = 'function';
+            let blockType = 'custom'; // Default to custom
             let blockName = '';
             
-            // Check for control structures
-            if (statement.startsWith('if ') || statement.startsWith('if(')) {
+            // Check for control structures first
+            if (cleanStatement.startsWith('if ') || cleanStatement.startsWith('if(')) {
                 blockType = 'keyword';
                 blockName = 'if';
-            } else if (statement.startsWith('} else if') || statement.startsWith('}else if')) {
+            } else if (cleanStatement.startsWith('} else if') || cleanStatement.startsWith('}else if')) {
                 blockType = 'keyword';
                 blockName = 'else if';
-            } else if (statement.startsWith('} else') || statement.startsWith('}else')) {
+            } else if (cleanStatement.startsWith('} else') || cleanStatement.startsWith('}else')) {
                 blockType = 'keyword';
                 blockName = 'else';
-            } else if (statement === '}') {
+            } else if (cleanStatement === '}' || cleanStatement === 'end if') {
+                blockType = 'keyword';
+                blockName = 'end if';
+            } else if (cleanStatement === 'end for') {
                 blockType = 'keyword';
                 blockName = 'end';
-            } else if (statement.startsWith('for ') || statement.startsWith('for(')) {
+            } else if (cleanStatement.startsWith('for ') || cleanStatement.startsWith('for(')) {
                 blockType = 'keyword';
                 blockName = 'for';
             } else {
-                // Try to extract function name
-                const funcMatch = statement.match(/^(\w+)\s*\(/);
+                // Improved function call detection
+                // Look for pattern: functionName(...);
+                const funcRegex = /^(\w+)\s*\(.*\);?$/;
+                const funcMatch = cleanStatement.match(funcRegex);
+                
                 if (funcMatch) {
                     blockName = funcMatch[1];
+                    blockType = 'function';
+                    
+                    // Check if it's a known function from keywords.js
+                    if (window.keywordInfo && window.keywordInfo[blockName]) {
+                        blockType = 'function';
+                    }
                 } else {
-                    // Fallback
-                    blockName = 'customCode';
-                    blockType = 'custom';
+                    // Check for variable declarations
+                    const varRegex = /^(var|let|const)\s+\w+/;
+                    if (cleanStatement.match(varRegex)) {
+                        blockType = 'keyword';
+                        blockName = cleanStatement.split(' ')[0]; // var, let, or const
+                    } else {
+                        // It's truly a custom code block
+                        blockName = 'customCode';
+                    }
                 }
             }
             
@@ -3846,6 +4091,14 @@ class BlockComposer {
             block.dataset.name = blockName;
             block.dataset.type = blockType;
             block.draggable = true;
+            
+            // Format the display code based on the block type
+            let displayCode = cleanStatement;
+            if (blockName === 'end if' || blockName === 'end') {
+                displayCode = '}';
+            } else if (blockName === 'end for') {
+                displayCode = '}';
+            }
             
             // Create block content
             block.innerHTML = `
@@ -3857,7 +4110,7 @@ class BlockComposer {
                     </div>
                 </div>
                 <div class="block-content">
-                    <pre>${statement}</pre>
+                    <pre>${displayCode}</pre>
                 </div>
             `;
             
