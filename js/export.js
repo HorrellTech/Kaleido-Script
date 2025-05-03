@@ -135,6 +135,13 @@ function hideGIFConfigModal() {
 }
 
 function startGIFExport(renderer) {
+    // Validate renderer
+    if (!renderer || !renderer.canvas) {
+        window.logToConsole('Error: Invalid renderer - export cancelled', 'error');
+        alert('The animation renderer is not properly initialized. Please refresh the page and try again.');
+        return;
+    }
+
     // Get configuration
     const canvas = renderer.canvas;
     const filename = document.getElementById('gif-filename').value || 'kaleido-script-animation.gif';
@@ -179,29 +186,86 @@ function startGIFExport(renderer) {
     
     // Create a Blob URL for the worker script to avoid CORS issues
     const createWorkerBlob = () => {
-        // Fetch the worker script directly
+        // Check if we can load from CDN
         return fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
-            .then(response => response.text())
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to load GIF worker from CDN');
+                return response.text();
+            })
             .then(workerCode => {
                 // Create a blob URL from the worker code
                 const blob = new Blob([workerCode], { type: 'application/javascript' });
                 return URL.createObjectURL(blob);
             })
             .catch(error => {
-                window.logToConsole(`Failed to load GIF worker: ${error.message}`, 'error');
-                hideExportProgress();
-                if (wasRunning) {
-                    renderer.start();
-                }
-                return null;
+                console.error('Failed to create worker blob:', error);
+                // Try to use the local worker if available
+                return 'js/lib/gif.worker.js';
             });
     };
     
+    // Ensure the renderer is ready for frame capture
+    function prepareRenderer() {
+        try {
+            if (!renderer || !renderer.canvas) {
+                throw new Error('Invalid renderer or missing canvas property');
+            }
+            
+            // Make sure we have all the necessary methods
+            if (!renderer.renderFrame) {
+                // Create a fallback renderFrame method if one is not available
+                renderer.renderFrame = function(time) {
+                    if (this.draw) {
+                        return this.draw(time);
+                    } else if (this.render) {
+                        return this.render(time);
+                    } else {
+                        throw new Error('No rendering method available');
+                    }
+                };
+            }
+            
+            // Make sure we have a clear method
+            if (!renderer.clear) {
+                renderer.clear = function() {
+                    if (!this.ctx && this.canvas) {
+                        this.ctx = this.canvas.getContext('2d');
+                    }
+                    
+                    if (this.ctx) {
+                        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                    } else {
+                        console.warn('Cannot clear canvas: ctx is not available');
+                    }
+                };
+            }
+            
+            // Check if renderer's context is available
+            if (!renderer.ctx && renderer.canvas) {
+                renderer.ctx = renderer.canvas.getContext('2d');
+            }
+            
+            return renderer.ctx ? true : false;
+        } catch (error) {
+            console.error('Error preparing renderer:', error);
+            window.logToConsole(`Error preparing renderer: ${error.message}`, 'error');
+            return false;
+        }
+    }
+    
     // Create worker blob URL then start processing
     createWorkerBlob().then(workerUrl => {
-        if (!workerUrl || isCancelled) return;
+        if (isCancelled) return;
         
-        // Create temp canvas if needed for resizing
+        // Prepare renderer for capture
+        if (!prepareRenderer()) {
+            window.logToConsole('Error: Cannot prepare renderer for frame capture', 'error');
+            hideExportProgress();
+            if (wasRunning) renderer.start();
+            return;
+        }
+        
+        // Create temp canvas for resizing if needed
         let tempCanvas = null;
         let tempContext = null;
         
@@ -216,105 +280,142 @@ function startGIFExport(renderer) {
         const totalFrames = Math.ceil(fps * duration);
         const frameInterval = 1 / fps;
         
-        // Collect frames first - this prevents memory issues with GIF.js
         window.logToConsole(`Capturing ${totalFrames} frames for GIF...`, 'info');
         updateExportProgress(0);
         
-        // Use the new worker URL
-        const gif = new GIF({
-            workers: 2,
-            quality: quality,
-            width: width,
-            height: height,
-            workerScript: workerUrl,
-            dither: false  // Disable dithering for faster encoding
-        });
+        try {
+            // Initialize GIF encoder with proper settings
+            const gif = new GIF({
+                workers: 2,
+                quality: quality,
+                width: width,
+                height: height,
+                workerScript: workerUrl,
+                dither: false
+            });
             
-        // Set up progress handling
-        gif.on('progress', p => {
-            // Scale progress to 50-100% range (capture was 0-50%)
-            const overallProgress = 50 + Math.floor(p * 50);
-            updateExportProgress(overallProgress);
-            window.logToConsole(`Encoding GIF: ${Math.floor(p * 100)}%`, 'info');
-        });
+            // Set up progress handling
+            gif.on('progress', p => {
+                // Scale progress to 50-100% range
+                const overallProgress = 50 + Math.floor(p * 50);
+                updateExportProgress(overallProgress);
+                window.logToConsole(`Encoding GIF: ${Math.floor(p * 100)}%`, 'info');
+            });
             
-        gif.on('finished', blob => {
-            if (isCancelled) return;
-            
-            // Clean up the worker Blob URL
-            URL.revokeObjectURL(workerUrl);
+            gif.on('finished', blob => {
+                if (isCancelled) return;
                 
-            // Download the GIF
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
+                // Clean up
+                URL.revokeObjectURL(workerUrl);
                 
-            // Clean up
-            hideExportProgress();
-            if (wasRunning) {
-                renderer.start();
-            }
+                // Download the GIF
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
                 
-            window.logToConsole(`GIF exported successfully as ${filename}`, 'info');
-        });
-            
-        // Fallback for gif.js errors
-        gif.on('abort', error => {
-            hideExportProgress();
-            window.logToConsole(`GIF export failed: ${error || 'unknown error'}`, 'error');
-            if (wasRunning) {
-                renderer.start();
-            }
-        });
-        
-        // Capture frames (more memory efficient approach)
-        const captureFrames = async () => {
-            try {
-                // Use smaller batches of frames to avoid memory issues
-                for (let i = 0; i < totalFrames; i++) {
-                    if (isCancelled) return;
-                    
-                    // Render the frame
-                    const time = i * frameInterval;
-                    renderer.renderFrame(time);
-                    
-                    // Add frame to GIF
-                    if (tempCanvas) {
-                        tempContext.drawImage(canvas, 0, 0, width, height);
-                        gif.addFrame(tempCanvas, {delay: 1000 / fps, copy: true, dispose: 2});
-                    } else {
-                        gif.addFrame(canvas, {delay: 1000 / fps, copy: true, dispose: 2});
-                    }
-                    
-                    // Update progress (use 50% of total progress for frame capture)
-                    const progress = Math.floor((i / totalFrames) * 50);
-                    updateExportProgress(progress);
-                    window.logToConsole(`Capturing frames: ${i+1}/${totalFrames}`, 'info');
-                    
-                    // Let the browser breathe every 10 frames
-                    if (i % 10 === 9) {
-                        await new Promise(r => setTimeout(r, 0));
-                    }
-                }
-                
-                window.logToConsole('Frame capture complete, rendering GIF...', 'info');
-                gif.render();
-            } catch (error) {
-                console.error("Error capturing frames:", error);
+                // Clean up
                 hideExportProgress();
-                window.logToConsole(`GIF export failed: ${error.message}`, 'error');
                 if (wasRunning) {
                     renderer.start();
                 }
+                
+                window.logToConsole(`GIF exported successfully as ${filename}`, 'info');
+            });
+            
+            // Handle GIF.js errors
+            gif.on('abort', error => {
+                hideExportProgress();
+                window.logToConsole(`GIF export failed: ${error || 'unknown error'}`, 'error');
+                if (wasRunning) {
+                    renderer.start();
+                }
+            });
+            
+            // Use async/await to capture frames sequentially
+            const captureFrames = async () => {
+                try {
+                    for (let i = 0; i < totalFrames; i++) {
+                        if (isCancelled) return;
+                        
+                        // Render the frame at this specific time
+                        const time = i * frameInterval;
+                        try {
+                            // Make sure renderer has necessary methods before each frame
+                            if (!renderer.clear) {
+                                console.warn('Renderer missing clear method, adding it');
+                                renderer.clear = function() {
+                                    if (this.ctx) {
+                                        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                                    } else if (this.canvas) {
+                                        const ctx = this.canvas.getContext('2d');
+                                        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                                    }
+                                };
+                            }
+                            
+                            // Safely render frame
+                            renderer.renderFrame(time);
+                            
+                            // Add frame to GIF
+                            if (tempCanvas) {
+                                // Resize to target dimensions
+                                tempContext.clearRect(0, 0, width, height);
+                                tempContext.drawImage(canvas, 0, 0, width, height);
+                                gif.addFrame(tempCanvas, {delay: 1000 / fps, copy: true});
+                            } else {
+                                gif.addFrame(canvas, {delay: 1000 / fps, copy: true});
+                            }
+                            
+                            // Update progress (0-50% range for frame capture)
+                            const progress = Math.floor((i / totalFrames) * 50);
+                            updateExportProgress(progress);
+                            
+                            // Log progress occasionally
+                            if (i % 10 === 0 || i === totalFrames - 1) {
+                                window.logToConsole(`Capturing frame ${i+1}/${totalFrames}`, 'info');
+                            }
+                            
+                            // Let the browser breathe
+                            if (i % 5 === 0) {
+                                await new Promise(resolve => setTimeout(resolve, 0));
+                            }
+                        } catch (frameError) {
+                            console.error('Error rendering frame:', frameError);
+                            window.logToConsole(`Warning: Error on frame ${i+1}: ${frameError.message}`, 'warning');
+                            // Continue with next frame instead of failing the whole export
+                        }
+                    }
+                    
+                    window.logToConsole('Frame capture complete, rendering GIF...', 'info');
+                    updateExportProgress(50);
+                    
+                    // Start rendering the GIF
+                    gif.render();
+                } catch (error) {
+                    console.error('Error capturing frames:', error);
+                    window.logToConsole(`GIF export error: ${error.message}`, 'error');
+                    hideExportProgress();
+                    if (wasRunning) {
+                        renderer.start();
+                    }
+                }
+            };
+            
+            // Start capturing frames
+            captureFrames();
+            
+        } catch (error) {
+            console.error('Error initializing GIF encoder:', error);
+            window.logToConsole(`GIF export failed: ${error.message}`, 'error');
+            hideExportProgress();
+            if (wasRunning) {
+                renderer.start();
             }
-        };
-        
-        // Start capturing frames
-        captureFrames();
+        }
     });
 }
 

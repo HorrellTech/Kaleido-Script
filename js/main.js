@@ -451,13 +451,45 @@ allowfullscreen
         });
     }
 
-    // Add event listener for the main export button - with null check
+    // Set up the export dropdown functionality properly
     const exportButton = document.getElementById('export-button');
     if (exportButton) {
-        exportButton.addEventListener('click', (e) => {
+        // Remove any existing click handlers
+        const newButton = exportButton.cloneNode(true);
+        exportButton.parentNode.replaceChild(newButton, exportButton);
+        
+        // Add click handler to the new button
+        newButton.addEventListener('click', function(e) {
+            e.preventDefault();
             e.stopPropagation();
-            const menu = exportButton.nextElementSibling;
-            if (menu) menu.classList.toggle('show');
+            
+            // Find the dropdown menu
+            const dropdownMenu = document.querySelector('.dropdown-menu');
+            if (dropdownMenu) {
+                // Toggle visibility
+                if (dropdownMenu.style.display === 'block') {
+                    dropdownMenu.style.display = 'none';
+                } else {
+                    dropdownMenu.style.display = 'block';
+                    
+                    // Position it correctly
+                    const buttonRect = newButton.getBoundingClientRect();
+                    dropdownMenu.style.position = 'absolute';
+                    dropdownMenu.style.top = buttonRect.bottom + 'px';
+                    dropdownMenu.style.right = '0';
+                }
+                console.log('Export dropdown visibility:', dropdownMenu.style.display);
+            }
+        });
+        
+        // Add document click handler to close dropdown when clicking elsewhere
+        document.addEventListener('click', function(e) {
+            if (!e.target.matches('#export-button') && !e.target.closest('#export-button')) {
+                const dropdownMenu = document.querySelector('.dropdown-menu');
+                if (dropdownMenu && dropdownMenu.style.display === 'block') {
+                    dropdownMenu.style.display = 'none';
+                }
+            }
         });
     }
     
