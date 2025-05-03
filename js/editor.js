@@ -95,7 +95,7 @@ function addVisualComposerButton() {
     blockComposerBtn.title = 'Create code using blocks';
     
     editorHeader.appendChild(visualComposerBtn);
-    editorHeader.appendChild(blockComposerBtn);
+    //editorHeader.appendChild(blockComposerBtn);
     
     visualComposerBtn.addEventListener('click', function() {
         if (window.openVisualComposer) {

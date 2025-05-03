@@ -109,9 +109,9 @@ class WelcomeModal {
                         <button id="open-visual-composer" class="welcome-button secondary-button">
                             Open Visual Composer
                         </button>
-                        <button id="open-block-composer" class="welcome-button secondary-button">
+                        <!--button id="open-block-composer" class="welcome-button secondary-button">
                             Open Block Composer
-                        </button>
+                        </button-->
                         <button id="get-started-button" class="welcome-button primary-button">
                             Get Started
                         </button>

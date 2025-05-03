@@ -32,7 +32,7 @@ class BlockComposer {
         this.extractKeywords();
         
         // Create the UI
-        this.createUI();
+        //this.createUI();
 
         // Add default audio functions to setup
         //this.addDefaultAudioFunctions();
